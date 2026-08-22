@@ -33,7 +33,7 @@
       <div class="divider"></div>
       <div class="summary-item">
         <span class="label">支出</span>
-        <span class="value expense">&minus;{{ totalExpense.toFixed(2) }}</span>
+        <span class="value expense">&minus;{{ Math.abs(totalExpense).toFixed(2) }}</span>
       </div>
     </div>
 
@@ -55,7 +55,7 @@
       <el-table-column label="金额" width="130">
         <template #default="{ row }">
           <span :class="row.type === 'EXPENSE' ? 'amount-expense' : 'amount-income'">
-            {{ row.type === 'EXPENSE' ? '&minus;' : '+' }}{{ Number(row.amount).toFixed(2) }}
+            {{ row.type === 'EXPENSE' ? '&minus;' : '+' }}{{ Math.abs(Number(row.amount)).toFixed(2) }}
           </span>
         </template>
       </el-table-column>

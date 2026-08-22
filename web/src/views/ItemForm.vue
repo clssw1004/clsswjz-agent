@@ -226,7 +226,7 @@ onMounted(async () => {
     const res: any = await itemApi.get(itemId);
     const it = res.items || res;
     form.type = it.type === 'INCOME' ? 'INCOME' : 'EXPENSE';
-    form.amount = Number(it.amount);
+    form.amount = Math.abs(Number(it.amount));
     form.categoryCode = it.categoryCode || '';
     form.fundId = it.fundId ?? '';
     form.shopCode = it.shopCode || '';
@@ -238,9 +238,11 @@ onMounted(async () => {
 });
 
 function buildPayload() {
+  // 对齐移动端约定：支出存负数、收入存正数（Flutter item_form_provider.dart 的 updateAmount）
+  const amount = Number(form.amount) || 0;
   return {
     type: form.type,
-    amount: Number(form.amount),
+    amount: form.type === 'EXPENSE' ? -Math.abs(amount) : Math.abs(amount),
     categoryCode: form.categoryCode || null,
     fundId: form.fundId || null,
     shopCode: form.shopCode || null,
