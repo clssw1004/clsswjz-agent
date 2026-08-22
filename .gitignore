@@ -1,5 +1,61 @@
+# ===== Node.js =====
 node_modules/
 dist/
-data/
+build/
+*.tsbuildinfo
+.eslintcache
+.prettiercache
+
+# ===== 日志 =====
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# ===== 环境变量（密钥不入库；.env.example 保留提交） =====
 .env
+.env.local
+.env.*.local
+
+# ===== 运行时数据（meta.db + 用户 SQLite + 附件，绝不提交） =====
+data/
 *.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.db-wal
+*.db-shm
+
+# ===== 前端构建 / 缓存 =====
+.vite/
+
+# ===== 测试 =====
+coverage/
+.nyc_output/
+
+# ===== IDE / 编辑器 =====
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+.project
+.classpath
+.settings/
+*.launch
+*.sublime-workspace
+
+# ===== 操作系统 =====
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ===== 本地工具数据 =====
+.codegraph/
+.workbuddy/
+.temp/
+.tmp/
