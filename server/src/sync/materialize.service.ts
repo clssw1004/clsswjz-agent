@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { IsNull } from 'typeorm';
 import { LogSync } from '../entities/log-sync.entity';
 import { SyncState } from '../enums/sync-state.enum';
 import { BusinessType } from '../enums/business-type.enum';
@@ -25,7 +26,7 @@ export class MaterializeService {
     let processed = 0;
     while (true) {
       const logs = await logRepo.find({
-        where: { syncState: SyncState.SYNCED, materializedAt: 0 as any },
+        where: { syncState: SyncState.SYNCED, materializedAt: IsNull() },
         order: { operatedAt: 'ASC' },
         take: 100,
       });

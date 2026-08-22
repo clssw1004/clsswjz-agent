@@ -90,7 +90,23 @@ export class SyncService implements OnModuleInit, OnModuleDestroy {
         const result = resp.data?.data || resp.data;
         for (const log of (result.changes || [])) {
           const exists = await logRepo.findOneBy({ id: log.id });
-          if (!exists) { await logRepo.save(logRepo.create({ ...log, syncState: SyncState.SYNCED })); totalPulled++; }
+          if (!exists) {
+            const { materializedAt, materializeError, ...cleanLog } = log;
+            await logRepo.save(logRepo.create({
+              id: cleanLog.id,
+              parentType: cleanLog.parentType ?? 'root',
+              parentId: cleanLog.parentId ?? 'None',
+              operatorId: cleanLog.operatorId,
+              operatedAt: Number(cleanLog.operatedAt),
+              businessType: cleanLog.businessType,
+              operateType: cleanLog.operateType,
+              businessId: cleanLog.businessId,
+              operateData: cleanLog.operateData,
+              syncState: SyncState.SYNCED,
+              syncTime: Number(cleanLog.syncTime) > 0 ? Number(cleanLog.syncTime) : Date.now(),
+            }));
+            totalPulled++;
+          }
         }
         if (totalPulled >= result.total || (result.changes || []).length === 0) break;
         page++;

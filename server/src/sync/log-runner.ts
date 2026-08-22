@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { LogSync } from '../entities/log-sync.entity';
 import { BusinessType } from '../enums/business-type.enum';
 import { OperateType } from '../enums/operate-type.enum';
@@ -27,6 +27,16 @@ const TYPE_MAP: Record<string, any> = {
 
 @Injectable()
 export class LogRunner {
+  private sanitize(data: any, repo: Repository<any>): any {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return data;
+    const cols = new Set(repo.metadata.columns.map((c: any) => c.propertyName));
+    const out: any = {};
+    for (const [k, v] of Object.entries(data)) {
+      if (cols.has(k)) out[k] = v;
+    }
+    return out;
+  }
+
   async runLogSync(log: LogSync, ds: DataSource): Promise<void> {
     const EntityClass = TYPE_MAP[log.businessType];
     if (!EntityClass) return;
@@ -34,11 +44,21 @@ export class LogRunner {
     const data = log.operateData ? JSON.parse(log.operateData) : null;
     switch (log.operateType) {
       case OperateType.CREATE:
+        if (data) await repo.save(this.sanitize(data, repo));
+        break;
       case OperateType.BATCH_CREATE:
-        if (data) await repo.save(data);
+        if (Array.isArray(data)) {
+          for (const row of data) await repo.save(this.sanitize(row, repo));
+        } else if (data) {
+          await repo.save(this.sanitize(data, repo));
+        }
         break;
       case OperateType.UPDATE:
-        if (data) { const { id, ...fields } = data; await repo.update(log.businessId, fields); }
+        if (data) {
+          const { id, ...fields } = data;
+          const clean = this.sanitize(fields, repo);
+          if (Object.keys(clean).length > 0) await repo.update(log.businessId, clean);
+        }
         break;
       case OperateType.DELETE:
         await repo.delete(log.businessId);
@@ -46,6 +66,21 @@ export class LogRunner {
       case OperateType.BATCH_DELETE:
         if (data?.ids) await repo.delete(data.ids);
         else await repo.delete(log.businessId);
+        break;
+      case OperateType.BATCH_UPDATE:
+        if (Array.isArray(data)) {
+          for (const row of data) {
+            const { id, ...fields } = row;
+            const clean = this.sanitize(fields, repo);
+            if (id && Object.keys(clean).length > 0) await repo.update(id, clean);
+          }
+        } else if (data?.ids && Array.isArray(data.data)) {
+          for (let i = 0; i < data.ids.length; i++) {
+            const fields = typeof data.data[i] === 'object' ? data.data[i] : {};
+            const clean = this.sanitize(fields, repo);
+            if (Object.keys(clean).length > 0) await repo.update(data.ids[i], clean);
+          }
+        }
         break;
     }
   }
