@@ -1,0 +1,12 @@
+services:
+  agent:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - SERVER_PORT=3001
+      - JWT_SECRET=${JWT_SECRET:-change-me}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

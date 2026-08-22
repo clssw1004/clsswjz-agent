@@ -1,0 +1,10 @@
+{
+  "name": "clsswjz-agent",
+  "private": true,
+  "scripts": {
+    "dev:server": "cd server && npm run start:dev",
+    "dev:web": "cd web && npm run dev",
+    "build": "cd server && npm run build && cd ../web && npm run build",
+    "start": "cd server && npm run start:prod"
+  }
+}
