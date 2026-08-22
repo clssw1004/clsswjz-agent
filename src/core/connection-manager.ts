@@ -56,6 +56,9 @@ export class ConnectionManager {
       database: dbPath,
       entities: USER_ENTITIES,
       synchronize: true,
+      // WAL 允许读写并发；busy_timeout 让写锁冲突时等待而不是立刻抛 SQLITE_BUSY
+      enableWAL: true,
+      busyTimeout: 5000,
     });
     await ds.initialize();
     this.connections.set(userId, ds);
