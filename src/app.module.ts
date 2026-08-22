@@ -21,9 +21,9 @@ import { ProjectModule } from './projects/project.module';
 import { NoteModule } from './notes/note.module';
 import { AttachmentModule } from './attachments/attachment.module';
 
-// 生产托管 admin-web 构建产物（SPA 历史路由 fallback）；
-// admin-web/dist 不存在时（纯 API 开发 / 未构建前端）不注册静态服务
-const adminDist = join(__dirname, '..', 'admin-web', 'dist');
+// 生产托管 web 构建产物（SPA 历史路由 fallback）；
+// web/dist 不存在时（纯 API 开发 / 未构建前端）不注册静态服务
+const adminDist = join(__dirname, '..', 'web', 'dist');
 const serveStaticModules = fs.existsSync(adminDist)
   ? [
       ServeStaticModule.forRoot({

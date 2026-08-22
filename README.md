@@ -30,12 +30,12 @@ CLSSWJZ-Agent 是个人财务管理系统 CLSSWJZ 的独立部署同步代理服
 
 ### 目录结构
 
-与 clsswjz-server 一致：后端代码在仓库根（`src/`），前端在独立文件夹 `admin-web/`。
+与 clsswjz-server 一致：后端代码在仓库根（`src/`），前端在独立文件夹 `web/`。
 
 ```
 clsswjz-agent/
 ├── src/                # NestJS 后端源码
-├── admin-web/          # Vue 3 前端（独立构建，产物在 admin-web/dist）
+├── web/                # Vue 3 前端（独立构建，产物在 web/dist）
 ├── nest-cli.json / tsconfig*.json   # 后端构建配置
 ├── Dockerfile / docker-compose.yml
 └── data/               # 运行时数据（git 忽略）
@@ -43,11 +43,11 @@ clsswjz-agent/
 
 ### 开发模式
 
-先安装依赖（根目录 + admin-web 各一次）：
+先安装依赖（根目录 + web 各一次）：
 
 ```bash
 npm install
-cd admin-web && npm install && cd ..
+cd web && npm install && cd ..
 ```
 
 然后分别开两个终端运行：
@@ -64,11 +64,11 @@ npm run dev:web
 
 ```bash
 npm run build        # nest build → dist/
-npm run build:web    # vite build → admin-web/dist/
-npm run start:prod   # node dist/main.js（自动托管 admin-web/dist）
+npm run build:web    # vite build → web/dist/
+npm run start:prod   # node dist/main.js（自动托管 web/dist）
 ```
 
-后端启动时若 `admin-web/dist` 存在则托管 SPA（历史路由 fallback），不存在时仅提供 API——纯后端开发无需先构建前端。
+后端启动时若 `web/dist` 存在则托管 SPA（历史路由 fallback），不存在时仅提供 API——纯后端开发无需先构建前端。
 
 ### Docker 部署
 

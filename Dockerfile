@@ -7,10 +7,10 @@ RUN npm install
 COPY src ./src
 COPY nest-cli.json tsconfig.json tsconfig.build.json ./
 RUN npm run build
-# Build admin-web into its own dist/
-COPY admin-web/package*.json ./admin-web/
-RUN cd admin-web && npm install
-COPY admin-web/ ./admin-web/
+# Build web into its own dist/
+COPY web/package*.json ./web/
+RUN cd web && npm install
+COPY web/ ./web/
 # Remove server source so the production image only ships dist + node_modules
 RUN rm -rf src
 
@@ -20,7 +20,7 @@ ENV NODE_ENV=production
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
-# Serve static assets from admin-web/dist
-COPY --from=builder /app/admin-web/dist ./admin-web/dist
+# Serve static assets from web/dist
+COPY --from=builder /app/web/dist ./web/dist
 EXPOSE 3001
 CMD ["node", "dist/main.js"]
