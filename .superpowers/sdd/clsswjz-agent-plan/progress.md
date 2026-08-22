@@ -24,4 +24,4 @@ Task 6: complete (commits bc18387..fd4720b, review clean)
 Task 7: complete (commit ff0ea5d, review clean)
 Task 8: complete (commit caf5a75, review clean)
 Task 11b: views committed as part of ff0ea5d (settings/*.vue, Notes.vue, NoteForm.vue); routes registered in commit 3e6a3fa
-Task 11: partial — api/stores/composables done; views being rebuilt (11a + 11b running)
+Task 11: complete — all views done (11b commit 278367a + routes 3e6a3fa; Layout+Books commit 0b6ab62; ItemsView+ItemForm commit 0bb2726); vite build passed

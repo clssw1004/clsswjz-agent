@@ -1,7 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 import configuration from './config/configuration';
+import { CoreModule } from './core/core.module';
+import { TransformInterceptor } from './interceptors/transform.interceptor';
 import { MetaModule } from './meta/meta.module';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
@@ -18,7 +22,12 @@ import { AttachmentModule } from './attachments/attachment.module';
 
 @Module({
   imports: [
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, 'public'),
+      exclude: ['/api/(.*)'],
+    }),
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
+    CoreModule,
     MetaModule,
     AuthModule,
     SyncModule,
@@ -34,6 +43,7 @@ import { AttachmentModule } from './attachments/attachment.module';
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
   ],
 })
 export class AppModule {}
