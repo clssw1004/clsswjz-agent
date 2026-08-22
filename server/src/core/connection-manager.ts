@@ -62,6 +62,10 @@ export class ConnectionManager {
     return ds;
   }
 
+  async getDataSource(userId: string): Promise<DataSource> {
+    return this.getConnection(userId);
+  }
+
   async closeConnection(userId: string): Promise<void> {
     const ds = this.connections.get(userId);
     if (ds?.isInitialized) {
