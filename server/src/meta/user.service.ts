@@ -10,6 +10,10 @@ export class UserService {
     private readonly userRepo: Repository<MetaUser>,
   ) {}
 
+  async findAll(): Promise<MetaUser[]> {
+    return this.userRepo.find();
+  }
+
   async findById(id: string): Promise<MetaUser | null> {
     return this.userRepo.findOneBy({ id });
   }

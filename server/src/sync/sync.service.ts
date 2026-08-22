@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { ConnectionManager } from '../core/connection-manager';
 import { UserService } from '../meta/user.service';
@@ -7,9 +8,58 @@ import { SyncState } from '../enums/sync-state.enum';
 import { MaterializeService } from './materialize.service';
 
 @Injectable()
-export class SyncService {
+export class SyncService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SyncService.name);
-  constructor(private connMgr: ConnectionManager, private userService: UserService, private materialize: MaterializeService) {}
+  private syncTimer: NodeJS.Timeout | null = null;
+  private readonly syncingUsers = new Set<string>();
+  constructor(
+    private connMgr: ConnectionManager,
+    private userService: UserService,
+    private materialize: MaterializeService,
+    private config: ConfigService,
+  ) {}
+
+  onModuleInit() {
+    const interval = Number(this.config.get('sync.interval')) || 0;
+    if (interval > 0) {
+      this.syncTimer = setInterval(() => this.syncAll(), interval);
+      this.logger.log(`Auto-sync scheduler started (interval=${interval}ms)`);
+    }
+  }
+
+  onModuleDestroy() {
+    if (this.syncTimer) {
+      clearInterval(this.syncTimer);
+      this.syncTimer = null;
+    }
+  }
+
+  async syncAll() {
+    let users;
+    try {
+      users = await this.userService.findAll();
+    } catch (err) {
+      this.logger.error(`Auto-sync failed to list users: ${err.message}`);
+      return;
+    }
+    for (const user of users) {
+      if (!user.mainServerUrl || !user.mainToken) continue;
+      if (this.syncingUsers.has(user.id)) continue;
+      this.syncingUsers.add(user.id);
+      try {
+        await this.push(user.id);
+        await this.pull(user.id);
+      } catch (err) {
+        this.logger.warn(`Auto-sync failed for user ${user.id}: ${err.message}`);
+      } finally {
+        this.syncingUsers.delete(user.id);
+      }
+    }
+  }
+
+  isSyncing(userId: string) {
+    return this.syncingUsers.has(userId);
+  }
 
   async push(userId: string) {
     const user = await this.userService.findById(userId);
