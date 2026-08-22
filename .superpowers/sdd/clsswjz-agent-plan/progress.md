@@ -25,5 +25,6 @@ Task 7: complete (commit ff0ea5d, review clean)
 Task 8: complete (commit caf5a75, review clean)
 Task 9: complete (report task-9-report.md, attachment module committed)
 Task 10: complete (commit d66e24e — interceptor + ServeStatic + added CoreModule global provider for ConnectionManager; note: build order must be `nest build` then `vite build` because nest-cli deleteOutDir wipes dist/public)
+Task 12: complete (commit c3b8843 — auto-sync scheduler with per-user in-flight guard, findAll on UserService, POST /sync/run endpoint)
 Task 11b: views committed as part of ff0ea5d (settings/*.vue, Notes.vue, NoteForm.vue); routes registered in commit 3e6a3fa
 Task 11: complete — all views done (11b commit 278367a + routes 3e6a3fa; Layout+Books commit 0b6ab62; ItemsView+ItemForm commit 0bb2726); vite build passed
