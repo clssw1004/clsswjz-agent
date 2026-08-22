@@ -28,13 +28,33 @@ CLSSWJZ-Agent 是个人财务管理系统 CLSSWJZ 的独立部署同步代理服
 
 ## 快速开始
 
+### 目录结构
+
+与 clsswjz-server 一致：后端代码在仓库根（`src/`），前端在独立文件夹 `admin-web/`。
+
+```
+clsswjz-agent/
+├── src/                # NestJS 后端源码
+├── admin-web/          # Vue 3 前端（独立构建，产物在 admin-web/dist）
+├── nest-cli.json / tsconfig*.json   # 后端构建配置
+├── Dockerfile / docker-compose.yml
+└── data/               # 运行时数据（git 忽略）
+```
+
 ### 开发模式
 
-在项目根目录分别开两个终端运行：
+先安装依赖（根目录 + admin-web 各一次）：
+
+```bash
+npm install
+cd admin-web && npm install && cd ..
+```
+
+然后分别开两个终端运行：
 
 ```bash
 # 终端 1：启动后端（端口 3001）
-npm run dev:server
+npm run start:dev
 
 # 终端 2：启动前端 dev server（端口 5173，/api 代理到 3001）
 npm run dev:web
@@ -42,20 +62,13 @@ npm run dev:web
 
 ### 生产构建
 
-注意构建顺序：必须**先 `nest build` 再 `vite build`**。因为 nest-cli.json 配置了 `deleteOutDir: true`，nest build 会清空整个 `server/dist` 目录；而 vite 的输出目录是 `server/dist/public`，如果先构建 web 会被 nest build 一并删除。
-
 ```bash
-cd server && npx nest build
-cd ../web && npx vite build
-# 产物：server/dist/main.js + server/dist/public/index.html
+npm run build        # nest build → dist/
+npm run build:web    # vite build → admin-web/dist/
+npm run start:prod   # node dist/main.js（自动托管 admin-web/dist）
 ```
 
-根目录也提供了完整脚本：
-
-```bash
-npm run build   # 内部已按正确顺序执行
-npm run start   # node server/dist/main.js
-```
+后端启动时若 `admin-web/dist` 存在则托管 SPA（历史路由 fallback），不存在时仅提供 API——纯后端开发无需先构建前端。
 
 ### Docker 部署
 
@@ -69,8 +82,6 @@ docker compose up -d
 docker build -t clsswjz-agent .
 docker run -d -p 3001:3001 -v ./data:/app/data -e JWT_SECRET=your-secret clsswjz-agent
 ```
-
-Dockerfile 中先执行 `nest build` 再执行 `vite build`，保证静态资源不被清空。
 
 ## 环境变量
 
