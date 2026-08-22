@@ -77,5 +77,6 @@ export const attachmentApi = {
 export const syncApi = {
   push: () => http.post('/sync/push'),
   pull: (data?: any) => http.post('/sync/pull', data),
+  run: () => http.post('/sync/run'),
   status: () => http.get('/sync/status'),
 };

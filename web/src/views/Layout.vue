@@ -22,14 +22,23 @@
       <!-- Top bar -->
       <header class="topbar glass">
         <span class="page-title">{{ route.meta.title || '记账' }}</span>
-        <el-dropdown v-if="auth.nickname" @command="handleCommand">
-          <span class="user-name">{{ auth.nickname }}</span>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="logout">退出登录</el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+        <div class="topbar-right">
+          <!-- 同步状态条（对齐移动端 Mine 页的紧凑同步行） -->
+          <button class="sync-row" :disabled="sync.syncing" @click="handleSync">
+            <el-icon v-if="!sync.syncing" class="sync-icon"><UploadFilled /></el-icon>
+            <span v-if="sync.syncing" class="sync-text syncing">{{ sync.step || '同步中...' }} {{ sync.percent ? `${sync.percent}%` : '' }}</span>
+            <span v-else-if="sync.unsynced > 0" class="sync-text pending">待同步 {{ sync.unsynced }} 条，点击同步</span>
+            <span v-else class="sync-text idle">已同步</span>
+          </button>
+          <el-dropdown v-if="auth.nickname" @command="handleCommand">
+            <span class="user-name">{{ auth.nickname }}</span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="logout">退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
       </header>
 
       <!-- Content -->
@@ -49,26 +58,42 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { UploadFilled } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 import { useAppStore } from '@/stores/app';
+import { useSyncStore } from '@/stores/sync';
 import { useResponsive } from '@/composables/useResponsive';
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const app = useAppStore();
+const sync = useSyncStore();
 const { isMobile } = useResponsive();
 
 onMounted(() => {
   app.loadBooks();
+  sync.startPolling();
+});
+
+onUnmounted(() => {
+  sync.stopPolling();
 });
 
 function handleCommand(cmd: string) {
   if (cmd === 'logout') {
+    sync.stopPolling();
     auth.logout();
   }
+}
+
+function handleSync() {
+  sync.triggerSync().then(() => {
+    // 同步完成后刷新数据
+    setTimeout(() => app.loadBooks(), 500);
+  });
 }
 </script>
 
@@ -88,6 +113,21 @@ function handleCommand(cmd: string) {
   border-bottom: 1px solid var(--border-glass); backdrop-filter: var(--blur-glass);
 }
 .page-title { font-size: 16px; font-weight: 600; color: var(--text-1); }
+.topbar-right { display: flex; align-items: center; gap: 14px; }
+.sync-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 12px; border-radius: var(--radius-sm);
+  background: var(--surface-glass-strong);
+  border: 1px solid var(--border-glass);
+  cursor: pointer; font-size: 12px;
+  transition: background 0.2s ease;
+}
+.sync-row:hover:not(:disabled) { background: var(--surface-hover, rgba(255,255,255,0.09)); }
+.sync-row:disabled { cursor: default; }
+.sync-icon { font-size: 14px; color: var(--text-3); }
+.sync-text { color: var(--text-3); white-space: nowrap; }
+.sync-text.syncing { color: var(--brand-gold); }
+.sync-text.pending { color: var(--text-2); }
 .user-name { color: var(--text-2); cursor: pointer; font-size: 14px; }
 .content { flex: 1; padding: 20px; max-width: 1200px; width: 100%; margin: 0 auto; box-sizing: border-box; }
 .bottom-tabs {
