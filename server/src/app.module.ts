@@ -6,6 +6,7 @@ import { MetaModule } from './meta/meta.module';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { SyncModule } from './sync/sync.module';
+import { ItemModule } from './items/item.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { SyncModule } from './sync/sync.module';
     MetaModule,
     AuthModule,
     SyncModule,
+    ItemModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
