@@ -78,6 +78,36 @@ export class SyncService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * 首次登录两阶段同步（对齐移动端）：
+   * 阶段1（阻塞等待）：push + 拉取 P0+P1 关键数据（user/book/bookMember/fund），条目少、速度快
+   * 阶段2（延迟后台）：3 秒后拉取剩余全部数据，进度走 backgroundProgress
+   */
+  async initialSync(userId: string): Promise<void> {
+    if (this.syncingUsers.has(userId)) return;
+    this.syncingUsers.add(userId);
+    try {
+      // 阶段 1：优先数据
+      this.setProgress(userId, '检查服务端状态', 5);
+      const pushResult = await this.push(userId, (p) => this.setProgress(userId, p.step, Math.round(p.percent * 0.5)));
+      const PRIORITY_TYPES = ['user', 'book', 'bookMember', 'fund'];
+      await this.pull(userId, pushResult.commitId, (p) => this.setProgress(userId, p.step, Math.round(50 + p.percent * 0.5)), PRIORITY_TYPES);
+      this.syncProgress.set(userId, { syncing: true, step: '关键数据同步完成', percent: 100 });
+    } finally {
+      this.clearProgress(userId);
+      this.syncingUsers.delete(userId);
+    }
+
+    // 阶段 2：延迟 3 秒后台同步剩余全部数据（对齐移动端 _startBackgroundSync）
+    setTimeout(async () => {
+      try {
+        await this.syncWithProgress(userId);
+      } catch (err) {
+        this.logger.warn(`Background full sync failed for ${userId}: ${err.message}`);
+      }
+    }, 3000);
+  }
+
+  /**
    * 完整同步一轮（push → pull → 物化），带进度上报。
    * 返回 { pushed, pulled }。
    */
@@ -116,7 +146,12 @@ export class SyncService implements OnModuleInit, OnModuleDestroy {
     } catch (err) { this.logger.error(`Push failed: ${err.message}`); throw err; }
   }
 
-  async pull(userId: string, commitId?: string, onProgress?: (p: { step: string; percent: number }) => void) {
+  async pull(
+    userId: string,
+    commitId?: string,
+    onProgress?: (p: { step: string; percent: number }) => void,
+    businessTypes?: string[],
+  ) {
     const user = await this.userService.findById(userId);
     if (!user) throw new Error('User not found');
     const logRepo = await this.connMgr.getRepository(userId, LogSync);
@@ -126,7 +161,7 @@ export class SyncService implements OnModuleInit, OnModuleDestroy {
     while (true) {
       try {
         onProgress?.({ step: totalKnown > 0 ? `同步服务端变更 (${totalPulled}/${totalKnown})` : '拉取服务端变更', percent: totalKnown > 0 ? Math.min(50 + Math.round((totalPulled / totalKnown) * 30), 80) : 50 });
-        const resp = await axios.post(`${user.mainServerUrl}/api/sync/pull`, { syncTimeStamp, page, pageSize: 1000, commitId }, { headers: { Authorization: `Bearer ${user.mainToken}` } });
+        const resp = await axios.post(`${user.mainServerUrl}/api/sync/pull`, { syncTimeStamp, page, pageSize: 1000, commitId, businessTypes }, { headers: { Authorization: `Bearer ${user.mainToken}` } });
         const result = resp.data?.data || resp.data;
         if (totalKnown === 0) totalKnown = result.total || 0;
         for (const log of (result.changes || [])) {

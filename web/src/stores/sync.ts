@@ -11,17 +11,21 @@ export const useSyncStore = defineStore('sync', {
     _timer: null as any,
   }),
   actions: {
+    /** 单次拉取同步状态（登录页轮询用） */
+    async pollOnce() {
+      const s: any = await syncApi.status();
+      this.syncing = !!s.syncing;
+      this.step = s.step || '';
+      this.percent = s.percent || 0;
+      this.unsynced = s.unsynced || 0;
+      this.failed = s.failed || 0;
+    },
     /** 轮询同步状态：syncing 时 1 秒，空闲时 5 秒（捕捉后台自动同步） */
     startPolling() {
       if (this._timer) return;
       const poll = async () => {
         try {
-          const s: any = await syncApi.status();
-          this.syncing = !!s.syncing;
-          this.step = s.step || '';
-          this.percent = s.percent || 0;
-          this.unsynced = s.unsynced || 0;
-          this.failed = s.failed || 0;
+          await this.pollOnce();
         } catch {
           /* 忽略轮询错误（如网络瞬断） */
         }
