@@ -23,12 +23,26 @@
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue';
+import { ElMessage } from 'element-plus';
+import { useAuthStore } from '@/stores/auth';
+
+const auth = useAuthStore();
 const loading = ref(false);
 const form = reactive({ mainServerUrl: '', username: '', password: '' });
+
 async function handleLogin() {
+  if (!form.mainServerUrl || !form.username || !form.password) {
+    ElMessage.warning('请填写主端地址、用户名和密码');
+    return;
+  }
   loading.value = true;
-  // TODO: implement login via auth store
-  setTimeout(() => { loading.value = false; }, 1000);
+  try {
+    await auth.login(form.mainServerUrl, form.username, form.password);
+  } catch {
+    /* 错误已由 http 拦截器提示 */
+  } finally {
+    loading.value = false;
+  }
 }
 </script>
 
