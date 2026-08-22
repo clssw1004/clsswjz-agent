@@ -18,4 +18,5 @@ Ruling: All tasks agree with each other and with Global Constraints. Proceed.
 Task 1: complete (commits cafb47a..96bfc36, review clean)
 Task 2: complete (commits 96bfc36..af72796, review clean)
 Task 3: complete (commits af72796..3e132e6, review clean)
-Task 11: partial — api/stores/composables done; views need rebuild
+Task 4: complete (commit 11dd590, review clean)
+Task 11: partial — api/stores/composables done; views being rebuilt (11a + 11b running)
