@@ -22,5 +22,6 @@ Task 4: complete (commit 11dd590, review clean)
 Task 5: complete (commit 073c92e, review clean)
 Task 6: complete (commits bc18387..fd4720b, review clean)
 Task 7: complete (commit ff0ea5d, review clean)
+Task 8: complete (commit caf5a75, review clean)
 Task 11b: views committed as part of ff0ea5d (settings/*.vue, Notes.vue, NoteForm.vue); routes registered in commit 3e6a3fa
 Task 11: partial — api/stores/composables done; views being rebuilt (11a + 11b running)

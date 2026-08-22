@@ -14,6 +14,7 @@ import { ShopModule } from './shops/shop.module';
 import { TagModule } from './tags/tag.module';
 import { ProjectModule } from './projects/project.module';
 import { NoteModule } from './notes/note.module';
+import { AttachmentModule } from './attachments/attachment.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { NoteModule } from './notes/note.module';
     TagModule,
     ProjectModule,
     NoteModule,
+    AttachmentModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
