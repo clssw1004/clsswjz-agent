@@ -1,8 +1,14 @@
 <template>
   <div class="settings-page">
     <div class="page-header">
-      <h2>商家管理</h2>
-      <el-button type="primary" icon="Plus" @click="openDialog()">新增商家</el-button>
+      <div class="page-header-title">
+        <h2>商家管理</h2>
+        <span class="count">{{ filtered.length }} 家</span>
+      </div>
+      <el-button type="primary" round @click="openDialog()">
+        <el-icon style="margin-right: 4px"><Plus /></el-icon>
+        新增商家
+      </el-button>
     </div>
 
     <el-card class="glass table-card" shadow="never">
@@ -11,22 +17,42 @@
           v-model="keyword"
           placeholder="搜索名称或编码"
           clearable
-          prefix-icon="Search"
-          style="width: 260px"
-        />
-        <span class="count">{{ filtered.length }} 家</span>
+          size="large"
+          class="search-input"
+        >
+          <template #prefix><el-icon><Search /></el-icon></template>
+        </el-input>
       </div>
 
-      <el-table :data="filtered" v-loading="loading" empty-text="暂无数据">
+      <el-table v-if="!isMobile" :data="filtered" v-loading="loading" empty-text="暂无数据" class="mini-table">
         <el-table-column prop="name" label="名称" min-width="180" />
-        <el-table-column prop="code" label="编码" min-width="160" />
-        <el-table-column label="操作" width="150" align="right">
+        <el-table-column prop="code" label="编码" min-width="160">
+          <template #default="{ row }">
+            <span class="code-text">{{ row.code }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="140" align="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDialog(row)">编辑</el-button>
             <el-button link type="danger" @click="remove(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- 移动端：卡片列表 -->
+      <div v-else class="m-list" v-loading="loading">
+        <el-empty v-if="!loading && filtered.length === 0" description="暂无数据" />
+        <div v-for="row in filtered" :key="row.id" class="m-item">
+          <div class="m-main">
+            <span class="m-name">{{ row.name }}</span>
+            <span class="m-sub mono">{{ row.code }}</span>
+          </div>
+          <div class="m-ops">
+            <button class="m-edit" @click="openDialog(row)">编辑</button>
+            <button class="m-del" @click="remove(row)">删除</button>
+          </div>
+        </div>
+      </div>
     </el-card>
 
     <el-dialog
@@ -37,15 +63,15 @@
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
         <el-form-item label="名称" prop="name">
-          <el-input v-model="form.name" placeholder="请输入名称" />
+          <el-input v-model="form.name" placeholder="请输入名称" size="large" />
         </el-form-item>
         <el-form-item label="编码" prop="code">
-          <el-input v-model="form.code" placeholder="请输入编码" />
+          <el-input v-model="form.code" placeholder="请输入编码" size="large" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+        <el-button round @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" round :loading="saving" @click="save">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -53,12 +79,14 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { Plus, Search } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
-import { ElMessage, ElMessageBox } from 'element-plus';
 import { shopApi } from '@/api';
 import { useAppStore } from '@/stores/app';
+import { useResponsive } from '@/composables/useResponsive';
 
 const appStore = useAppStore();
+const { isMobile } = useResponsive();
 
 const loading = ref(false);
 const saving = ref(false);
@@ -147,12 +175,31 @@ watch(() => appStore.currentBookId, load);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
+  gap: 12px;
+}
+
+.page-header-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
 }
 
 .page-header h2 {
   margin: 0;
+  font-size: 18px;
   color: var(--text-1);
+}
+
+.count {
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.page-header :deep(.el-button--primary) {
+  background: var(--grad-brand);
+  border: none;
+  box-shadow: var(--glow-primary);
 }
 
 .table-card.glass {
@@ -164,15 +211,91 @@ watch(() => appStore.currentBookId, load);
 }
 
 .toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
-.count {
+.search-input {
+  max-width: 300px;
+}
+
+.code-text {
+  font-family: var(--font-mono);
   font-size: 13px;
+  color: var(--text-2);
+}
+
+.mini-table :deep(th.el-table__cell) {
+  background: transparent;
   color: var(--text-3);
+  font-weight: 600;
+}
+
+.mini-table :deep(.el-table__row) {
+  background: transparent;
+}
+
+/* 移动端卡片列表 */
+.m-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.m-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-glass-strong);
+  border: 1px solid var(--border-glass);
+}
+
+.m-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.m-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.m-sub {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.m-ops {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.m-ops button {
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.m-edit {
+  color: var(--brand-gold);
+}
+
+.m-del {
+  color: var(--brand-red);
+}
+
+@media (max-width: 767px) {
+  .search-input {
+    max-width: 100%;
+  }
 }
 </style>

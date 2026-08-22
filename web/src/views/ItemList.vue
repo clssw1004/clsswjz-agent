@@ -1,54 +1,28 @@
 <template>
-  <div class="items-view">
-    <!-- 统计卡：对齐移动端 BookStatisticCard -->
-    <div class="stat-card glass">
-      <div class="stat-head">
-        <el-icon :size="17"><Wallet /></el-icon>
-        <span class="stat-head-title">{{ monthLabel }}</span>
-        <span class="stat-head-book">{{ currentBookName }}</span>
-        <button class="stat-head-change" @click="monthSheet = true">切换</button>
+  <div class="item-list-page">
+    <!-- 筛选条：月份 + 类型（为将来扩充分类/关键词/视图筛选预留容器） -->
+    <div class="filter-bar glass">
+      <div class="filter-month" @click="monthSheet = true">
+        <el-icon :size="14"><Calendar /></el-icon>
+        <span>{{ monthLabel }}</span>
       </div>
-      <div class="stat-body">
-        <div class="stat-item">
-          <span class="stat-pill pill-expense">
-            <el-icon :size="14"><ArrowDown /></el-icon>支出
-          </span>
-          <span class="stat-num num">{{ fmt(summary.expense) }}</span>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat-item">
-          <span class="stat-pill pill-income">
-            <el-icon :size="14"><ArrowUp /></el-icon>收入
-          </span>
-          <span class="stat-num num">{{ fmt(summary.income) }}</span>
-        </div>
+      <div class="type-switch">
+        <button type="button" :class="{ on: typeFilter === '' }" @click="switchType('')">全部</button>
+        <button type="button" :class="{ on: typeFilter === 'EXPENSE' }" @click="switchType('EXPENSE')">支出</button>
+        <button type="button" :class="{ on: typeFilter === 'INCOME' }" @click="switchType('INCOME')">收入</button>
       </div>
-      <div class="stat-line"></div>
     </div>
 
-    <!-- 列表卡片：对齐移动端 ItemsContainer -->
+    <!-- 列表容器（对齐移动端 ItemsContainer） -->
     <div class="list-card glass">
       <div class="list-head">
-        <span class="list-title">最近账目</span>
-        <span class="list-date">{{ monthLabel }}</span>
-        <div v-if="!loading && items.length" class="list-stats">
-          <span v-if="pageExpense < 0" class="mini-stat expense">
-            <el-icon :size="13"><ArrowDown /></el-icon>{{ abs2(pageExpense) }}
-          </span>
-          <span v-if="pageExpense < 0 && pageIncome > 0" class="mini-sep">|</span>
-          <span v-if="pageIncome > 0" class="mini-stat income">
-            <el-icon :size="13"><ArrowUp /></el-icon>{{ pageIncome.toFixed(2) }}
-          </span>
-        </div>
-        <span class="list-more" @click="goList">
-          更多<el-icon :size="14"><ArrowRight /></el-icon>
-        </span>
+        <span class="list-title">账目明细</span>
+        <span v-if="total" class="list-total num">{{ total }} 条</span>
       </div>
       <div class="list-divider"></div>
 
-      <div v-loading="loading" class="list-body">
-        <el-empty v-if="!loading && items.length === 0" description="本月暂无记录，点右下角记一笔" />
-
+      <div v-loading="initialLoading" class="list-body">
+        <el-empty v-if="!initialLoading && !items.length" description="暂无符合条件的记录" />
         <div
           v-for="item in items"
           :key="item.id"
@@ -66,29 +40,23 @@
             </div>
             <div class="item-row2">
               <el-icon :size="13"><Clock /></el-icon>
-              <span>{{ timeOf(item) }}</span>
+              <span>{{ fullDate(item.accountDate) }}</span>
               <template v-if="shopName(item.shopCode)">
+                <span class="row2-dot">·</span>
                 <el-icon :size="13"><Shop /></el-icon>
                 <span class="ellipsis">{{ shopName(item.shopCode) }}</span>
-              </template>
-              <template v-if="item.description">
-                <span class="row2-dot">·</span>
-                <el-icon :size="13"><Document /></el-icon>
-                <span class="ellipsis">{{ item.description }}</span>
               </template>
             </div>
           </div>
         </div>
 
-        <!-- 触底加载哨兵（滚动加载替代分页） -->
+        <!-- 触底加载哨兵 -->
         <div ref="sentinel" class="list-sentinel">
           <span v-if="loadingMore" class="loading-hint"><i class="spinner"></i>加载中…</span>
           <span v-else-if="noMore && items.length" class="loading-hint end">没有更多了</span>
         </div>
       </div>
     </div>
-
-    <button class="fab" aria-label="新增记账" @click="router.push('/items/new')">+</button>
 
     <!-- 月份选择弹层 -->
     <teleport to="body">
@@ -115,57 +83,38 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { Wallet, ArrowDown, ArrowUp, ArrowRight, Clock, Shop, Document } from '@element-plus/icons-vue';
+import { useRoute, useRouter } from 'vue-router';
+import { Calendar, Clock, Shop } from '@element-plus/icons-vue';
 import { itemApi, categoryApi, shopApi, tagApi } from '@/api';
 import { useAppStore } from '@/stores/app';
 
+const route = useRoute();
 const router = useRouter();
 const app = useAppStore();
 
 const now = new Date();
 const monthValue = ref(
-  `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  String(route.query.month || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
 );
+const typeFilter = ref('');
 const monthSheet = ref(false);
-
-const monthLabel = computed(() => {
-  const m = /^(\d{4})-(\d{2})$/.exec(String(monthValue.value || ''));
-  return m ? `${m[1]}年${Number(m[2])}月` : '';
-});
 
 const items = ref<any[]>([]);
 const total = ref(0);
 const page = ref(1);
 const pageSize = 20;
-const loading = ref(false);
+const initialLoading = ref(false);
 const loadingMore = ref(false);
 const noMore = ref(false);
-const summary = ref({ income: 0, expense: 0 });
 
-// code → name 映射（分类/商户/标签）
 const catMap = ref<Record<string, string>>({});
 const shopMap = ref<Record<string, string>>({});
 const tagMap = ref<Record<string, string>>({});
 
-const currentBookName = computed(
-  () => app.books.find((b: any) => b.id === app.currentBookId)?.name || ''
-);
-
-const catName = (code?: string) => (code ? catMap.value[code] : '');
-const shopName = (code?: string) => (code ? shopMap.value[code] : '');
-const tagName = (code?: string) => (code ? tagMap.value[code] : '');
-
-const pageExpense = computed(() =>
-  items.value
-    .filter((i) => i.type === 'EXPENSE')
-    .reduce((s, i) => s + Number(i.amount || 0), 0)
-);
-const pageIncome = computed(() =>
-  items.value
-    .filter((i) => i.type === 'INCOME')
-    .reduce((s, i) => s + Number(i.amount || 0), 0)
-);
+const monthLabel = computed(() => {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(monthValue.value || ''));
+  return m ? `${m[1]}年${Number(m[2])}月` : '';
+});
 
 const range = computed(() => {
   const match = /^(\d{4})-(\d{2})$/.exec(String(monthValue.value || ''));
@@ -175,7 +124,7 @@ const range = computed(() => {
     const lastDay = new Date(y, m, 0).getDate();
     return {
       startDate: `${match[1]}-${match[2]}-01`,
-      endDate: `${match[1]}-${match[2]}-${lastDay} 23:59:59`, // 兼容带时间存储
+      endDate: `${match[1]}-${match[2]}-${lastDay} 23:59:59`,
     };
   }
   const d = new Date();
@@ -187,15 +136,9 @@ const range = computed(() => {
   };
 });
 
-/** 千位分隔 */
-function fmt(n: number) {
-  const v = Math.abs(Number(n) || 0);
-  return v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function abs2(n: number) {
-  return Math.abs(n).toFixed(2);
-}
+const catName = (code?: string) => (code ? catMap.value[code] : '');
+const shopName = (code?: string) => (code ? shopMap.value[code] : '');
+const tagName = (code?: string) => (code ? tagMap.value[code] : '');
 
 function fmtAmount(amount: number | string) {
   return (Number(amount) || 0).toFixed(2);
@@ -210,9 +153,8 @@ function decoGrad(type?: string) {
   return `linear-gradient(180deg, ${c}, color-mix(in srgb, ${c} 20%, transparent))`;
 }
 
-function timeOf(item: any) {
-  const d = String(item.accountDate || '');
-  return d.length > 10 ? d.slice(11, 16) : '--:--';
+function fullDate(d?: string) {
+  return String(d || '').slice(0, 10);
 }
 
 async function loadMaps() {
@@ -230,25 +172,26 @@ async function loadMaps() {
   tagMap.value = Object.fromEntries(tagList.map((t) => [t.code, t.name]));
 }
 
-async function loadSummary() {
+/** 首次加载（重置分页） */
+async function reload() {
+  page.value = 1;
+  noMore.value = false;
+  items.value = [];
+  initialLoading.value = true;
   try {
-    const res: any = await itemApi.summary({
-      accountBookId: app.currentBookId,
-      startDate: range.value.startDate,
-      endDate: range.value.endDate,
-    });
-    summary.value = { income: Number(res.income || 0), expense: Number(res.expense || 0) };
-  } catch {
-    summary.value = { income: 0, expense: 0 };
+    await loadPage(1, true);
+  } finally {
+    initialLoading.value = false;
   }
 }
 
-/** 加载一页（replace=true 重置列表） */
+/** 加载一页（append=true 追加） */
 async function loadPage(p: number, replace = false) {
   const res: any = await itemApi.list({
     accountBookId: app.currentBookId,
     page: p,
     pageSize,
+    type: typeFilter.value || undefined,
     startDate: range.value.startDate,
     endDate: range.value.endDate,
   });
@@ -262,19 +205,9 @@ async function loadPage(p: number, replace = false) {
   if (items.value.length >= total.value) noMore.value = true;
 }
 
-async function load() {
-  loading.value = true;
-  noMore.value = false;
-  try {
-    await loadPage(1, true);
-  } finally {
-    loading.value = false;
-  }
-}
-
 /** 触底加载下一页 */
 async function loadMore() {
-  if (loading.value || loadingMore.value || noMore.value) return;
+  if (initialLoading.value || loadingMore.value || noMore.value) return;
   if (items.value.length >= total.value) {
     noMore.value = true;
     return;
@@ -290,13 +223,10 @@ async function loadMore() {
   }
 }
 
-async function reload() {
-  page.value = 1;
-  await Promise.all([load(), loadSummary(), loadMaps()]);
-}
-
-function goList() {
-  router.push({ path: '/items/list', query: { month: String(monthValue.value) } });
+function switchType(t: string) {
+  if (typeFilter.value === t) return;
+  typeFilter.value = t;
+  reload();
 }
 
 function goDetail(item: any) {
@@ -307,8 +237,8 @@ function goDetail(item: any) {
 let observer: IntersectionObserver | null = null;
 const sentinel = ref<HTMLElement | null>(null);
 
-onMounted(() => {
-  reload();
+onMounted(async () => {
+  await Promise.all([loadMaps(), reload()]);
   observer = new IntersectionObserver(
     (entries) => {
       if (entries[0].isIntersecting) loadMore();
@@ -321,24 +251,20 @@ onMounted(() => {
 onUnmounted(() => observer?.disconnect());
 
 watch(monthValue, reload);
-
-watch(
-  () => app.currentBookId,
-  () => {
-    loadMaps();
-    reload();
-  }
-);
+watch(() => app.currentBookId, () => {
+  loadMaps();
+  reload();
+});
 </script>
 
 <style scoped>
-.items-view {
+.item-list-page {
+  max-width: 860px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding-bottom: 88px;
-  max-width: 860px;
-  margin: 0 auto;
+  padding-bottom: 20px;
 }
 
 .glass {
@@ -346,117 +272,60 @@ watch(
   border: 1px solid var(--border-glass);
   backdrop-filter: var(--blur-glass);
   box-shadow: var(--shadow-card);
-}
-
-/* ========== 统计卡（对齐 BookStatisticCard） ========== */
-.stat-card {
   border-radius: var(--radius-lg);
-  overflow: hidden;
 }
 
-.stat-head {
+/* 筛选条 */
+.filter-bar {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 11px 16px;
-  background: var(--brand-gold-soft);
-  color: var(--brand-gold-dark);
+  gap: 12px;
+  padding: 10px 14px;
 }
 
-.stat-head-title {
-  font-size: 13px;
+.filter-month {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-1);
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-glass-strong);
+  border: 1px solid var(--border-glass);
+}
+
+.type-switch {
+  margin-left: auto;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--surface-active);
+  border: 1px solid var(--border-glass);
+}
+
+.type-switch button {
+  border: none;
+  background: transparent;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.type-switch button.on {
+  background: var(--grad-brand);
+  color: var(--on-primary);
   font-weight: 600;
 }
 
-.stat-head-book {
-  flex: 1;
-  font-size: 12px;
-  color: var(--text-3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.stat-head-change {
-  border: none;
-  background: transparent;
-  color: var(--brand-gold);
-  font-size: 12px;
-  cursor: pointer;
-  padding: 2px 6px;
-}
-
-.stat-body {
-  display: flex;
-  align-items: stretch;
-  gap: 14px;
-  padding: 18px 16px 16px;
-}
-
-.stat-item {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.stat-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.pill-expense {
-  color: var(--amount-expense);
-  background: rgba(185, 91, 75, 0.12);
-}
-
-.pill-income {
-  color: var(--amount-income);
-  background: rgba(67, 160, 71, 0.12);
-}
-
-.stat-num {
-  font-size: 20px;
-  font-weight: 700;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.stat-num.expense {
-  color: var(--amount-expense);
-}
-
-.stat-num.income {
-  color: var(--amount-income);
-}
-
-.stat-divider {
-  width: 1px;
-  height: 44px;
-  align-self: center;
-  background: var(--border-glass);
-}
-
-/* 底部红绿渐变线 */
-.stat-line {
-  height: 2px;
-  border-radius: 1px;
-  margin: 0 16px 14px;
-  background: linear-gradient(90deg, rgba(185, 91, 75, 0.5), rgba(67, 160, 71, 0.5));
-}
-
-/* ========== 列表卡片（对齐 ItemsContainer） ========== */
+/* 列表 */
 .list-card {
-  border-radius: var(--radius-lg);
   overflow: hidden;
 }
 
@@ -473,52 +342,9 @@ watch(
   color: var(--text-1);
 }
 
-.list-date {
-  font-size: 11px;
-  color: var(--text-3);
-}
-
-.list-stats {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.list-total {
   font-size: 12px;
-}
-
-.mini-stat {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  font-weight: 500;
-}
-
-.mini-stat.expense {
-  color: var(--amount-expense);
-}
-
-.mini-stat.income {
-  color: var(--amount-income);
-}
-
-.mini-sep {
   color: var(--text-3);
-}
-
-.list-more {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  font-size: 13px;
-  color: var(--text-2);
-  cursor: pointer;
-  padding: 4px 2px;
-  border-radius: 6px;
-  white-space: nowrap;
-}
-
-.list-more:hover {
-  color: var(--brand-gold);
 }
 
 .list-divider {
@@ -617,7 +443,7 @@ watch(
   margin: 0 4px;
 }
 
-/* ========== 触底加载 ========== */
+/* 触底加载 */
 .list-sentinel {
   display: flex;
   align-items: center;
@@ -654,35 +480,7 @@ watch(
   }
 }
 
-/* ========== FAB ========== */
-.fab {
-  position: fixed;
-  right: 28px;
-  bottom: 32px;
-  width: 56px;
-  height: 56px;
-  border: none;
-  border-radius: 50%;
-  background: var(--grad-brand);
-  color: var(--on-primary);
-  font-size: 30px;
-  font-weight: 300;
-  line-height: 1;
-  cursor: pointer;
-  box-shadow: var(--glow-primary);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-  z-index: 10;
-}
-
-.fab:hover {
-  transform: scale(1.06);
-}
-
-.fab:active {
-  transform: scale(0.94);
-}
-
-/* ========== 弹层 ========== */
+/* 弹层 */
 .sheet-mask {
   position: fixed;
   inset: 0;
@@ -742,20 +540,5 @@ watch(
 .sheet-enter-from .sheet,
 .sheet-leave-to .sheet {
   transform: translateY(100%);
-}
-
-@media (max-width: 767px) {
-  .items-view {
-    padding-bottom: calc(80px + env(safe-area-inset-bottom));
-  }
-
-  .fab {
-    right: 18px;
-    bottom: calc(74px + env(safe-area-inset-bottom));
-  }
-
-  .stat-num {
-    font-size: 18px;
-  }
 }
 </style>

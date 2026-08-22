@@ -76,4 +76,18 @@ export class ConnectionManager {
       this.connections.delete(userId);
     }
   }
+
+  /**
+   * 重置用户本地数据：先断开数据库连接（释放 sqlite 文件占用），再删除该用户 data 目录
+   * （db.sqlite + attachments），最后重建目录骨架。下次 getConnection 会自动创建全新数据库。
+   * 用于"重置凭证 & 数据重置同步"——切换账号后旧账号数据不残留。
+   */
+  async resetUserDataDir(userId: string): Promise<void> {
+    await this.closeConnection(userId);
+    const userDir = path.join(this.dataPath, userId);
+    if (fs.existsSync(userDir)) {
+      fs.rmSync(userDir, { recursive: true, force: true });
+    }
+    await this.initUserDataDir(userId);
+  }
 }

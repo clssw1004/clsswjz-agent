@@ -37,7 +37,7 @@ export const THEMES: AppTheme[] = [
   { id: 'grey', name: '灰', primary: '#757575', accent: '#B0BEC5', onPrimary: '#ffffff' },
 ];
 
-const DEFAULT_ID = 'amber';
+const DEFAULT_ID = 'teal';
 const STORAGE_KEY = 'app_theme';
 const MODE_KEY = 'app_theme_mode';
 
@@ -46,7 +46,8 @@ export const activeTheme = computed(
   () => THEMES.find((t) => t.id === activeThemeId.value) ?? THEMES[0],
 );
 
-export const mode = ref<ThemeMode>('dark');
+/** 默认浅色（清爽记账风）；用户可切换暗色 */
+export const mode = ref<ThemeMode>('light');
 export const isDark = computed(() => mode.value === 'dark');
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -100,9 +101,14 @@ function applyCss(theme: AppTheme): void {
     `linear-gradient(135deg, ${theme.primary}, ${lighten(theme.primary, 14)})`,
   );
   s.setProperty(
+    '--grad-brand',
+    `linear-gradient(135deg, ${theme.primary}, ${lighten(theme.primary, 14)})`,
+  );
+  s.setProperty(
     '--grad-purple',
     `linear-gradient(135deg, ${theme.accent}, ${lighten(theme.accent, 12)})`,
   );
+  s.setProperty('--ring-primary', `0 0 0 3px ${rgba(theme.primary, 0.18)}`);
 
   s.setProperty('--el-color-primary', theme.primary);
   s.setProperty('--el-color-primary-dark-2', darken(theme.primary, 18));
@@ -115,7 +121,7 @@ function applyCss(theme: AppTheme): void {
 
 export function initTheme(): void {
   const savedMode = localStorage.getItem(MODE_KEY);
-  mode.value = savedMode === 'light' ? 'light' : 'dark';
+  mode.value = savedMode === 'dark' ? 'dark' : 'light';
   document.documentElement.classList.toggle('dark', isDark.value);
 
   const saved = localStorage.getItem(STORAGE_KEY);

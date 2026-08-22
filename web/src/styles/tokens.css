@@ -1,6 +1,9 @@
 /**
  * CLSSWJZ Admin — 设计令牌与 Element Plus 主题覆盖
- * 风格：Glassmorphism（深海军蓝暗色 / 浅灰蓝亮色）+ 玻璃拟态 + 金色主色 / 紫色点缀
+ * 风格：移动端优先的「清爽记账」设计语言
+ *   - 浅色默认：柔和光晕背景 + 纯白高质感卡片 + 大圆角 + 分层阴影
+ *   - 暗色可选：深海军蓝玻璃拟态
+ *   - 主色由 themes.ts 动态注入（默认 teal 青绿），收入绿 / 支出红
  * 所有页面统一引用，禁止在组件内写裸色值。
  *
  * 明暗模式：html 根元素加 .dark 类即暗色（与 Element Plus dark css-vars 约定一致）。
@@ -13,35 +16,40 @@
  * ========================================================= */
 :root {
   /* 品牌色（主色+辅助色，可被 themes.ts 主题切换覆盖） */
-  --brand-gold: #f59e0b;
-  --brand-gold-strong: #fbbf24;
-  --brand-gold-dark: #b45309;
-  --brand-gold-soft: rgba(245, 158, 11, 0.12);
+  --brand-gold: #14b8a6;
+  --brand-gold-strong: #2dd4bf;
+  --brand-gold-dark: #0d9488;
+  --brand-gold-soft: rgba(20, 184, 166, 0.12);
   --brand-purple: #8b5cf6;
   --brand-purple-light: #a78bfa;
   --brand-purple-soft: rgba(139, 92, 246, 0.12);
-  --on-primary: #1c1204; /* 主色背景文字色（浅色主题深字/深色主题白字） */
-  --glow-primary: 0 6px 24px rgba(245, 158, 11, 0.35);
+  --on-primary: #ffffff;
+  --glow-primary: 0 8px 24px rgba(20, 184, 166, 0.28);
   --brand-green: #10b981;
   --brand-green-light: #34d399;
   --brand-red: #ef4444;
-  --brand-red-light: #dc2626; /* 亮色下加深保证对比（暗色由 html.dark 覆盖为浅红） */
+  --brand-red-light: #dc2626;
   --brand-cyan: #06b6d4;
   --brand-cyan-light: #22d3ee;
 
   /* 渐变（图标底、强调） */
-  --grad-gold: linear-gradient(135deg, #f59e0b, #fbbf24);
+  --grad-gold: linear-gradient(135deg, #14b8a6, #2dd4bf);
   --grad-purple: linear-gradient(135deg, #8b5cf6, #a78bfa);
   --grad-green: linear-gradient(135deg, #10b981, #34d399);
   --grad-cyan: linear-gradient(135deg, #06b6d4, #22d3ee);
   --grad-red: linear-gradient(135deg, #ef4444, #f87171);
-  --grad-slate: linear-gradient(135deg, #334155, #475569);
+  --grad-slate: linear-gradient(135deg, #64748b, #94a3b8);
 
   /* 语义（状态） */
-  --color-success: #059669; /* 亮色下加深保证对比（暗色由 html.dark 覆盖） */
+  --color-success: #10b981;
   --color-warning: #f59e0b;
   --color-danger: #ef4444;
   --color-info: #64748b;
+
+  /* 金额语义色（对齐 Flutter ColorUtil：支出红褐 / 收入绿 / 转账蓝） */
+  --amount-expense: #b95b4b;
+  --amount-income: #43a047;
+  --amount-transfer: #1b72c1;
 }
 
 /* =========================================================
@@ -49,61 +57,60 @@
  *    :root = 亮色默认；html.dark = 暗色覆盖
  * ========================================================= */
 :root {
-  --bg-page: #e8edf4;
-  --bg-deep: #e3e8f0;
-  --bg-glow-gold: rgba(245, 158, 11, 0.13);
-  --bg-glow-purple: rgba(139, 92, 246, 0.13);
-  --bg-glow-cyan: rgba(6, 182, 212, 0.06);
-  --bg-glow-top: #dce3ef; /* .app-bg 顶部渐变色 */
+  --bg-page: #f1f5f9;
+  --bg-deep: #e8eef5;
+  --bg-glow-gold: rgba(20, 184, 166, 0.1);
+  --bg-glow-purple: rgba(139, 92, 246, 0.09);
+  --bg-glow-cyan: rgba(6, 182, 212, 0.07);
+  --bg-glow-top: #eef5f7;
 
-  /* 玻璃表面（亮色 = 白色玻璃卡片） */
-  --surface-glass: rgba(255, 255, 255, 0.74);
-  --surface-glass-strong: rgba(255, 255, 255, 0.92);
-  --surface-hover: rgba(255, 255, 255, 0.98);
+  /* 表面（浅色 = 高质感白卡片，轻玻璃） */
+  --surface-glass: rgba(255, 255, 255, 0.88);
+  --surface-glass-strong: rgba(255, 255, 255, 0.96);
+  --surface-hover: rgba(255, 255, 255, 1);
   --surface-active: #ffffff;
 
-  --border-glass: rgba(15, 23, 42, 0.12);
-  --border-glass-strong: rgba(15, 23, 42, 0.2);
+  --border-glass: rgba(15, 23, 42, 0.08);
+  --border-glass-strong: rgba(15, 23, 42, 0.14);
 
   /* 文字层级 */
   --text-1: #0f172a;
   --text-2: #475569;
-  --text-3: #64748b;
+  --text-3: #94a3b8;
 
   /* 侧栏 / 顶栏背景（Layout 用） */
-  --side-bg: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.86),
-    rgba(255, 255, 255, 0.74)
-  );
-  --topbar-bg: rgba(255, 255, 255, 0.66);
+  --side-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.88));
+  --topbar-bg: rgba(255, 255, 255, 0.72);
 
   /* 滚动条 */
-  --scroll-thumb: rgba(15, 23, 42, 0.18);
-  --scroll-thumb-hover: rgba(15, 23, 42, 0.3);
+  --scroll-thumb: rgba(15, 23, 42, 0.16);
+  --scroll-thumb-hover: rgba(15, 23, 42, 0.28);
 
   /* 代码块 / 原始 JSON 预览底 */
-  --code-bg: rgba(255, 255, 255, 0.82);
+  --code-bg: rgba(255, 255, 255, 0.9);
+
+  /* 品牌主渐变（由 themes.ts 按主题动态注入） */
+  --grad-brand: var(--grad-gold);
 }
 
 html.dark {
   --bg-page: #0b1120;
-  --bg-deep: #070b15;
-  --bg-glow-gold: rgba(245, 158, 11, 0.14);
-  --bg-glow-purple: rgba(139, 92, 246, 0.16);
+  --bg-deep: #060a13;
+  --bg-glow-gold: rgba(20, 184, 166, 0.13);
+  --bg-glow-purple: rgba(139, 92, 246, 0.15);
   --bg-glow-cyan: rgba(6, 182, 212, 0.08);
-  --bg-glow-top: #0d1526;
+  --bg-glow-top: #0c1424;
 
   --brand-red-light: #f87171;
   --color-success: #10b981;
 
   /* 玻璃表面 */
-  --surface-glass: rgba(255, 255, 255, 0.045);
-  --surface-glass-strong: rgba(255, 255, 255, 0.075);
-  --surface-hover: rgba(255, 255, 255, 0.09);
-  --surface-active: rgba(255, 255, 255, 0.12);
+  --surface-glass: rgba(255, 255, 255, 0.06);
+  --surface-glass-strong: rgba(255, 255, 255, 0.09);
+  --surface-hover: rgba(255, 255, 255, 0.12);
+  --surface-active: rgba(255, 255, 255, 0.16);
 
-  --border-glass: rgba(255, 255, 255, 0.09);
+  --border-glass: rgba(255, 255, 255, 0.1);
   --border-glass-strong: rgba(255, 255, 255, 0.18);
 
   /* 文字层级 */
@@ -111,12 +118,8 @@ html.dark {
   --text-2: #a5b4c8;
   --text-3: #64748b;
 
-  --side-bg: linear-gradient(
-    180deg,
-    rgba(20, 28, 50, 0.72),
-    rgba(10, 16, 30, 0.72)
-  );
-  --topbar-bg: rgba(9, 14, 26, 0.6);
+  --side-bg: linear-gradient(180deg, rgba(22, 30, 52, 0.8), rgba(11, 17, 32, 0.86));
+  --topbar-bg: rgba(9, 14, 26, 0.66);
 
   --scroll-thumb: rgba(255, 255, 255, 0.14);
   --scroll-thumb-hover: rgba(255, 255, 255, 0.24);
@@ -128,25 +131,30 @@ html.dark {
  * 3. 效果 / 圆角 / 字体
  * ========================================================= */
 :root {
-  --shadow-card: 0 4px 16px rgba(15, 23, 42, 0.07), 0 1px 3px rgba(15, 23, 42, 0.06);
-  --shadow-pop: 0 16px 40px rgba(15, 23, 42, 0.16);
-  --shadow-glow-gold: 0 6px 24px rgba(245, 158, 11, 0.28);
-  --blur-glass: blur(16px) saturate(1.2);
-  --radius-lg: 16px;
-  --radius-md: 12px;
-  --radius-sm: 8px;
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 20px rgba(15, 23, 42, 0.06);
+  --shadow-pop: 0 20px 48px rgba(15, 23, 42, 0.14);
+  --shadow-float: 0 8px 28px rgba(15, 23, 42, 0.1);
+  --shadow-glow-gold: 0 8px 24px rgba(20, 184, 166, 0.3);
+  --blur-glass: blur(18px) saturate(1.3);
+  --radius-xl: 24px;
+  --radius-lg: 18px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+  --ring-primary: 0 0 0 3px rgba(20, 184, 166, 0.18);
+  --transition-base: 0.2s ease;
 
-  --font-ui: 'Fira Sans', -apple-system, BlinkMacSystemFont, 'PingFang SC',
+  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC',
     'Microsoft YaHei', 'Noto Sans CJK SC', 'Source Han Sans SC', sans-serif;
-  --font-mono: 'Fira Code', ui-monospace, 'SFMono-Regular', 'Cascadia Code',
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Cascadia Code',
     Menlo, Consolas, monospace;
 }
 
 html.dark {
-  --shadow-card: 0 8px 32px rgba(2, 6, 23, 0.45);
+  --shadow-card: 0 4px 24px rgba(2, 6, 23, 0.4);
   --shadow-pop: 0 16px 48px rgba(2, 6, 23, 0.55);
-  --shadow-glow-gold: 0 6px 24px rgba(245, 158, 11, 0.35);
-  --blur-glass: blur(18px) saturate(1.35);
+  --shadow-float: 0 10px 32px rgba(2, 6, 23, 0.45);
+  --shadow-glow-gold: 0 8px 24px rgba(20, 184, 166, 0.35);
+  --blur-glass: blur(20px) saturate(1.4);
 }
 
 /* =========================================================
@@ -163,24 +171,42 @@ html.dark {
 
   /* 字体 */
   --el-font-family: var(--font-ui);
+  --el-border-radius-base: 10px;
+  --el-border-radius-small: 8px;
+  --el-border-radius-round: 999px;
 
   /* 组件级：卡片 / 表格 */
   --el-card-bg-color: transparent;
   --el-card-border-color: var(--border-glass);
+  --el-card-border-radius: var(--radius-lg);
   --el-table-bg-color: transparent;
   --el-table-tr-bg-color: transparent;
-  --el-table-header-bg-color: rgba(15, 23, 42, 0.035);
-  --el-table-row-hover-bg-color: rgba(15, 23, 42, 0.06);
-  --el-table-border-color: rgba(15, 23, 42, 0.06);
-  --el-table-header-text-color: var(--text-2);
+  --el-table-header-bg-color: rgba(15, 23, 42, 0.03);
+  --el-table-row-hover-bg-color: rgba(15, 23, 42, 0.045);
+  --el-table-border-color: rgba(15, 23, 42, 0.05);
+  --el-table-header-text-color: var(--text-3);
   --el-table-text-color: var(--text-1);
+  --el-table-row-height: 52px;
 
   /* 菜单 */
   --el-menu-bg-color: transparent;
   --el-menu-text-color: var(--text-2);
   --el-menu-active-color: var(--brand-gold);
-  --el-menu-hover-bg-color: rgba(15, 23, 42, 0.05);
+  --el-menu-hover-bg-color: rgba(15, 23, 42, 0.04);
   --el-menu-item-height: 46px;
+  --el-menu-base-level-padding: 18px;
+
+  /* 输入 / 按钮 */
+  --el-input-border-radius: 10px;
+  --el-button-border-radius: 10px;
+
+  /* 弹窗 / 消息 */
+  --el-dialog-border-radius: var(--radius-lg);
+  --el-message-border-radius: var(--radius-md);
+  --el-popper-border-radius: var(--radius-md);
+
+  /* 加载 / 骨架 */
+  --el-loading-mask-bg-color: rgba(255, 255, 255, 0.55);
 }
 
 html.dark {
@@ -195,7 +221,7 @@ html.dark {
   /* 表面 */
   --el-bg-color: #0f172a;
   --el-bg-color-page: transparent;
-  --el-bg-color-overlay: #1e293b;
+  --el-bg-color-overlay: #1c2740;
 
   /* 文字 */
   --el-text-color-primary: #f1f5f9;
@@ -223,7 +249,7 @@ html.dark {
   --el-fill-color-blank: transparent;
 
   /* 遮罩 / 弹出 */
-  --el-mask-color: rgba(4, 8, 18, 0.65);
+  --el-mask-color: rgba(4, 8, 18, 0.66);
   --el-box-shadow-light: 0 8px 32px rgba(2, 6, 23, 0.55);
   --el-box-shadow: 0 12px 40px rgba(2, 6, 23, 0.6);
 
@@ -232,10 +258,10 @@ html.dark {
   --el-card-border-color: var(--border-glass);
   --el-table-bg-color: transparent;
   --el-table-tr-bg-color: transparent;
-  --el-table-header-bg-color: rgba(255, 255, 255, 0.035);
+  --el-table-header-bg-color: rgba(255, 255, 255, 0.03);
   --el-table-row-hover-bg-color: rgba(255, 255, 255, 0.05);
   --el-table-border-color: rgba(255, 255, 255, 0.06);
-  --el-table-header-text-color: var(--text-2);
+  --el-table-header-text-color: var(--text-3);
   --el-table-text-color: var(--text-1);
 
   /* 菜单 */
@@ -244,4 +270,94 @@ html.dark {
   --el-menu-active-color: var(--brand-gold);
   --el-menu-hover-bg-color: rgba(255, 255, 255, 0.06);
   --el-menu-item-height: 46px;
+
+  --el-loading-mask-bg-color: rgba(6, 10, 19, 0.55);
+}
+
+/* =========================================================
+ * 5. 全局基础样式
+ * ========================================================= */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-ui);
+  background: var(--bg-page);
+  color: var(--text-1);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+}
+
+/* 数字等宽，避免金额跳动 */
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 页面主背景层：柔和品牌光晕（App/Layout 使用，置于内容之下） */
+.app-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(640px 420px at 12% -8%, var(--bg-glow-gold), transparent 62%),
+    radial-gradient(720px 460px at 96% 4%, var(--bg-glow-purple), transparent 60%),
+    radial-gradient(560px 420px at 70% 110%, var(--bg-glow-cyan), transparent 58%),
+    linear-gradient(180deg, var(--bg-glow-top), var(--bg-page));
+  transition: background 0.3s ease;
+}
+
+/* =========================================================
+ * 6. 响应式补丁（移动端弹窗/消息等组件适配）
+ * ========================================================= */
+@media (max-width: 767px) {
+  /* 弹窗：移动端全宽，避免 420px 对话框溢出小屏 */
+  .el-dialog {
+    --el-dialog-width: calc(100vw - 24px);
+    border-radius: var(--radius-lg);
+    margin-top: 8vh;
+  }
+
+  /* 消息提示：移动端更贴近屏幕 */
+  .el-message {
+    max-width: calc(100vw - 32px);
+  }
+}
+
+/* 桌面端：底部弹层居中展示（移动端保持底部抽屉） */
+@media (min-width: 768px) {
+  .sheet-mask {
+    align-items: center !important;
+  }
+
+  .sheet {
+    border-radius: 20px !important;
+    max-height: 82vh !important;
+  }
 }

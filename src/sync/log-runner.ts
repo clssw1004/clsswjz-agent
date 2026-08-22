@@ -57,15 +57,16 @@ export class LogRunner {
         if (data) {
           const { id, ...fields } = data;
           const clean = this.sanitize(fields, repo);
-          if (Object.keys(clean).length > 0) await repo.update(log.businessId, clean);
+          // 无业务 id 的更新无法定位记录（历史脏日志：touch 型 update 只带 updatedAt/updatedBy），跳过
+          if (log.businessId && Object.keys(clean).length > 0) await repo.update(log.businessId, clean);
         }
         break;
       case OperateType.DELETE:
-        await repo.delete(log.businessId);
+        if (log.businessId) await repo.delete(log.businessId);
         break;
       case OperateType.BATCH_DELETE:
-        if (data?.ids) await repo.delete(data.ids);
-        else await repo.delete(log.businessId);
+        if (Array.isArray(data?.ids) && data.ids.length > 0) await repo.delete(data.ids);
+        else if (log.businessId) await repo.delete(log.businessId);
         break;
       case OperateType.BATCH_UPDATE:
         if (Array.isArray(data)) {
@@ -74,8 +75,9 @@ export class LogRunner {
             const clean = this.sanitize(fields, repo);
             if (id && Object.keys(clean).length > 0) await repo.update(id, clean);
           }
-        } else if (data?.ids && Array.isArray(data.data)) {
+        } else if (Array.isArray(data?.ids) && Array.isArray(data.data)) {
           for (let i = 0; i < data.ids.length; i++) {
+            if (!data.ids[i]) continue;
             const fields = typeof data.data[i] === 'object' ? data.data[i] : {};
             const clean = this.sanitize(fields, repo);
             if (Object.keys(clean).length > 0) await repo.update(data.ids[i], clean);

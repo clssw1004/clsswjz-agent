@@ -3,6 +3,7 @@ import http from './http';
 export const authApi = {
   login: (data: { mainServerUrl: string; username: string; password: string }) =>
     http.post('/auth/login', data),
+  me: () => http.get('/auth/me'),
 };
 
 export const itemApi = {
@@ -11,6 +12,8 @@ export const itemApi = {
   create: (data: any) => http.post('/items', data),
   update: (id: string, data: any) => http.put(`/items/${id}`, data),
   delete: (id: string) => http.delete(`/items/${id}`),
+  summary: (params: any) => http.get('/items/summary', { params }),
+  statistics: (params: any) => http.get('/items/statistics', { params }),
 };
 
 export const bookApi = {
@@ -61,6 +64,7 @@ export const noteApi = {
 };
 
 export const attachmentApi = {
+  list: (params?: any) => http.get('/attachments', { params }),
   upload: (file: File, businessCode: string, businessId: string) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -78,5 +82,6 @@ export const syncApi = {
   push: () => http.post('/sync/push'),
   pull: (data?: any) => http.post('/sync/pull', data),
   run: () => http.post('/sync/run'),
+  reset: () => http.post('/sync/reset'),
   status: () => http.get('/sync/status'),
 };

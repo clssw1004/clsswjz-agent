@@ -1,38 +1,65 @@
 <template>
   <div class="settings-page">
     <div class="page-header">
-      <h2>资金账户</h2>
-      <span class="count">{{ items.length }} 个账户</span>
+      <div class="page-header-title">
+        <h2>资金账户</h2>
+        <span class="count">{{ items.length }} 个账户</span>
+      </div>
     </div>
 
-    <el-card class="glass table-card" shadow="never">
-      <el-table :data="items" v-loading="loading" empty-text="暂无数据">
-        <el-table-column prop="name" label="名称" min-width="180" />
-        <el-table-column prop="fundType" label="类型" width="120">
-          <template #default="{ row }">
-            <el-tag :type="fundTagType(row.fundType)" size="small" effect="light">
-              {{ fundTypeLabel(row.fundType) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="fundBalance" label="余额" min-width="140" align="right">
-          <template #default="{ row }">{{ formatBalance(row.fundBalance) }}</template>
-        </el-table-column>
-        <el-table-column label="默认账户" width="110" align="center">
-          <template #default="{ row }">
-            <el-tag v-if="row.isDefault" type="warning" size="small" effect="light">默认</el-tag>
-            <span v-else class="text-3">—</span>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+    <div v-loading="loading" class="fund-grid">
+      <el-empty v-if="!loading && items.length === 0" description="暂无账户" />
+
+      <div v-for="(f, i) in items" :key="f.id" class="fund-card glass">
+        <div class="fund-head">
+          <div class="fund-icon" :style="{ '--fund-grad': fundGrad(f.fundType, i) }">
+            <el-icon :size="20"><component :is="fundIcon(f.fundType)" /></el-icon>
+          </div>
+          <el-tag v-if="f.isDefault" type="warning" size="small" effect="light" round>默认</el-tag>
+        </div>
+        <div class="fund-name">{{ f.name }}</div>
+        <div class="fund-type">{{ fundTypeLabel(f.fundType) }}</div>
+        <div class="fund-balance num">{{ formatBalance(f.fundBalance) }}</div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
+import { Wallet, CreditCard, Coin, Goods } from '@element-plus/icons-vue';
 import { fundApi } from '@/api';
 import { useAppStore } from '@/stores/app';
+
+const FUND_GRADS = [
+  'linear-gradient(135deg, #14b8a6, #2dd4bf)',
+  'linear-gradient(135deg, #6366f1, #818cf8)',
+  'linear-gradient(135deg, #06b6d4, #22d3ee)',
+  'linear-gradient(135deg, #f59e0b, #fbbf24)',
+  'linear-gradient(135deg, #8b5cf6, #a78bfa)',
+];
+
+function fundGrad(t?: string, i?: number) {
+  switch (t) {
+    case 'CASH': return 'linear-gradient(135deg, #10b981, #34d399)';
+    case 'BANK': return 'linear-gradient(135deg, #6366f1, #818cf8)';
+    case 'ALIPAY': return 'linear-gradient(135deg, #06b6d4, #22d3ee)';
+    case 'WECHAT': return 'linear-gradient(135deg, #10b981, #6ee7b7)';
+    case 'CREDIT': return 'linear-gradient(135deg, #8b5cf6, #c084fc)';
+    default: return FUND_GRADS[(i ?? 0) % FUND_GRADS.length];
+  }
+}
+
+function fundIcon(t?: string) {
+  switch (t) {
+    case 'CASH': return Coin;
+    case 'BANK': return CreditCard;
+    case 'ALIPAY': return Wallet;
+    case 'WECHAT': return Goods;
+    case 'CREDIT': return CreditCard;
+    default: return Wallet;
+  }
+}
 
 const app = useAppStore();
 const loading = ref(false);
@@ -64,17 +91,6 @@ function fundTypeLabel(t?: string) {
   }
 }
 
-function fundTagType(t?: string) {
-  switch (t) {
-    case 'CASH': return 'success' as const;
-    case 'BANK': return '' as const;
-    case 'ALIPAY': return 'primary' as const;
-    case 'WECHAT': return 'success' as const;
-    case 'CREDIT': return 'danger' as const;
-    default: return 'info' as const;
-  }
-}
-
 function formatBalance(v?: number | string) {
   const n = Number(v ?? 0);
   if (Number.isNaN(n)) return String(v ?? '-');
@@ -89,11 +105,18 @@ onMounted(load);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
+}
+
+.page-header-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
 }
 
 .page-header h2 {
   margin: 0;
+  font-size: 18px;
   color: var(--text-1);
 }
 
@@ -102,15 +125,64 @@ onMounted(load);
   color: var(--text-3);
 }
 
-.table-card.glass {
+.fund-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  min-height: 80px;
+}
+
+.fund-card.glass {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
   background: var(--surface-glass);
   backdrop-filter: var(--blur-glass);
   border: 1px solid var(--border-glass);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
-.text-3 {
+.fund-card.glass:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-float);
+}
+
+.fund-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.fund-icon {
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 13px;
+  color: #fff;
+  background: var(--fund-grad);
+}
+
+.fund-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.fund-type {
+  font-size: 12px;
   color: var(--text-3);
+}
+
+.fund-balance {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-1);
+  margin-top: 4px;
 }
 </style>

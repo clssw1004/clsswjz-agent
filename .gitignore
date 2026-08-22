@@ -31,6 +31,12 @@ data/
 
 # ===== 前端构建 / 缓存 =====
 .vite/
+web/dist/
+
+# Vite 插件自动生成类型声明（unplugin-auto-import / unplugin-vue-components）
+**/auto-imports.d.ts
+**/components.d.ts
+**/auto-import-gen.d.ts
 
 # ===== 测试 =====
 coverage/

@@ -7,11 +7,11 @@
 
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top" v-loading="loading">
         <el-form-item label="标题" prop="title">
-          <el-input v-model="form.title" placeholder="请输入标题" maxlength="100" />
+          <el-input v-model="form.title" placeholder="请输入标题" maxlength="100" size="large" />
         </el-form-item>
 
         <el-form-item label="类型" prop="noteType">
-          <el-select v-model="form.noteType" placeholder="请选择类型" style="width: 200px">
+          <el-select v-model="form.noteType" placeholder="请选择类型" size="large">
             <el-option label="笔记" value="NOTE" />
             <el-option label="待办" value="TODO" />
             <el-option label="报告" value="REPORT" />
@@ -28,8 +28,8 @@
         </el-form-item>
 
         <div class="actions">
-          <el-button @click="router.back()">取消</el-button>
-          <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+          <el-button round @click="router.back()">取消</el-button>
+          <el-button type="primary" round :loading="saving" @click="save">保存</el-button>
         </div>
       </el-form>
     </el-card>
@@ -40,7 +40,6 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import type { FormInstance, FormRules } from 'element-plus';
-import { ElMessage } from 'element-plus';
 import { noteApi } from '@/api';
 import { useAppStore } from '@/stores/app';
 
@@ -102,17 +101,28 @@ onMounted(load);
 </script>
 
 <style scoped>
-.form-card.glass {
+.note-form-page {
   max-width: 760px;
+  margin: 0 auto;
+}
+
+.form-card.glass {
   background: var(--surface-glass);
   backdrop-filter: var(--blur-glass);
   border: 1px solid var(--border-glass);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-card);
+  padding: 8px 8px 12px;
+}
+
+.form-card :deep(.el-card__header) {
+  border-bottom: 1px solid var(--border-glass);
+  padding: 14px 20px;
 }
 
 .card-title {
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 16px;
   color: var(--text-1);
 }
 
@@ -120,5 +130,18 @@ onMounted(load);
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+  margin-top: 4px;
+}
+
+.actions .el-button--primary {
+  background: var(--grad-brand);
+  border: none;
+  box-shadow: var(--glow-primary);
+}
+
+@media (max-width: 767px) {
+  .form-card.glass {
+    padding: 0 0 12px;
+  }
 }
 </style>

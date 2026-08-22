@@ -14,6 +14,17 @@ export class SyncController {
     this.syncService.syncWithProgress(userId).catch(() => {});
     return { started: true };
   }
+
+  /** 全量重拉（重置游标后从 0 拉取全部类型），用于修复历史版本漏拉 category/symbol 等存量数据；
+   *  body.clearData=true 时额外清空本地全部业务数据（对齐移动端"重置凭证&数据重置同步"） */
+  @Post('reset')
+  async reset(@Req() req, @Body() body: { clearData?: boolean }) {
+    const userId = req.user.userId;
+    this.syncService.fullResync(userId, !!body?.clearData).catch((err) => {
+      console.error(`Full resync failed for ${userId}: ${err.message}`);
+    });
+    return { started: true };
+  }
   @Get('status')
   async status(@Req() req) {
     const userId = req.user.userId;

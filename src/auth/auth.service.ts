@@ -65,4 +65,15 @@ export class AuthService {
       initialSyncing: true,
     };
   }
+
+  /** 当前登录用户信息（同步设置页：服务器地址 + 账号） */
+  async me(userId: string) {
+    const user = await this.userService.findById(userId);
+    if (!user) throw new UnauthorizedException('用户不存在');
+    return {
+      userId: user.id,
+      nickname: user.nickname,
+      mainServerUrl: user.mainServerUrl,
+    };
+  }
 }

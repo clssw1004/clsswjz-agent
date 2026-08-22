@@ -32,6 +32,58 @@ export class ItemService {
     return repo.findOneBy({ id });
   }
 
+  /** 收支聚合（只读统计，供首页统计卡；不影响同步协议） */
+  async summary(userId: string, query: {
+    accountBookId?: string; startDate?: string; endDate?: string;
+  }) {
+    const repo = await this.connMgr.getRepository(userId, AccountItem);
+    const qb = repo.createQueryBuilder('item');
+    if (query.accountBookId) qb.andWhere('item.accountBookId = :accountBookId', { accountBookId: query.accountBookId });
+    if (query.startDate) qb.andWhere('item.accountDate >= :startDate', { startDate: query.startDate });
+    if (query.endDate) qb.andWhere('item.accountDate <= :endDate', { endDate: query.endDate });
+    const rows = await qb
+      .select('item.type', 'type')
+      .addSelect('SUM(item.amount)', 'total')
+      .groupBy('item.type')
+      .getRawMany();
+    let income = 0;
+    let expense = 0;
+    for (const r of rows) {
+      if (r.type === 'INCOME') income = Number(r.total || 0);
+      else expense = Number(r.total || 0);
+    }
+    return { income, expense, balance: income + expense };
+  }
+
+  /** 按分类聚合（只读统计，供统计页分类占比；不影响同步协议） */
+  async statistics(userId: string, query: {
+    accountBookId?: string; startDate?: string; endDate?: string;
+  }) {
+    const repo = await this.connMgr.getRepository(userId, AccountItem);
+    const qb = repo.createQueryBuilder('item');
+    if (query.accountBookId) qb.andWhere('item.accountBookId = :accountBookId', { accountBookId: query.accountBookId });
+    if (query.startDate) qb.andWhere('item.accountDate >= :startDate', { startDate: query.startDate });
+    if (query.endDate) qb.andWhere('item.accountDate <= :endDate', { endDate: query.endDate });
+    const rows = await qb
+      .select('item.categoryCode', 'categoryCode')
+      .addSelect('item.type', 'type')
+      .addSelect('SUM(item.amount)', 'total')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('item.categoryCode')
+      .addGroupBy('item.type')
+      .getRawMany();
+    const byCategory = rows
+      .filter((r) => r.categoryCode && r.total)
+      .map((r) => ({
+        categoryCode: r.categoryCode,
+        type: r.type === 'INCOME' ? 'INCOME' : 'EXPENSE',
+        total: Number(r.total || 0),
+        count: Number(r.count || 0),
+      }))
+      .sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
+    return { byCategory };
+  }
+
   async create(userId: string, data: Partial<AccountItem>) {
     const repo = await this.connMgr.getRepository(userId, AccountItem);
     const logRepo = await this.connMgr.getRepository(userId, LogSync);

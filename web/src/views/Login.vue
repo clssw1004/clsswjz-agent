@@ -1,19 +1,31 @@
 <template>
   <div class="login-page">
     <div class="login-card glass">
-      <h2>记账助手</h2>
-      <p class="subtitle">{{ syncing ? '正在同步数据' : '登录以开始使用' }}</p>
-      <el-form v-if="!syncing" @submit.prevent="handleLogin" label-position="top">
+      <div class="brand">
+        <div class="brand-badge">
+          <el-icon :size="26"><Coin /></el-icon>
+        </div>
+        <h2>记账助手</h2>
+        <p class="subtitle">{{ syncing ? '正在同步数据' : '登录以开始使用' }}</p>
+      </div>
+
+      <el-form v-if="!syncing" @submit.prevent="handleLogin" label-position="top" class="login-form">
         <el-form-item label="主端地址">
-          <el-input v-model="form.mainServerUrl" placeholder="http://your-server:3000" />
+          <el-input v-model="form.mainServerUrl" placeholder="http://your-server:3000" size="large">
+            <template #prefix><el-icon><Connection /></el-icon></template>
+          </el-input>
         </el-form-item>
         <el-form-item label="用户名">
-          <el-input v-model="form.username" />
+          <el-input v-model="form.username" size="large" placeholder="请输入用户名">
+            <template #prefix><el-icon><User /></el-icon></template>
+          </el-input>
         </el-form-item>
         <el-form-item label="密码">
-          <el-input v-model="form.password" type="password" show-password />
+          <el-input v-model="form.password" type="password" show-password size="large" placeholder="请输入密码">
+            <template #prefix><el-icon><Lock /></el-icon></template>
+          </el-input>
         </el-form-item>
-        <el-button type="primary" native-type="submit" :loading="loading" style="width:100%">
+        <el-button type="primary" native-type="submit" :loading="loading" class="submit-btn" size="large">
           登录
         </el-button>
       </el-form>
@@ -35,7 +47,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, onUnmounted } from 'vue';
-import { ElMessage } from 'element-plus';
+import { Coin, Connection, User, Lock } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useSyncStore } from '@/stores/sync';
@@ -95,19 +107,91 @@ onUnmounted(() => {
 
 <style scoped>
 .login-page {
-  display: flex; align-items: center; justify-content: center;
-  min-height: 100vh; background: var(--bg-page);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
 }
+
 .login-card {
-  width: 380px; padding: 32px; border-radius: var(--radius-lg);
-  background: var(--surface-glass-strong); backdrop-filter: var(--blur-glass);
+  width: 400px;
+  max-width: 100%;
+  padding: 36px 32px 32px;
+  border-radius: var(--radius-xl);
+  background: var(--surface-glass-strong);
+  backdrop-filter: var(--blur-glass);
   border: 1px solid var(--border-glass);
+  box-shadow: var(--shadow-pop);
 }
-h2 { text-align: center; color: var(--text-1); margin-bottom: 4px; }
-.subtitle { text-align: center; color: var(--text-3); margin-bottom: 24px; }
-.sync-progress { padding: 8px 0 4px; }
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 26px;
+}
+
+.brand-badge {
+  width: 58px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  color: #fff;
+  background: var(--grad-brand);
+  box-shadow: var(--glow-primary);
+  margin-bottom: 14px;
+}
+
+.brand h2 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  color: var(--text-1);
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.login-form :deep(.el-form-item__label) {
+  font-weight: 600;
+  color: var(--text-2);
+  padding-bottom: 4px;
+}
+
+.submit-btn {
+  width: 100%;
+  margin-top: 8px;
+  font-weight: 600;
+  background: var(--grad-brand);
+  border: none;
+  box-shadow: var(--glow-primary);
+}
+
+.submit-btn:hover {
+  opacity: 0.92;
+}
+
+.sync-progress {
+  padding: 8px 0 4px;
+}
+
 .sync-step {
-  margin-top: 12px; font-size: 13px; color: var(--text-2);
-  text-align: center; min-height: 18px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--text-2);
+  text-align: center;
+  min-height: 18px;
+}
+
+@media (max-width: 767px) {
+  .login-page {
+    align-items: flex-start;
+    padding-top: 8vh;
+  }
 }
 </style>

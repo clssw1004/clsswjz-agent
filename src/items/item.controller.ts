@@ -10,6 +10,16 @@ export class ItemController {
     return this.itemService.findAll(req.user.userId, query);
   }
 
+  @Get('summary')
+  summary(@Req() req, @Query() query: any) {
+    return this.itemService.summary(req.user.userId, query);
+  }
+
+  @Get('statistics')
+  statistics(@Req() req, @Query() query: any) {
+    return this.itemService.statistics(req.user.userId, query);
+  }
+
   @Get(':id')
   findOne(@Req() req, @Param('id') id: string) {
     return this.itemService.findOne(req.user.userId, id);

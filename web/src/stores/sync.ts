@@ -51,5 +51,17 @@ export const useSyncStore = defineStore('sync', {
       this.stopPolling();
       this.startPolling();
     },
+    /** 全量重拉（重置游标从 0 拉取全部类型），用于修复历史版本漏拉分类/项目/标签等存量数据；
+     *  [clearData=true] 时重置整个本地数据目录（对齐移动端"重置凭证&数据重置同步"） */
+    async triggerResync(clearData = false) {
+      if (this.syncing) return;
+      try {
+        await syncApi.reset(clearData ? { clearData: true } : undefined);
+      } catch {
+        /* 同上 */
+      }
+      this.stopPolling();
+      this.startPolling();
+    },
   },
 });
