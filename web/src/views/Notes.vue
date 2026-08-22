@@ -32,7 +32,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { noteApi } from '@/api';
 import { useAppStore } from '@/stores/app';
@@ -79,6 +79,7 @@ function goDetail(note: any) {
 }
 
 onMounted(load);
+watch(() => appStore.currentBookId, load);
 </script>
 
 <style scoped>

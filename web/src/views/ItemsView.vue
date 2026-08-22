@@ -10,19 +10,7 @@
         class="month-picker"
         placeholder="选择月份"
       />
-      <el-select
-        :model-value="app.currentBookId"
-        class="book-select"
-        placeholder="选择账本"
-        @change="(v: any) => app.switchBook(v)"
-      >
-        <el-option
-          v-for="b in app.books"
-          :key="b.id"
-          :label="b.name"
-          :value="b.id"
-        />
-      </el-select>
+      <span class="book-hint">{{ currentBookName }}</span>
     </div>
 
     <div class="summary glass">
@@ -96,6 +84,11 @@ const total = ref(0);
 const page = ref(1);
 const pageSize = 20;
 const loading = ref(false);
+
+// 当前账本名（账本选择在顶栏全局，这里只展示）
+const currentBookName = computed(
+  () => app.books.find((b: any) => b.id === app.currentBookId)?.name || ''
+);
 
 const range = computed(() => {
   const match = /^(\d{4})-(\d{2})$/.exec(String(monthValue.value || ''));
@@ -193,9 +186,9 @@ onMounted(load);
   max-width: 180px;
 }
 
-.book-select {
-  flex: 1;
-  min-width: 140px;
+.book-hint {
+  font-size: 13px;
+  color: var(--text-3);
 }
 
 .summary {

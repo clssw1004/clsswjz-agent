@@ -141,7 +141,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
@@ -204,7 +204,7 @@ async function loadOptions() {
   const bookId = app.currentBookId;
   const [cats, fnds, shps, tgs, prjs] = await Promise.all([
     categoryApi.list(bookId ? { accountBookId: bookId } : {}),
-    fundApi.list(),
+    fundApi.list(bookId ? { accountBookId: bookId } : {}),
     shopApi.list(bookId ? { accountBookId: bookId } : {}),
     tagApi.list(bookId ? { accountBookId: bookId } : {}),
     projectApi.list(bookId ? { accountBookId: bookId } : {}),
@@ -235,6 +235,13 @@ onMounted(async () => {
     form.accountDate = it.accountDate;
     form.description = it.description || '';
   }
+});
+
+// 全局账本切换时重载下拉选项（分类/账户/商户/标签/项目都按账本查询）
+watch(() => app.currentBookId, async () => {
+  try {
+    await loadOptions();
+  } catch { /* options are optional */ }
 });
 
 function buildPayload() {

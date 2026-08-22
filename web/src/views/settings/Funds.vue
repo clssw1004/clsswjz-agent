@@ -15,8 +15,8 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="balance" label="余额" min-width="140" align="right">
-          <template #default="{ row }">{{ formatBalance(row.balance) }}</template>
+        <el-table-column prop="fundBalance" label="余额" min-width="140" align="right">
+          <template #default="{ row }">{{ formatBalance(row.fundBalance) }}</template>
         </el-table-column>
         <el-table-column label="默认账户" width="110" align="center">
           <template #default="{ row }">
@@ -30,21 +30,28 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 import { fundApi } from '@/api';
+import { useAppStore } from '@/stores/app';
 
+const app = useAppStore();
 const loading = ref(false);
 const items = ref<any[]>([]);
 
 async function load() {
   loading.value = true;
   try {
-    const res: any = await fundApi.list();
+    const res: any = await fundApi.list(
+      app.currentBookId ? { accountBookId: app.currentBookId } : {}
+    );
     items.value = Array.isArray(res) ? res : res?.items || [];
   } finally {
     loading.value = false;
   }
 }
+
+watch(() => app.currentBookId, load);
+onMounted(load);
 
 function fundTypeLabel(t?: string) {
   switch (t) {

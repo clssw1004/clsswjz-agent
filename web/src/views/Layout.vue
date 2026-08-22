@@ -21,7 +21,19 @@
     <div class="main-area">
       <!-- Top bar -->
       <header class="topbar glass">
-        <span class="page-title">{{ route.meta.title || '记账' }}</span>
+        <div class="topbar-left">
+          <span class="page-title">{{ route.meta.title || '记账' }}</span>
+          <!-- 全局账本选择（分类/商户/标签/项目/账户与账目一样按账本查询） -->
+          <el-select
+            :model-value="app.currentBookId"
+            class="global-book-select"
+            placeholder="选择账本"
+            size="small"
+            @change="handleBookChange"
+          >
+            <el-option v-for="b in app.books" :key="b.id" :label="b.name" :value="b.id" />
+          </el-select>
+        </div>
         <div class="topbar-right">
           <!-- 同步状态条（对齐移动端 Mine 页的紧凑同步行） -->
           <button class="sync-row" :disabled="sync.syncing" @click="handleSync">
@@ -89,6 +101,11 @@ function handleCommand(cmd: string) {
   }
 }
 
+/** 全局切换账本：刷新当前页面数据（各视图 watch currentBookId 自动重载） */
+function handleBookChange(id: string) {
+  app.switchBook(id);
+}
+
 function handleSync() {
   sync.triggerSync().then(() => {
     // 同步完成后刷新数据
@@ -113,6 +130,11 @@ function handleSync() {
   border-bottom: 1px solid var(--border-glass); backdrop-filter: var(--blur-glass);
 }
 .page-title { font-size: 16px; font-weight: 600; color: var(--text-1); }
+.topbar-left { display: flex; align-items: center; gap: 14px; }
+.global-book-select { width: 160px; }
+@media (max-width: 767px) {
+  .global-book-select { width: 120px; }
+}
 .topbar-right { display: flex; align-items: center; gap: 14px; }
 .sync-row {
   display: flex; align-items: center; gap: 6px;

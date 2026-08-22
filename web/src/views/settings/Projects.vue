@@ -41,7 +41,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { onMounted, reactive, ref, watch } from 'vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { projectApi } from '@/api';
@@ -117,6 +117,7 @@ async function remove(row: any) {
 }
 
 onMounted(load);
+watch(() => appStore.currentBookId, load);
 </script>
 
 <style scoped>
