@@ -1,0 +1,72 @@
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { DataSource, Repository, ObjectLiteral } from 'typeorm';
+import * as fs from 'fs';
+import * as path from 'path';
+import { LogSync } from '../entities/log-sync.entity';
+import { AccountBook } from '../entities/account-book.entity';
+import { AccountItem } from '../entities/account-item.entity';
+import { AccountCategory } from '../entities/account-category.entity';
+import { AccountFund } from '../entities/account-fund.entity';
+import { AccountShop } from '../entities/account-shop.entity';
+import { AccountSymbol } from '../entities/account-symbol.entity';
+import { AccountNote } from '../entities/account-note.entity';
+import { AccountBookUser } from '../entities/account-book-user.entity';
+import { AttachmentEntity } from '../entities/attachment.entity';
+
+const USER_ENTITIES = [
+  AccountBook, AccountItem, AccountCategory, AccountFund,
+  AccountShop, AccountSymbol, AccountNote, AccountBookUser,
+  AttachmentEntity, LogSync,
+];
+
+@Injectable()
+export class ConnectionManager {
+  private connections = new Map<string, DataSource>();
+  private dataPath: string;
+
+  constructor(private config: ConfigService) {
+    this.dataPath = config.get<string>('dataPath') || './data';
+  }
+
+  async getRepository<T extends ObjectLiteral>(
+    userId: string,
+    entity: new () => T,
+  ): Promise<Repository<T>> {
+    const ds = await this.getConnection(userId);
+    return ds.getRepository(entity);
+  }
+
+  async initUserDataDir(userId: string): Promise<void> {
+    const userDir = path.join(this.dataPath, userId);
+    const attachDir = path.join(userDir, 'attachments');
+    if (!fs.existsSync(userDir)) fs.mkdirSync(userDir, { recursive: true });
+    if (!fs.existsSync(attachDir)) fs.mkdirSync(attachDir, { recursive: true });
+  }
+
+  private async getConnection(userId: string): Promise<DataSource> {
+    if (this.connections.has(userId)) {
+      const ds = this.connections.get(userId)!;
+      if (ds.isInitialized) return ds;
+    }
+    await this.initUserDataDir(userId);
+    const dbPath = path.join(this.dataPath, userId, 'db.sqlite');
+    const ds = new DataSource({
+      type: 'sqlite',
+      database: dbPath,
+      entities: USER_ENTITIES,
+      synchronize: true,
+    });
+    await ds.initialize();
+    this.connections.set(userId, ds);
+    return ds;
+  }
+
+  async closeConnection(userId: string): Promise<void> {
+    const ds = this.connections.get(userId);
+    if (ds?.isInitialized) {
+      await ds.destroy();
+      this.connections.delete(userId);
+    }
+  }
+}

@@ -15,3 +15,4 @@ Ruling: All tasks agree with each other and with Global Constraints. Proceed.
 
 ## Execution
 
+Task 1: complete (commits cafb47a..96bfc36, review clean)
