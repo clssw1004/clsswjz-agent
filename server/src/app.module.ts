@@ -7,6 +7,13 @@ import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { SyncModule } from './sync/sync.module';
 import { ItemModule } from './items/item.module';
+import { BookModule } from './books/book.module';
+import { CategoryModule } from './categories/category.module';
+import { FundModule } from './funds/fund.module';
+import { ShopModule } from './shops/shop.module';
+import { TagModule } from './tags/tag.module';
+import { ProjectModule } from './projects/project.module';
+import { NoteModule } from './notes/note.module';
 
 @Module({
   imports: [
@@ -15,6 +22,13 @@ import { ItemModule } from './items/item.module';
     AuthModule,
     SyncModule,
     ItemModule,
+    BookModule,
+    CategoryModule,
+    FundModule,
+    ShopModule,
+    TagModule,
+    ProjectModule,
+    NoteModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
