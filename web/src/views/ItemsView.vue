@@ -26,11 +26,11 @@
       <div class="stat-line"></div>
     </div>
 
-    <!-- 列表卡片：对齐移动端 ItemsContainer -->
+    <!-- 列表卡片：对齐移动端 ItemsContainer（仅展示最新一天账目，"更多"进列表页） -->
     <div class="list-card glass">
       <div class="list-head">
         <span class="list-title">最近账目</span>
-        <span class="list-date">{{ monthLabel }}</span>
+        <span class="list-date">{{ lastDayLabel }}</span>
         <div v-if="!loading && items.length" class="list-stats">
           <span v-if="pageExpense < 0" class="mini-stat expense">
             <el-icon :size="13"><ArrowDown /></el-icon>{{ abs2(pageExpense) }}
@@ -47,7 +47,7 @@
       <div class="list-divider"></div>
 
       <div v-loading="loading" class="list-body">
-        <el-empty v-if="!loading && items.length === 0" description="本月暂无记录，点右下角记一笔" />
+        <el-empty v-if="!loading && items.length === 0" description="暂无账目，点右下角记一笔" />
 
         <div
           v-for="item in items"
@@ -79,12 +79,6 @@
             </div>
           </div>
         </div>
-
-        <!-- 触底加载哨兵（滚动加载替代分页） -->
-        <div ref="sentinel" class="list-sentinel">
-          <span v-if="loadingMore" class="loading-hint"><i class="spinner"></i>加载中…</span>
-          <span v-else-if="noMore && items.length" class="loading-hint end">没有更多了</span>
-        </div>
       </div>
     </div>
 
@@ -114,7 +108,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { Wallet, ArrowDown, ArrowUp, ArrowRight, Clock, Shop, Document } from '@element-plus/icons-vue';
 import { itemApi, categoryApi, shopApi, tagApi } from '@/api';
@@ -134,14 +128,27 @@ const monthLabel = computed(() => {
   return m ? `${m[1]}年${Number(m[2])}月` : '';
 });
 
-const items = ref<any[]>([]);
-const total = ref(0);
-const page = ref(1);
-const pageSize = 20;
+// 拉到的最近一页（倒序），展示其中"最新一天"的账目（对齐移动端 lastDayItems）
+const allItems = ref<any[]>([]);
 const loading = ref(false);
-const loadingMore = ref(false);
-const noMore = ref(false);
 const summary = ref({ income: 0, expense: 0 });
+
+/** 最新账目日期（如 2026-08-22） */
+const lastDay = computed(() =>
+  allItems.value.length ? String(allItems.value[0].accountDate || '').slice(0, 10) : ''
+);
+const lastDayLabel = computed(() => {
+  if (!lastDay.value) return '';
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(lastDay.value);
+  return m ? `${m[1]}年${Number(m[2])}月${Number(m[3])}日` : lastDay.value;
+});
+
+/** 最新一天的账目（首页容器展示内容） */
+const items = computed(() =>
+  lastDay.value
+    ? allItems.value.filter((i) => String(i.accountDate || '').startsWith(lastDay.value))
+    : []
+);
 
 // code → name 映射（分类/商户/标签）
 const catMap = ref<Record<string, string>>({});
@@ -243,84 +250,40 @@ async function loadSummary() {
   }
 }
 
-/** 加载一页（replace=true 重置列表） */
-async function loadPage(p: number, replace = false) {
-  const res: any = await itemApi.list({
-    accountBookId: app.currentBookId,
-    page: p,
-    pageSize,
-    startDate: range.value.startDate,
-    endDate: range.value.endDate,
-  });
-  const list = res.items || [];
-  total.value = res.total || 0;
-  if (replace) {
-    items.value = list;
-  } else {
-    items.value = [...items.value, ...list];
-  }
-  if (items.value.length >= total.value) noMore.value = true;
-}
-
-async function load() {
+/** 加载最近账目（不分月，倒序取一页，首页仅展示最新一天） */
+async function loadRecent() {
   loading.value = true;
-  noMore.value = false;
   try {
-    await loadPage(1, true);
+    const res: any = await itemApi.list({
+      accountBookId: app.currentBookId,
+      page: 1,
+      pageSize: 50,
+    });
+    allItems.value = res.items || [];
+  } catch {
+    allItems.value = [];
   } finally {
     loading.value = false;
   }
 }
 
-/** 触底加载下一页 */
-async function loadMore() {
-  if (loading.value || loadingMore.value || noMore.value) return;
-  if (items.value.length >= total.value) {
-    noMore.value = true;
-    return;
-  }
-  loadingMore.value = true;
-  try {
-    await loadPage(page.value + 1);
-    page.value += 1;
-  } catch {
-    /* 忽略，下次触底重试 */
-  } finally {
-    loadingMore.value = false;
-  }
-}
-
 async function reload() {
-  page.value = 1;
-  await Promise.all([load(), loadSummary(), loadMaps()]);
+  await Promise.all([loadRecent(), loadSummary(), loadMaps()]);
 }
 
 function goList() {
-  router.push({ path: '/items/list', query: { month: String(monthValue.value) } });
+  // 列表页默认显示全部账目，可按需筛选月份/类型
+  router.push({ path: '/items/list' });
 }
 
 function goDetail(item: any) {
   router.push(`/items/${item.id}`);
 }
 
-/* 无限滚动：观察底部哨兵 */
-let observer: IntersectionObserver | null = null;
-const sentinel = ref<HTMLElement | null>(null);
+onMounted(reload);
 
-onMounted(() => {
-  reload();
-  observer = new IntersectionObserver(
-    (entries) => {
-      if (entries[0].isIntersecting) loadMore();
-    },
-    { rootMargin: '240px' },
-  );
-  if (sentinel.value) observer.observe(sentinel.value);
-});
-
-onUnmounted(() => observer?.disconnect());
-
-watch(monthValue, reload);
+// 月份切换只影响统计卡（列表始终为最近账目）
+watch(monthValue, loadSummary);
 
 watch(
   () => app.currentBookId,

@@ -219,4 +219,33 @@ async function handleResync() {
     height: 40px;
   }
 }
+
+/* 桌面端：更多列、图标更大、格子紧凑（避免小图标+大间距） */
+@media (min-width: 768px) {
+  .features-page {
+    max-width: 920px;
+  }
+
+  .hub-grid {
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
+    padding: 16px;
+  }
+
+  .hub-item {
+    aspect-ratio: 1;
+    gap: 10px;
+    padding: 8px 4px;
+  }
+
+  .hub-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 17px;
+  }
+
+  .hub-label {
+    font-size: 13px;
+  }
+}
 </style>

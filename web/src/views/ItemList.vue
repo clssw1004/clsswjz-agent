@@ -74,6 +74,7 @@
               class="sheet-month-picker"
               @change="monthSheet = false"
             />
+            <button class="sheet-clear" @click="clearMonth">查看全部</button>
           </div>
         </div>
       </transition>
@@ -83,19 +84,17 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRouter } from 'vue-router';
 import { Calendar, Clock, Shop } from '@element-plus/icons-vue';
 import { itemApi, categoryApi, shopApi, tagApi } from '@/api';
 import { useAppStore } from '@/stores/app';
 
-const route = useRoute();
 const router = useRouter();
 const app = useAppStore();
 
 const now = new Date();
-const monthValue = ref(
-  String(route.query.month || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
-);
+// 默认空 = 全部时间（移动端列表页默认显示全部账目，月份仅为可选筛选）
+const monthValue = ref('');
 const typeFilter = ref('');
 const monthSheet = ref(false);
 
@@ -113,26 +112,19 @@ const tagMap = ref<Record<string, string>>({});
 
 const monthLabel = computed(() => {
   const m = /^(\d{4})-(\d{2})$/.exec(String(monthValue.value || ''));
-  return m ? `${m[1]}年${Number(m[2])}月` : '';
+  return m ? `${m[1]}年${Number(m[2])}月` : '全部时间';
 });
 
+/** 空值 = 不过滤月份（查全部） */
 const range = computed(() => {
   const match = /^(\d{4})-(\d{2})$/.exec(String(monthValue.value || ''));
-  if (match) {
-    const y = Number(match[1]);
-    const m = Number(match[2]);
-    const lastDay = new Date(y, m, 0).getDate();
-    return {
-      startDate: `${match[1]}-${match[2]}-01`,
-      endDate: `${match[1]}-${match[2]}-${lastDay} 23:59:59`,
-    };
-  }
-  const d = new Date();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  if (!match) return null;
+  const y = Number(match[1]);
+  const m = Number(match[2]);
+  const lastDay = new Date(y, m, 0).getDate();
   return {
-    startDate: `${d.getFullYear()}-${mm}-01`,
-    endDate: `${d.getFullYear()}-${mm}-${lastDay} 23:59:59`,
+    startDate: `${match[1]}-${match[2]}-01`,
+    endDate: `${match[1]}-${match[2]}-${lastDay} 23:59:59`,
   };
 });
 
@@ -192,8 +184,9 @@ async function loadPage(p: number, replace = false) {
     page: p,
     pageSize,
     type: typeFilter.value || undefined,
-    startDate: range.value.startDate,
-    endDate: range.value.endDate,
+    ...(range.value
+      ? { startDate: range.value.startDate, endDate: range.value.endDate }
+      : {}),
   });
   const list = res.items || [];
   total.value = res.total || 0;
@@ -227,6 +220,11 @@ function switchType(t: string) {
   if (typeFilter.value === t) return;
   typeFilter.value = t;
   reload();
+}
+
+function clearMonth() {
+  monthValue.value = '';
+  monthSheet.value = false;
 }
 
 function goDetail(item: any) {
@@ -520,6 +518,23 @@ watch(() => app.currentBookId, () => {
 
 .sheet-month-picker {
   width: 100%;
+}
+
+.sheet-clear {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px dashed var(--border-glass-strong);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--brand-gold);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.sheet-clear:hover {
+  background: var(--brand-gold-soft);
 }
 
 .sheet-enter-active,

@@ -76,12 +76,6 @@
             <span v-if="sync.unsynced > 0" class="sync-badge">{{ sync.unsynced }}</span>
           </button>
 
-          <el-tooltip content="同步设置" placement="bottom">
-            <button class="icon-btn" @click="router.push('/settings/sync')">
-              <el-icon><Setting /></el-icon>
-            </button>
-          </el-tooltip>
-
           <el-tooltip :content="isDark ? '切换亮色' : '切换暗色'" placement="bottom">
             <button class="icon-btn" @click="toggleMode">
               <el-icon><Sunny v-if="isDark" /><Moon v-else /></el-icon>
