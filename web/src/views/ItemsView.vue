@@ -1,35 +1,34 @@
 <template>
   <div class="items-view">
     <!-- 统计卡：对齐移动端 BookStatisticCard -->
-    <div class="stat-card glass">
-      <div class="stat-head">
-        <el-icon :size="17"><Wallet /></el-icon>
-        <span class="stat-head-title">{{ monthLabel }}</span>
+    <Panel :icon="Wallet" :title="monthLabel" accent>
+      <template #head>
         <span class="stat-head-book">{{ currentBookName }}</span>
+      </template>
+      <template #action>
         <button class="stat-head-change" @click="monthSheet = true">切换</button>
-      </div>
+      </template>
       <div class="stat-body">
         <div class="stat-item">
           <span class="stat-pill pill-expense">
             <el-icon :size="14"><ArrowDown /></el-icon>支出
           </span>
-          <span class="stat-num num">{{ fmt(summary.expense) }}</span>
+          <span class="stat-num num expense">{{ fmt(summary.expense) }}</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
           <span class="stat-pill pill-income">
             <el-icon :size="14"><ArrowUp /></el-icon>收入
           </span>
-          <span class="stat-num num">{{ fmt(summary.income) }}</span>
+          <span class="stat-num num income">{{ fmt(summary.income) }}</span>
         </div>
       </div>
       <div class="stat-line"></div>
-    </div>
+    </Panel>
 
     <!-- 列表卡片：对齐移动端 ItemsContainer（仅展示最新一天账目，"更多"进列表页） -->
-    <div class="list-card glass">
-      <div class="list-head">
-        <span class="list-title">最近账目</span>
+    <Panel title="最近账目" divider noPad>
+      <template #head>
         <span class="list-date">{{ lastDayLabel }}</span>
         <div v-if="!loading && items.length" class="list-stats">
           <span v-if="pageExpense < 0" class="mini-stat expense">
@@ -40,14 +39,15 @@
             <el-icon :size="13"><ArrowUp /></el-icon>{{ pageIncome.toFixed(2) }}
           </span>
         </div>
+      </template>
+      <template #action>
         <span class="list-more" @click="goList">
           更多<el-icon :size="14"><ArrowRight /></el-icon>
         </span>
-      </div>
-      <div class="list-divider"></div>
+      </template>
 
       <div v-loading="loading" class="list-body">
-        <el-empty v-if="!loading && items.length === 0" description="暂无账目，点右下角记一笔" />
+        <el-empty v-if="!loading && items.length === 0" description="暂无账目，点中间加号记一笔" />
 
         <div
           v-for="item in items"
@@ -80,7 +80,7 @@
           </div>
         </div>
       </div>
-    </div>
+    </Panel>
 
     <button class="fab" aria-label="新增记账" @click="router.push('/items/new')">+</button>
 
@@ -113,6 +113,7 @@ import { useRouter } from 'vue-router';
 import { Wallet, ArrowDown, ArrowUp, ArrowRight, Clock, Shop, Document } from '@element-plus/icons-vue';
 import { itemApi, categoryApi, shopApi, tagApi } from '@/api';
 import { useAppStore } from '@/stores/app';
+import Panel from '@/components/Panel.vue';
 
 const router = useRouter();
 const app = useAppStore();
@@ -311,33 +312,7 @@ watch(
   margin: 0 auto;
 }
 
-.glass {
-  background: var(--surface-glass);
-  border: 1px solid var(--border-glass);
-  backdrop-filter: var(--blur-glass);
-  box-shadow: var(--shadow-card);
-}
-
-/* ========== 统计卡（对齐 BookStatisticCard） ========== */
-.stat-card {
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-}
-
-.stat-head {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 11px 16px;
-  background: var(--brand-gold-soft);
-  color: var(--brand-gold-dark);
-}
-
-.stat-head-title {
-  font-size: 13px;
-  font-weight: 600;
-}
-
+/* ========== 统计卡（对齐 BookStatisticCard，容器由 Panel 提供） ========== */
 .stat-head-book {
   flex: 1;
   font-size: 12px;
@@ -424,25 +399,7 @@ watch(
   background: linear-gradient(90deg, rgba(185, 91, 75, 0.5), rgba(67, 160, 71, 0.5));
 }
 
-/* ========== 列表卡片（对齐 ItemsContainer） ========== */
-.list-card {
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-}
-
-.list-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-}
-
-.list-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-1);
-}
-
+/* ========== 列表卡片（对齐 ItemsContainer，容器由 Panel 提供） ========== */
 .list-date {
   font-size: 11px;
   color: var(--text-3);
@@ -489,11 +446,6 @@ watch(
 
 .list-more:hover {
   color: var(--brand-gold);
-}
-
-.list-divider {
-  height: 1px;
-  background: var(--border-glass);
 }
 
 .list-body {
@@ -719,9 +671,9 @@ watch(
     padding-bottom: calc(80px + env(safe-area-inset-bottom));
   }
 
+  /* 移动端新增入口由底部 tab 中间按钮提供，隐藏右下角 FAB */
   .fab {
-    right: 18px;
-    bottom: calc(74px + env(safe-area-inset-bottom));
+    display: none;
   }
 
   .stat-num {

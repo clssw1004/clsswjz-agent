@@ -6,14 +6,16 @@
         <el-icon :size="15"><Notebook /></el-icon>
         <span>{{ bookTitle }}</span>
       </div>
-      <div class="hub-grid glass">
-        <div v-for="f in bookItems" :key="f.label" class="hub-item" @click="go(f.route)">
-          <div class="hub-icon" :style="{ background: f.grad }">
-            <el-icon :size="20"><component :is="f.icon" /></el-icon>
+      <Panel noPad>
+        <div class="hub-grid">
+          <div v-for="f in bookItems" :key="f.label" class="hub-item" @click="go(f.route)">
+            <div class="hub-icon" :style="{ background: f.grad }">
+              <el-icon :size="20"><component :is="f.icon" /></el-icon>
+            </div>
+            <span class="hub-label">{{ f.label }}</span>
           </div>
-          <span class="hub-label">{{ f.label }}</span>
         </div>
-      </div>
+      </Panel>
     </section>
 
     <!-- 生活组 -->
@@ -22,14 +24,16 @@
         <el-icon :size="15"><Sunny /></el-icon>
         <span>生活</span>
       </div>
-      <div class="hub-grid glass">
-        <div v-for="f in lifeItems" :key="f.label" class="hub-item" @click="go(f.route)">
-          <div class="hub-icon" :style="{ background: f.grad }">
-            <el-icon :size="20"><component :is="f.icon" /></el-icon>
+      <Panel noPad>
+        <div class="hub-grid">
+          <div v-for="f in lifeItems" :key="f.label" class="hub-item" @click="go(f.route)">
+            <div class="hub-icon" :style="{ background: f.grad }">
+              <el-icon :size="20"><component :is="f.icon" /></el-icon>
+            </div>
+            <span class="hub-label">{{ f.label }}</span>
           </div>
-          <span class="hub-label">{{ f.label }}</span>
         </div>
-      </div>
+      </Panel>
     </section>
 
     <!-- 数据工具组 -->
@@ -38,26 +42,28 @@
         <el-icon :size="15"><Setting /></el-icon>
         <span>数据工具</span>
       </div>
-      <div class="hub-grid glass">
-        <div v-for="f in toolItems" :key="f.label" class="hub-item" @click="go(f.route)">
-          <div class="hub-icon" :style="{ background: f.grad }">
-            <el-icon :size="20"><component :is="f.icon" /></el-icon>
+      <Panel noPad>
+        <div class="hub-grid">
+          <div v-for="f in toolItems" :key="f.label" class="hub-item" @click="go(f.route)">
+            <div class="hub-icon" :style="{ background: f.grad }">
+              <el-icon :size="20"><component :is="f.icon" /></el-icon>
+            </div>
+            <span class="hub-label">{{ f.label }}</span>
           </div>
-          <span class="hub-label">{{ f.label }}</span>
-        </div>
-        <div class="hub-item" @click="go('/settings/sync')">
-          <div class="hub-icon" style="background: linear-gradient(135deg, #00a9c9, #38bdf8)">
-            <el-icon :size="20"><Connection /></el-icon>
+          <div class="hub-item" @click="go('/settings/sync')">
+            <div class="hub-icon" style="background: linear-gradient(135deg, #00a9c9, #38bdf8)">
+              <el-icon :size="20"><Connection /></el-icon>
+            </div>
+            <span class="hub-label">同步设置</span>
           </div>
-          <span class="hub-label">同步设置</span>
-        </div>
-        <div class="hub-item" @click="handleSync">
-          <div class="hub-icon" style="background: linear-gradient(135deg, #00a8d6, #38bdf8)">
-            <el-icon :size="20"><RefreshRight /></el-icon>
+          <div class="hub-item" @click="handleSync">
+            <div class="hub-icon" style="background: linear-gradient(135deg, #00a8d6, #38bdf8)">
+              <el-icon :size="20"><RefreshRight /></el-icon>
+            </div>
+            <span class="hub-label">立即同步</span>
           </div>
-          <span class="hub-label">立即同步</span>
         </div>
-      </div>
+      </Panel>
     </section>
   </div>
 </template>
@@ -72,6 +78,7 @@ import {
 import { ElMessage } from 'element-plus';
 import { useAppStore } from '@/stores/app';
 import { useSyncStore } from '@/stores/sync';
+import Panel from '@/components/Panel.vue';
 
 const router = useRouter();
 const app = useAppStore();
@@ -136,11 +143,6 @@ function handleSync() {
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   padding: 12px;
-  border-radius: var(--radius-lg);
-  background: var(--surface-glass);
-  border: 1px solid var(--border-glass);
-  backdrop-filter: var(--blur-glass);
-  box-shadow: var(--shadow-card);
 }
 
 .hub-item {

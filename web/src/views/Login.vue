@@ -11,8 +11,32 @@
 
       <el-form v-if="!syncing" @submit.prevent="handleLogin" label-position="top" class="login-form">
         <el-form-item label="主端地址">
-          <el-input v-model="form.mainServerUrl" placeholder="http://your-server:3000" size="large">
-            <template #prefix><el-icon><Connection /></el-icon></template>
+          <el-input
+            v-model="form.mainServerUrl"
+            placeholder="http://your-server:3000"
+            size="large"
+            @blur="checkHost"
+            @input="resetHostStatus"
+          >
+            <template #prefix>
+              <el-icon class="host-prefix" :class="hostStatus">
+                <CircleCheckFilled v-if="hostStatus === 'ok'" />
+                <CircleCloseFilled v-else-if="hostStatus === 'fail'" />
+                <Link v-else />
+              </el-icon>
+            </template>
+            <template #suffix>
+              <button
+                type="button"
+                class="host-check-btn"
+                :disabled="hostChecking"
+                :title="hostStatus === 'ok' ? '连接正常' : hostStatus === 'fail' ? '连接失败，点击重试' : '检测连接'"
+                @click="checkHost"
+              >
+                <el-icon v-if="hostChecking" class="is-loading"><Loading /></el-icon>
+                <el-icon v-else :class="{ 'ok-icon': hostStatus === 'ok' }"><Refresh /></el-icon>
+              </button>
+            </template>
           </el-input>
         </el-form-item>
         <el-form-item label="用户名">
@@ -47,7 +71,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted, onUnmounted } from 'vue';
-import { Coin, Connection, User, Lock } from '@element-plus/icons-vue';
+import { Coin, Link, CircleCheckFilled, CircleCloseFilled, Refresh, Loading, User, Lock } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useSyncStore } from '@/stores/sync';
@@ -60,6 +84,38 @@ const loading = ref(false);
 const syncing = ref(false);
 let pollTimer: any = null;
 const form = reactive({ mainServerUrl: '', username: '', password: '' });
+
+// ===== 主端地址连接检测（对齐 gui ServerUrlField + HealthService：GET {host}/api/health，3s 超时） =====
+type HostStatus = 'idle' | 'ok' | 'fail';
+const hostStatus = ref<HostStatus>('idle');
+const hostChecking = ref(false);
+let hostAbort: AbortController | null = null;
+
+async function checkHost() {
+  const host = form.mainServerUrl.trim().replace(/\/+$/, '');
+  if (!host || hostChecking.value) return;
+  hostChecking.value = true;
+  hostStatus.value = 'idle';
+  hostAbort?.abort();
+  hostAbort = new AbortController();
+  const timer = setTimeout(() => hostAbort?.abort(), 3000);
+  try {
+    const res = await fetch(`${host}/api/health`, {
+      signal: hostAbort.signal,
+      mode: 'cors',
+    });
+    hostStatus.value = res.status === 200 ? 'ok' : 'fail';
+  } catch {
+    hostStatus.value = 'fail';
+  } finally {
+    clearTimeout(timer);
+    hostChecking.value = false;
+  }
+}
+
+function resetHostStatus() {
+  if (hostStatus.value !== 'idle') hostStatus.value = 'idle';
+}
 
 // 自动回填主端地址：上次登录/被 401 踢回时缓存的 web_server_url，用户无需重输 host
 onMounted(() => {
@@ -166,6 +222,52 @@ onUnmounted(() => {
   font-weight: 600;
   color: var(--text-2);
   padding-bottom: 4px;
+}
+
+/* ===== 主端地址连接检测（对齐 gui ServerUrlField） ===== */
+.host-prefix {
+  font-size: 16px;
+  transition: color 0.2s ease;
+}
+
+.host-prefix.idle {
+  color: var(--text-3);
+}
+
+.host-prefix.ok {
+  color: var(--color-success);
+}
+
+.host-prefix.fail {
+  color: var(--color-danger);
+}
+
+.host-check-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  font-size: 16px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.host-check-btn:hover:not(:disabled) {
+  color: var(--brand-gold);
+  background: var(--surface-hover);
+}
+
+.host-check-btn:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.host-check-btn .ok-icon {
+  color: var(--color-success);
 }
 
 .submit-btn {

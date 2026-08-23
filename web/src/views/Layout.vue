@@ -108,8 +108,8 @@
         </router-view>
       </main>
 
-      <!-- Mobile bottom tabs（对齐移动端：记账 | 功能 | 统计 | 我的） -->
-      <nav v-if="isMobile" class="bottom-tabs glass">
+      <!-- Mobile bottom tabs（对齐移动端：记账 | 功能 | 新增 | 统计 | 我的；新增为中间圆形按钮） -->
+      <nav v-if="isMobile && !isDetailPage" class="bottom-tabs glass">
         <router-link to="/items" class="tab" :class="{ active: route.path.startsWith('/items') }">
           <el-icon :size="20"><Wallet /></el-icon>
           <span>记账</span>
@@ -118,6 +118,9 @@
           <el-icon :size="20"><Grid /></el-icon>
           <span>功能</span>
         </router-link>
+        <button class="tab-add" aria-label="新增记账" @click="router.push('/items/new')">
+          <span class="tab-add-circle"><el-icon :size="22"><Plus /></el-icon></span>
+        </button>
         <router-link to="/statistics" class="tab" :class="{ active: route.path.startsWith('/statistics') }">
           <el-icon :size="20"><Histogram /></el-icon>
           <span>统计</span>
@@ -147,6 +150,7 @@ import {
   Grid,
   Histogram,
   ArrowLeft,
+  Plus,
 } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 import { useAppStore } from '@/stores/app';
@@ -600,6 +604,37 @@ function handleSync() {
   height: 3px;
   border-radius: 0 0 4px 4px;
   background: var(--grad-brand);
+}
+
+/* 中间新增按钮（对齐移动端 NavigationBar 中央圆形 FAB） */
+.tab-add {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  position: relative;
+}
+
+.tab-add-circle {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--on-primary);
+  background: var(--grad-brand);
+  box-shadow: var(--glow-primary);
+  margin-top: -22px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tab-add-circle:active {
+  transform: scale(0.92);
 }
 
 /* ========== 响应式 ========== */

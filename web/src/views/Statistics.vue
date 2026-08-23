@@ -1,47 +1,45 @@
 <template>
   <div class="stats-page">
     <!-- 时间范围（月份） -->
-    <div class="range-bar glass" @click="monthSheet = true">
-      <el-icon :size="15"><Calendar /></el-icon>
-      <span class="range-text">{{ monthLabel }}</span>
-      <span class="range-change">切换</span>
-    </div>
+    <Panel clickable noPad @click="monthSheet = true">
+      <div class="range-bar">
+        <el-icon :size="15"><Calendar /></el-icon>
+        <span class="range-text">{{ monthLabel }}</span>
+        <span class="range-change">切换</span>
+      </div>
+    </Panel>
 
     <!-- 收支概览（对齐 BookStatisticCard） -->
-    <div class="stat-card glass">
-      <div class="stat-head">
-        <el-icon :size="17"><Wallet /></el-icon>
-        <span class="stat-head-title">{{ monthLabel }}收支</span>
+    <Panel :icon="Wallet" :title="`${monthLabel}收支`" accent>
+      <template #head>
         <span class="stat-head-book">{{ currentBookName }}</span>
-      </div>
+      </template>
       <div class="stat-body">
         <div class="stat-item">
           <span class="stat-pill pill-expense">
             <el-icon :size="14"><ArrowDown /></el-icon>支出
           </span>
-          <span class="stat-num num">{{ fmt(summary.expense) }}</span>
+          <span class="stat-num num expense">{{ fmt(summary.expense) }}</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
           <span class="stat-pill pill-income">
             <el-icon :size="14"><ArrowUp /></el-icon>收入
           </span>
-          <span class="stat-num num">{{ fmt(summary.income) }}</span>
+          <span class="stat-num num income">{{ fmt(summary.income) }}</span>
         </div>
       </div>
       <div class="stat-line"></div>
-    </div>
+    </Panel>
 
     <!-- 分类统计 -->
-    <div class="cat-card glass">
-      <div class="cat-head">
-        <span class="cat-title">分类统计</span>
+    <Panel title="分类统计">
+      <template #action>
         <div class="cat-switch">
           <button class="cat-btn" :class="{ on: typeFilter === 'EXPENSE' }" @click="switchType('EXPENSE')">支出</button>
           <button class="cat-btn" :class="{ on: typeFilter === 'INCOME' }" @click="switchType('INCOME')">收入</button>
         </div>
-      </div>
-
+      </template>
       <div v-loading="loading" class="cat-list">
         <el-empty v-if="!loading && !filtered.length" description="暂无数据" />
         <div v-for="c in filtered" :key="c.categoryCode" class="cat-item">
@@ -58,7 +56,7 @@
           </div>
         </div>
       </div>
-    </div>
+    </Panel>
 
     <!-- 月份选择弹层 -->
     <teleport to="body">
@@ -88,6 +86,7 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { Calendar, Wallet, ArrowDown, ArrowUp } from '@element-plus/icons-vue';
 import { itemApi, categoryApi } from '@/api';
 import { useAppStore } from '@/stores/app';
+import Panel from '@/components/Panel.vue';
 
 const app = useAppStore();
 
@@ -214,15 +213,7 @@ onMounted(reload);
   padding-bottom: 20px;
 }
 
-.glass {
-  background: var(--surface-glass);
-  border: 1px solid var(--border-glass);
-  backdrop-filter: var(--blur-glass);
-  box-shadow: var(--shadow-card);
-  border-radius: var(--radius-lg);
-}
-
-/* 月份切换条 */
+/* 月份切换条（容器由 Panel 提供，仅保留内部布局） */
 .range-bar {
   display: flex;
   align-items: center;
@@ -241,29 +232,18 @@ onMounted(reload);
 
 .range-change {
   font-size: 12px;
-  font-weight: 400;
+  font-weight: 500;
   color: var(--brand-gold);
+  padding: 4px 8px;
+  border-radius: var(--radius-md);
+  transition: background 0.15s ease;
 }
 
-/* 收支概览 */
-.stat-card {
-  overflow: hidden;
+.range-bar:hover .range-change {
+  background: var(--surface-hover);
 }
 
-.stat-head {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 11px 16px;
-  background: var(--brand-gold-soft);
-  color: var(--brand-gold-dark);
-}
-
-.stat-head-title {
-  font-size: 13px;
-  font-weight: 600;
-}
-
+/* 收支概览（容器由 Panel 提供） */
 .stat-head-book {
   flex: 1;
   font-size: 12px;
@@ -340,25 +320,7 @@ onMounted(reload);
   background: linear-gradient(90deg, rgba(185, 91, 75, 0.5), rgba(67, 160, 71, 0.5));
 }
 
-/* 分类统计 */
-.cat-card {
-  overflow: hidden;
-  padding: 14px 16px 16px;
-}
-
-.cat-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.cat-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-1);
-}
-
+/* 分类统计（容器由 Panel 提供） */
 .cat-switch {
   display: flex;
   gap: 2px;
@@ -390,6 +352,24 @@ onMounted(reload);
   flex-direction: column;
   gap: 12px;
   min-height: 40px;
+  max-height: min(52vh, 460px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+  margin-right: -6px;
+}
+
+.cat-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.cat-list::-webkit-scrollbar-thumb {
+  background: var(--border-glass-strong);
+  border-radius: 2px;
+}
+
+.cat-list::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .cat-item {

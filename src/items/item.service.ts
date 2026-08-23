@@ -39,54 +39,98 @@ export class ItemService {
     return item;
   }
 
-  /** 收支聚合（只读统计，供首页统计卡；不影响同步协议） */
+  /**
+   * 收支聚合（对齐 gui statistic_service.dart）：
+   * - income：type='INCOME' 且排除退款（source='item' 且 sourceId 指向本账本支出账目）
+   * - expense：type='EXPENSE'（TRANSFER 不计入收支）
+   * - refund：退款单独统计（金额为正）
+   * - balance = income + expense + refund（gui 约定：支出存负数）
+   */
   async summary(userId: string, query: {
     accountBookId?: string; startDate?: string; endDate?: string;
   }) {
     const repo = await this.connMgr.getRepository(userId, AccountItem);
-    const qb = repo.createQueryBuilder('item');
-    if (query.accountBookId) qb.andWhere('item.accountBookId = :accountBookId', { accountBookId: query.accountBookId });
-    if (query.startDate) qb.andWhere('item.accountDate >= :startDate', { startDate: query.startDate });
-    if (query.endDate) qb.andWhere('item.accountDate <= :endDate', { endDate: query.endDate });
-    const rows = await qb
-      .select('item.type', 'type')
-      .addSelect('SUM(item.amount)', 'total')
-      .groupBy('item.type')
-      .getRawMany();
-    let income = 0;
-    let expense = 0;
-    for (const r of rows) {
-      if (r.type === 'INCOME') income = Number(r.total || 0);
-      else expense = Number(r.total || 0);
-    }
-    return { income, expense, balance: income + expense };
+    const params: any = {};
+    const baseConds: string[] = [];
+    if (query.accountBookId) { baseConds.push('item.accountBookId = :accountBookId'); params.accountBookId = query.accountBookId; }
+    if (query.startDate) { baseConds.push('item.accountDate >= :startDate'); params.startDate = query.startDate; }
+    if (query.endDate) { baseConds.push('item.accountDate <= :endDate'); params.endDate = query.endDate; }
+    const baseWhere = baseConds.length ? `(${baseConds.join(' AND ')})` : '1=1';
+    // 退款判定：source='item' 且 sourceId 指向本账本 type=EXPENSE 的账目
+    const refundSub = `(SELECT id FROM account_items WHERE type = 'EXPENSE'${query.accountBookId ? " AND accountBookId = :accountBookId" : ''})`;
+    const refundCond = `item.source = 'item' AND item.sourceId IN ${refundSub}`;
+
+    const income = await repo.createQueryBuilder('item')
+      .select('COALESCE(SUM(item.amount), 0)', 'total')
+      .where(baseWhere).andWhere("item.type = 'INCOME'")
+      .andWhere(`NOT (${refundCond})`)
+      .setParameters(params).getRawOne();
+    const expense = await repo.createQueryBuilder('item')
+      .select('COALESCE(SUM(item.amount), 0)', 'total')
+      .where(baseWhere).andWhere("item.type = 'EXPENSE'")
+      .setParameters(params).getRawOne();
+    const refund = await repo.createQueryBuilder('item')
+      .select('COALESCE(SUM(item.amount), 0)', 'total')
+      .where(baseWhere).andWhere(refundCond)
+      .setParameters(params).getRawOne();
+
+    const incomeTotal = Number(income?.total || 0);
+    const expenseTotal = Number(expense?.total || 0);
+    const refundTotal = Number(refund?.total || 0);
+    return {
+      income: incomeTotal,
+      expense: expenseTotal,
+      refund: refundTotal,
+      balance: incomeTotal + expenseTotal + refundTotal,
+    };
   }
 
-  /** 按分类聚合（只读统计，供统计页分类占比；不影响同步协议） */
+  /**
+   * 按分类聚合（对齐 gui statistic_service.statisticGroupByCategory）：
+   * - 收入分类：type='INCOME' 且排除退款
+   * - 支出分类：type='EXPENSE'（TRANSFER 不参与分类统计）
+   * - 未分类（categoryCode 为空）保留（categoryCode 返回 ''）
+   */
   async statistics(userId: string, query: {
     accountBookId?: string; startDate?: string; endDate?: string;
   }) {
     const repo = await this.connMgr.getRepository(userId, AccountItem);
-    const qb = repo.createQueryBuilder('item');
-    if (query.accountBookId) qb.andWhere('item.accountBookId = :accountBookId', { accountBookId: query.accountBookId });
-    if (query.startDate) qb.andWhere('item.accountDate >= :startDate', { startDate: query.startDate });
-    if (query.endDate) qb.andWhere('item.accountDate <= :endDate', { endDate: query.endDate });
-    const rows = await qb
-      .select('item.categoryCode', 'categoryCode')
-      .addSelect('item.type', 'type')
-      .addSelect('SUM(item.amount)', 'total')
-      .addSelect('COUNT(*)', 'count')
-      .groupBy('item.categoryCode')
-      .addGroupBy('item.type')
-      .getRawMany();
-    const byCategory = rows
-      .filter((r) => r.categoryCode && r.total)
-      .map((r) => ({
-        categoryCode: r.categoryCode,
-        type: r.type === 'INCOME' ? 'INCOME' : 'EXPENSE',
-        total: Number(r.total || 0),
-        count: Number(r.count || 0),
-      }))
+    const params: any = {};
+    const baseConds: string[] = [];
+    if (query.accountBookId) { baseConds.push('item.accountBookId = :accountBookId'); params.accountBookId = query.accountBookId; }
+    if (query.startDate) { baseConds.push('item.accountDate >= :startDate'); params.startDate = query.startDate; }
+    if (query.endDate) { baseConds.push('item.accountDate <= :endDate'); params.endDate = query.endDate; }
+    const baseWhere = baseConds.length ? `(${baseConds.join(' AND ')})` : '1=1';
+    const refundSub = `(SELECT id FROM account_items WHERE type = 'EXPENSE'${query.accountBookId ? " AND accountBookId = :accountBookId" : ''})`;
+    const refundCond = `item.source = 'item' AND item.sourceId IN ${refundSub}`;
+
+    const selectCols = ['item.categoryCode', 'categoryCode']
+      .concat(['SUM(item.amount)', 'total'])
+      .concat(['COUNT(*)', 'count']);
+    const [incomeRows, expenseRows] = await Promise.all([
+      repo.createQueryBuilder('item')
+        .select('item.categoryCode', 'categoryCode')
+        .addSelect('SUM(item.amount)', 'total')
+        .addSelect('COUNT(*)', 'count')
+        .where(baseWhere).andWhere("item.type = 'INCOME'")
+        .andWhere(`NOT (${refundCond})`)
+        .groupBy('item.categoryCode')
+        .setParameters(params).getRawMany(),
+      repo.createQueryBuilder('item')
+        .select('item.categoryCode', 'categoryCode')
+        .addSelect('SUM(item.amount)', 'total')
+        .addSelect('COUNT(*)', 'count')
+        .where(baseWhere).andWhere("item.type = 'EXPENSE'")
+        .groupBy('item.categoryCode')
+        .setParameters(params).getRawMany(),
+    ]);
+    const map = (rows: any[], type: string) => rows.map((r) => ({
+      categoryCode: r.categoryCode ?? '',
+      type,
+      total: Number(r.total || 0),
+      count: Number(r.count || 0),
+    }));
+    const byCategory = [...map(incomeRows, 'INCOME'), ...map(expenseRows, 'EXPENSE')]
       .sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
     return { byCategory };
   }

@@ -1,25 +1,25 @@
 <template>
   <div class="item-list-page">
     <!-- 筛选条：月份 + 类型（为将来扩充分类/关键词/视图筛选预留容器） -->
-    <div class="filter-bar glass">
-      <div class="filter-month" @click="monthSheet = true">
-        <el-icon :size="14"><Calendar /></el-icon>
-        <span>{{ monthLabel }}</span>
+    <Panel noPad>
+      <div class="filter-bar">
+        <div class="filter-month" @click="monthSheet = true">
+          <el-icon :size="14"><Calendar /></el-icon>
+          <span>{{ monthLabel }}</span>
+        </div>
+        <div class="type-switch">
+          <button type="button" :class="{ on: typeFilter === '' }" @click="switchType('')">全部</button>
+          <button type="button" :class="{ on: typeFilter === 'EXPENSE' }" @click="switchType('EXPENSE')">支出</button>
+          <button type="button" :class="{ on: typeFilter === 'INCOME' }" @click="switchType('INCOME')">收入</button>
+        </div>
       </div>
-      <div class="type-switch">
-        <button type="button" :class="{ on: typeFilter === '' }" @click="switchType('')">全部</button>
-        <button type="button" :class="{ on: typeFilter === 'EXPENSE' }" @click="switchType('EXPENSE')">支出</button>
-        <button type="button" :class="{ on: typeFilter === 'INCOME' }" @click="switchType('INCOME')">收入</button>
-      </div>
-    </div>
+    </Panel>
 
     <!-- 列表容器（对齐移动端 ItemsContainer） -->
-    <div class="list-card glass">
-      <div class="list-head">
-        <span class="list-title">账目明细</span>
+    <Panel title="账目明细" divider noPad>
+      <template #head>
         <span v-if="total" class="list-total num">{{ total }} 条</span>
-      </div>
-      <div class="list-divider"></div>
+      </template>
 
       <div v-loading="initialLoading" class="list-body">
         <el-empty v-if="!initialLoading && !items.length" description="暂无符合条件的记录" />
@@ -56,7 +56,7 @@
           <span v-else-if="noMore && items.length" class="loading-hint end">没有更多了</span>
         </div>
       </div>
-    </div>
+    </Panel>
 
     <!-- 月份选择弹层 -->
     <teleport to="body">
@@ -88,6 +88,7 @@ import { useRouter } from 'vue-router';
 import { Calendar, Clock, Shop } from '@element-plus/icons-vue';
 import { itemApi, categoryApi, shopApi, tagApi } from '@/api';
 import { useAppStore } from '@/stores/app';
+import Panel from '@/components/Panel.vue';
 
 const router = useRouter();
 const app = useAppStore();
@@ -272,15 +273,7 @@ watch(() => app.currentBookId, () => {
   padding-bottom: 20px;
 }
 
-.glass {
-  background: var(--surface-glass);
-  border: 1px solid var(--border-glass);
-  backdrop-filter: var(--blur-glass);
-  box-shadow: var(--shadow-card);
-  border-radius: var(--radius-lg);
-}
-
-/* 筛选条 */
+/* 筛选条（容器由 Panel 提供，仅保留内部布局） */
 .filter-bar {
   display: flex;
   align-items: center;
@@ -330,31 +323,9 @@ watch(() => app.currentBookId, () => {
 }
 
 /* 列表 */
-.list-card {
-  overflow: hidden;
-}
-
-.list-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-}
-
-.list-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-1);
-}
-
 .list-total {
   font-size: 12px;
   color: var(--text-3);
-}
-
-.list-divider {
-  height: 1px;
-  background: var(--border-glass);
 }
 
 .list-body {

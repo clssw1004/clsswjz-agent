@@ -68,7 +68,6 @@
           {{ c.name }}
         </button>
         <button type="button" class="chip chip-more" @click="openSheet('category')">更多</button>
-        <button type="button" class="chip chip-add" @click="openCreateCat">＋</button>
       </div>
 
       <div class="field-label">账户 <b class="req">*</b></div>
@@ -392,25 +391,6 @@
               class="sheet-time-picker"
               @change="pickTime"
             />
-          </div>
-        </div>
-      </transition>
-    </teleport>
-
-    <!-- 新建分类 -->
-    <teleport to="body">
-      <transition name="sheet">
-        <div v-if="createCatVisible" class="sheet-mask" @click.self="createCatVisible = false">
-          <div class="sheet">
-            <div class="sheet-bar"></div>
-            <div class="sheet-title">新建{{ form.type === 'INCOME' ? '收入' : '支出' }}分类</div>
-            <div class="sheet-form">
-              <el-input v-model="newCat.name" placeholder="分类名称" size="large" />
-              <el-input v-model="newCat.code" placeholder="编码（留空自动生成）" size="large" />
-              <el-button type="primary" class="sheet-confirm" :loading="creatingCat" @click="submitCreateCat">
-                创建
-              </el-button>
-            </div>
           </div>
         </div>
       </transition>
@@ -1262,37 +1242,6 @@ function pickTime(v: string) {
   timeSheet.value = false;
 }
 
-/* ────────────── 新建分类 ────────────── */
-const createCatVisible = ref(false);
-const creatingCat = ref(false);
-const newCat = reactive({ name: '', code: '' });
-function openCreateCat() {
-  newCat.name = '';
-  newCat.code = '';
-  createCatVisible.value = true;
-}
-async function submitCreateCat() {
-  if (!newCat.name.trim()) {
-    ElMessage.warning('请输入分类名称');
-    return;
-  }
-  creatingCat.value = true;
-  try {
-    const res: any = await categoryApi.create({
-      name: newCat.name.trim(),
-      code: newCat.code.trim() || `c${Date.now()}`,
-      categoryType: form.type,
-      accountBookId: app.currentBookId,
-    });
-    await loadOptions();
-    form.categoryCode = res?.code || res?.id || '';
-    createCatVisible.value = false;
-    ElMessage.success('分类已创建');
-  } catch { /* 错误已由拦截器提示 */ } finally {
-    creatingCat.value = false;
-  }
-}
-
 /* ────────────── 附件 ────────────── */
 function fmtSize(bytes?: number) {
   const n = Number(bytes ?? 0);
@@ -1637,13 +1586,6 @@ async function onDelete() {
   border-style: dashed;
 }
 
-.chip-add {
-  color: var(--text-3);
-  border-style: dashed;
-  font-size: 15px;
-  padding: 0 12px;
-}
-
 /* ========== 徽标（详细信息，保留图标，高度与胶囊统一） ========== */
 .badge-wrap {
   display: flex;
@@ -1941,13 +1883,6 @@ async function onDelete() {
   width: 100%;
 }
 
-.sheet-form {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.sheet-form .sheet-confirm,
 .sheet > .sheet-confirm {
   margin-top: 6px;
   border: none;
