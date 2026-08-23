@@ -8,4 +8,7 @@ export class AccountShop extends BaseBusinessEntityWithAccountBook {
 
   @Column({ length: 16 })
   code: string;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  parentId: string;
 }

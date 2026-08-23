@@ -13,11 +13,12 @@ import { AccountSymbol } from '../entities/account-symbol.entity';
 import { AccountNote } from '../entities/account-note.entity';
 import { AccountBookUser } from '../entities/account-book-user.entity';
 import { AttachmentEntity } from '../entities/attachment.entity';
+import { ItemRelField } from '../entities/item-rel-field.entity';
 
 const USER_ENTITIES = [
   AccountBook, AccountItem, AccountCategory, AccountFund,
   AccountShop, AccountSymbol, AccountNote, AccountBookUser,
-  AttachmentEntity, LogSync,
+  AttachmentEntity, ItemRelField, LogSync,
 ];
 
 @Injectable()

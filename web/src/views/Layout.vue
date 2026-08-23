@@ -50,8 +50,12 @@
       <!-- Top bar -->
       <header class="topbar glass">
         <div class="topbar-left">
+          <button v-if="isDetailPage" class="back-btn" aria-label="返回" @click="goBack">
+            <el-icon :size="18"><ArrowLeft /></el-icon>
+          </button>
           <span class="page-title">{{ route.meta.title || '记账' }}</span>
           <el-select
+            v-if="showBookSelect"
             :model-value="app.currentBookId"
             class="global-book-select"
             placeholder="选择账本"
@@ -142,6 +146,7 @@ import {
   SwitchButton,
   Grid,
   Histogram,
+  ArrowLeft,
 } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 import { useAppStore } from '@/stores/app';
@@ -185,6 +190,17 @@ function handleCommand(cmd: string) {
 /** 全局切换账本：刷新当前页面数据（各视图 watch currentBookId 自动重载） */
 function handleBookChange(id: string) {
   app.switchBook(id);
+}
+
+// 账本选择仅首页展示（对齐移动端：首页/记账页才切账本）
+const showBookSelect = computed(() => route.path === '/items');
+
+// 子页面（新增/编辑详情/列表/账本/设置）在顶栏显示返回（对齐移动端 AppBar leading 返回）
+const isDetailPage = computed(() => /^\/(items\/(new|list|[^/]+)|notes\/(new|[^/]+)|books|settings\/)/.test(route.path));
+
+function goBack() {
+  if (window.history.length > 1) router.back();
+  else router.push('/items');
 }
 
 function handleSync() {
@@ -376,6 +392,26 @@ function handleSync() {
   align-items: center;
   gap: 14px;
   min-width: 0;
+}
+
+/* AppBar 返回（对齐移动端 leading 返回箭头） */
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: var(--surface-glass-strong);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background 0.15s ease;
+  flex-shrink: 0;
+}
+
+.back-btn:hover {
+  background: var(--surface-hover);
 }
 
 .global-book-select {

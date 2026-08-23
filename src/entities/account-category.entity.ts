@@ -13,6 +13,9 @@ export class AccountCategory extends BaseBusinessEntityWithAccountBook {
   @Column({ type: 'varchar', length: 10 })
   categoryType: ItemType;
 
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  parentId: string;
+
   @Column({ nullable: true })
   lastAccountItemAt: Date;
 }

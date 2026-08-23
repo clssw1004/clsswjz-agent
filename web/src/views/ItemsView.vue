@@ -59,7 +59,7 @@
           <div class="item-main">
             <div class="item-row1">
               <span class="item-cat">{{ catName(item.categoryCode) || item.categoryCode || '未分类' }}</span>
-              <span v-if="tagName(item.tagCode)" class="item-tag">{{ tagName(item.tagCode) }}</span>
+              <span v-if="itemTags(item).length" class="item-tag">{{ itemTags(item).join(' · ') }}</span>
               <span class="item-amount num" :style="{ color: amountColor(item.type) }">
                 {{ fmtAmount(item.amount) }}
               </span>
@@ -162,6 +162,13 @@ const currentBookName = computed(
 const catName = (code?: string) => (code ? catMap.value[code] : '');
 const shopName = (code?: string) => (code ? shopMap.value[code] : '');
 const tagName = (code?: string) => (code ? tagMap.value[code] : '');
+// 多标签显示：优先 item.tags（关联表），兼容历史 tagCode 单值
+const itemTags = (item: any) => {
+  if (Array.isArray(item.tags) && item.tags.length) {
+    return item.tags.map((c: string) => tagMap.value[c] || c);
+  }
+  return item.tagCode ? [tagMap.value[item.tagCode] || item.tagCode] : [];
+};
 
 const pageExpense = computed(() =>
   items.value
