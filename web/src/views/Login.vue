@@ -46,7 +46,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onUnmounted } from 'vue';
+import { reactive, ref, onMounted, onUnmounted } from 'vue';
 import { Coin, Connection, User, Lock } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
@@ -60,6 +60,11 @@ const loading = ref(false);
 const syncing = ref(false);
 let pollTimer: any = null;
 const form = reactive({ mainServerUrl: '', username: '', password: '' });
+
+// 自动回填主端地址：上次登录/被 401 踢回时缓存的 web_server_url，用户无需重输 host
+onMounted(() => {
+  form.mainServerUrl = localStorage.getItem('web_server_url') || '';
+});
 
 async function handleLogin() {
   if (!form.mainServerUrl || !form.username || !form.password) {

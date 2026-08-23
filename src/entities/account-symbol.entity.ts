@@ -12,4 +12,7 @@ export class AccountSymbol extends BaseBusinessEntityWithAccountBook {
 
   @Column({ type: 'varchar', length: 64 })
   symbolType: SymbolType;
+
+  @Column({ nullable: true })
+  lastAccountItemAt: Date;
 }

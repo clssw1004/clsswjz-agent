@@ -17,4 +17,7 @@ export class AccountFund extends BaseBusinessEntityWithAccountBook {
 
   @Column({ default: false })
   isDefault: boolean;
+
+  @Column({ nullable: true })
+  lastAccountItemAt: Date;
 }

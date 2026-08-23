@@ -14,11 +14,27 @@ import { AccountNote } from '../entities/account-note.entity';
 import { AccountBookUser } from '../entities/account-book-user.entity';
 import { AttachmentEntity } from '../entities/attachment.entity';
 import { ItemRelField } from '../entities/item-rel-field.entity';
+import { AppUser } from '../entities/app-user.entity';
+import { AccountDebt } from '../entities/account-debt.entity';
+import { GiftCard } from '../entities/gift-card.entity';
+import { ActivityDefinition } from '../entities/activity-definition.entity';
+import { ActivityRecord } from '../entities/activity-record.entity';
+import { Vehicle } from '../entities/vehicle.entity';
+import { FuelRecord } from '../entities/fuel-record.entity';
+import { ItemRelation } from '../entities/item-relation.entity';
+import { UserShare } from '../entities/user-share.entity';
+import { RecurringConfig } from '../entities/recurring-config.entity';
+import { BookkeepingRule } from '../entities/bookkeeping-rule.entity';
+import { PeriodCycle } from '../entities/period-cycle.entity';
+import { PeriodDailyRecord } from '../entities/period-daily-record.entity';
 
 const USER_ENTITIES = [
   AccountBook, AccountItem, AccountCategory, AccountFund,
   AccountShop, AccountSymbol, AccountNote, AccountBookUser,
   AttachmentEntity, ItemRelField, LogSync,
+  AppUser, AccountDebt, GiftCard, ActivityDefinition, ActivityRecord,
+  Vehicle, FuelRecord, ItemRelation, UserShare, RecurringConfig,
+  BookkeepingRule, PeriodCycle, PeriodDailyRecord,
 ];
 
 @Injectable()

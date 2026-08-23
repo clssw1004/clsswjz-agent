@@ -9,6 +9,9 @@ export class AccountNote extends BaseBusinessEntityWithAccountBook {
   @Column({ type: 'text', nullable: true })
   content: string;
 
+  @Column({ type: 'text', nullable: true })
+  plainContent: string;
+
   @Column({ length: 20 })
   noteType: string;
 

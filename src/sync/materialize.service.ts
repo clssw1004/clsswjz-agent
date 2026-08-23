@@ -33,7 +33,8 @@ export class MaterializeService {
       if (logs.length === 0) break;
       for (const log of logs) {
         try {
-          if ([BusinessType.USER, BusinessType.ROOT, BusinessType.FUND_BOOK].includes(log.businessType as any)) {
+          // ROOT/FUND_BOOK 为伪类型（无对应业务实体），跳过；USER 已有业务实体（app_user），正常回放
+          if ([BusinessType.ROOT, BusinessType.FUND_BOOK].includes(log.businessType as any)) {
             await logRepo.update(log.id, { materializedAt: Date.now() });
           } else {
             await this.logRunner.runLogSync(log, ds);

@@ -57,5 +57,18 @@ export const useAuthStore = defineStore('auth', {
       localStorage.removeItem('web_server_url');
       router.push('/login');
     },
+    /**
+     * 主端 token 过期/鉴权失效（401）：清除会话，但保留主端地址缓存，
+     * 登录页据此自动回填 host，用户只需重输账号密码。
+     */
+    sessionExpired() {
+      this.token = '';
+      this.nickname = '';
+      this.userId = '';
+      localStorage.removeItem('web_token');
+      localStorage.removeItem('web_nickname');
+      localStorage.removeItem('web_user_id');
+      router.push('/login');
+    },
   },
 });

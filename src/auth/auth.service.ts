@@ -51,6 +51,9 @@ export class AuthService {
 
     const access_token = this.jwtService.sign({ sub: user.id });
 
+    // 重新登录成功后清除主端鉴权失效标记（若之前被 401 踢出）
+    this.syncService.clearAuthExpired(user.id);
+
     // 对齐移动端：登录后立即启动两阶段同步（不阻塞登录响应）——
     // 阶段1 拉取 P0+P1 关键数据（user/book/bookMember/fund），前端登录页轮询进度等它完成再进入；
     // 阶段2 延迟 3 秒后台同步剩余全部数据，主界面顶栏状态条展示。

@@ -11,4 +11,13 @@ export class AccountShop extends BaseBusinessEntityWithAccountBook {
 
   @Column({ type: 'varchar', length: 50, nullable: true })
   parentId: string;
+
+  @Column({ type: 'int', default: 1 })
+  sortOrder: number;
+
+  @Column({ default: true })
+  isBookkeepingSelectable: boolean;
+
+  @Column({ nullable: true })
+  lastAccountItemAt: Date;
 }

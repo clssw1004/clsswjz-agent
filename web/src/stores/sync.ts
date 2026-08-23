@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { syncApi } from '@/api';
+import { useAuthStore } from '@/stores/auth';
 
 export const useSyncStore = defineStore('sync', {
   state: () => ({
@@ -11,7 +12,7 @@ export const useSyncStore = defineStore('sync', {
     _timer: null as any,
   }),
   actions: {
-    /** 单次拉取同步状态（登录页轮询用） */
+    /** 单次拉取同步状态（登录页轮询用）；检测到主端鉴权失效时跳转登录页 */
     async pollOnce() {
       const s: any = await syncApi.status();
       this.syncing = !!s.syncing;
@@ -19,6 +20,9 @@ export const useSyncStore = defineStore('sync', {
       this.percent = s.percent || 0;
       this.unsynced = s.unsynced || 0;
       this.failed = s.failed || 0;
+      if (s.mainAuthExpired) {
+        useAuthStore().sessionExpired();
+      }
     },
     /** 轮询同步状态：syncing 时 1 秒，空闲时 5 秒（捕捉后台自动同步） */
     startPolling() {

@@ -142,6 +142,25 @@ export class SyncService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * 主端鉴权失效标记（per-user）：主服务器返回 401（token 过期/无效）时置位，
+   * 由 GET /sync/status 透传给前端，前端据此跳转登录页（登录页自动回填主端地址）。
+   */
+  private readonly mainAuthExpired = new Map<string, boolean>();
+
+  markMainAuthExpired(userId: string) { this.mainAuthExpired.set(userId, true); }
+
+  clearAuthExpired(userId: string) { this.mainAuthExpired.delete(userId); }
+
+  isMainAuthExpired(userId: string): boolean { return this.mainAuthExpired.get(userId) || false; }
+
+  /** 主端请求错误统一处理：401 时标记鉴权失效，其余透传 */
+  private handleMainError(userId: string, err: any): void {
+    if (err?.response?.status === 401) {
+      this.markMainAuthExpired(userId);
+    }
+  }
+
   async push(userId: string, onProgress?: (p: { step: string; percent: number }) => void) {
     const user = await this.userService.findById(userId);
     if (!user) throw new Error('User not found');
@@ -160,7 +179,11 @@ export class SyncService implements OnModuleInit, OnModuleDestroy {
       const failed = (result.results || []).length - success;
       onProgress?.({ step: `本地同步完成（成功 ${success}，失败 ${failed}）`, percent: 45 });
       return { pushed: unsyncedLogs.length, commitId: result.commitId };
-    } catch (err) { this.logger.error(`Push failed: ${err.message}`); throw err; }
+    } catch (err) {
+      this.handleMainError(userId, err);
+      this.logger.error(`Push failed: ${err.message}`);
+      throw err;
+    }
   }
 
   async pull(
@@ -207,7 +230,11 @@ export class SyncService implements OnModuleInit, OnModuleDestroy {
         }
         if (totalPulled >= result.total || (result.changes || []).length === 0) break;
         page++;
-      } catch (err) { this.logger.error(`Pull failed: ${err.message}`); throw err; }
+      } catch (err) {
+        this.handleMainError(userId, err);
+        this.logger.error(`Pull failed: ${err.message}`);
+        throw err;
+      }
     }
     if (totalPulled > 0) {
       onProgress?.({ step: '应用服务端数据', percent: 90 });
@@ -218,7 +245,11 @@ export class SyncService implements OnModuleInit, OnModuleDestroy {
 
   async getStatus(userId: string) {
     const logRepo = await this.connMgr.getRepository(userId, LogSync);
-    return { unsynced: await logRepo.countBy({ syncState: SyncState.UNSYNCED }), failed: await logRepo.countBy({ syncState: SyncState.FAILED }) };
+    return {
+      unsynced: await logRepo.countBy({ syncState: SyncState.UNSYNCED }),
+      failed: await logRepo.countBy({ syncState: SyncState.FAILED }),
+      mainAuthExpired: this.isMainAuthExpired(userId),
+    };
   }
 
   /**

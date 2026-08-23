@@ -57,12 +57,6 @@
           </div>
           <span class="hub-label">立即同步</span>
         </div>
-        <div class="hub-item" @click="handleResync">
-          <div class="hub-icon" style="background: linear-gradient(135deg, #64748b, #94a3b8)">
-            <el-icon :size="20"><Refresh /></el-icon>
-          </div>
-          <span class="hub-label">全量重拉</span>
-        </div>
       </div>
     </section>
   </div>
@@ -73,9 +67,9 @@ import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   Notebook, CollectionTag, Shop, PriceTag, Folder, Wallet, Document, Sunny,
-  Setting, RefreshRight, Refresh, Connection,
+  Setting, RefreshRight, Connection,
 } from '@element-plus/icons-vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
 import { useAppStore } from '@/stores/app';
 import { useSyncStore } from '@/stores/sync';
 
@@ -113,22 +107,6 @@ function handleSync() {
   sync.triggerSync().then(() => {
     setTimeout(() => app.loadBooks(), 500);
     ElMessage.success('同步完成');
-  });
-}
-
-async function handleResync() {
-  if (sync.syncing) return;
-  try {
-    await ElMessageBox.confirm(
-      '将重置同步游标并从服务端全量重拉所有数据（含分类、项目、标签等），过程中请勿关闭页面。是否继续？',
-      '全量重拉',
-      { type: 'warning', confirmButtonText: '开始重拉', cancelButtonText: '取消' },
-    );
-  } catch {
-    return;
-  }
-  sync.triggerResync().then(() => {
-    setTimeout(() => app.loadBooks(), 500);
   });
 }
 </script>
