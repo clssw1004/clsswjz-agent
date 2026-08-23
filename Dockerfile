@@ -11,6 +11,7 @@ RUN npm run build
 COPY web/package*.json ./web/
 RUN cd web && npm install
 COPY web/ ./web/
+RUN cd web && npm run build
 # Remove server source so the production image only ships dist + node_modules
 RUN rm -rf src
 

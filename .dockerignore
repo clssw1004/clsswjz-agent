@@ -1,0 +1,18 @@
+# 依赖/构建产物不入镜像（容器内重新 npm install + build）
+node_modules
+**/node_modules
+web/node_modules
+web/dist
+dist
+
+# 运行时数据与本地环境
+data
+*.db
+*.sqlite
+*.log
+.env
+.env.local
+.git
+.gitignore
+docs
+scripts
