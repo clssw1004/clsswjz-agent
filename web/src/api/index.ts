@@ -4,6 +4,8 @@ export const authApi = {
   login: (data: { mainServerUrl: string; username: string; password: string }) =>
     http.post('/auth/login', data),
   me: () => http.get('/auth/me'),
+  checkHost: (data: { mainServerUrl: string }) =>
+    http.post('/auth/check-host', data),
 };
 
 export const itemApi = {

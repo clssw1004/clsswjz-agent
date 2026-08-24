@@ -12,6 +12,13 @@ export class AuthController {
     return this.authService.login(body);
   }
 
+  /** 主端健康检测（服务端代理，避免浏览器 CORS 限制） */
+  @Public()
+  @Post('check-host')
+  async checkHost(@Body() body: { mainServerUrl: string }) {
+    return this.authService.checkHost(body.mainServerUrl);
+  }
+
   /** 当前登录用户信息（用于同步设置页展示服务器地址/账号） */
   @Get('me')
   async me(@Req() req) {

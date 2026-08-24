@@ -69,6 +69,17 @@ export class AuthService {
     };
   }
 
+  /** 主端健康检测（服务端代理，避免浏览器 CORS 限制） */
+  async checkHost(mainServerUrl: string) {
+    const url = mainServerUrl.trim().replace(/\/+$/, '');
+    try {
+      const resp = await axios.get(`${url}/api/health`, { timeout: 5000 });
+      return { ok: resp.status === 200 };
+    } catch {
+      return { ok: false };
+    }
+  }
+
   /** 当前登录用户信息（同步设置页：服务器地址 + 账号） */
   async me(userId: string) {
     const user = await this.userService.findById(userId);

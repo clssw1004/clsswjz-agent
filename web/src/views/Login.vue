@@ -78,6 +78,7 @@ import { Coin, Link, CircleCheckFilled, CircleCloseFilled, Refresh, Loading, Use
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useSyncStore } from '@/stores/sync';
+import { authApi } from '@/api';
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -93,26 +94,18 @@ const rememberMe = ref(localStorage.getItem('web_remember') === 'true');
 type HostStatus = 'idle' | 'ok' | 'fail';
 const hostStatus = ref<HostStatus>('idle');
 const hostChecking = ref(false);
-let hostAbort: AbortController | null = null;
 
 async function checkHost() {
   const host = form.mainServerUrl.trim().replace(/\/+$/, '');
   if (!host || hostChecking.value) return;
   hostChecking.value = true;
   hostStatus.value = 'idle';
-  hostAbort?.abort();
-  hostAbort = new AbortController();
-  const timer = setTimeout(() => hostAbort?.abort(), 3000);
   try {
-    const res = await fetch(`${host}/api/health`, {
-      signal: hostAbort.signal,
-      mode: 'cors',
-    });
-    hostStatus.value = res.status === 200 ? 'ok' : 'fail';
+    const res: any = await authApi.checkHost({ mainServerUrl: host });
+    hostStatus.value = res?.ok ? 'ok' : 'fail';
   } catch {
     hostStatus.value = 'fail';
   } finally {
-    clearTimeout(timer);
     hostChecking.value = false;
   }
 }
