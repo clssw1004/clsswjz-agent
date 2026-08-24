@@ -48,6 +48,15 @@
               </template>
             </div>
           </div>
+          <el-dropdown trigger="click" @command="(cmd: string) => handleItemCmd(cmd, item)" @click.stop>
+            <el-icon class="item-more"><MoreFilled /></el-icon>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="edit">编辑</el-dropdown-item>
+                <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
 
         <!-- 触底加载哨兵 -->
@@ -85,7 +94,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { Calendar, Clock, Shop } from '@element-plus/icons-vue';
+import { Calendar, Clock, Shop, MoreFilled } from '@element-plus/icons-vue';
 import { itemApi, categoryApi, shopApi, tagApi } from '@/api';
 import { useAppStore } from '@/stores/app';
 import Panel from '@/components/Panel.vue';
@@ -239,6 +248,23 @@ function goDetail(item: any) {
   router.push(`/items/${item.id}`);
 }
 
+function handleItemCmd(cmd: string, item: any) {
+  if (cmd === 'edit') {
+    router.push(`/items/${item.id}`);
+  } else if (cmd === 'delete') {
+    ElMessageBox.confirm('确定删除这条记录吗？', '删除确认', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    }).then(async () => {
+      await itemApi.delete(item.id);
+      items.value = items.value.filter((i) => i.id !== item.id);
+      total.value = Math.max(0, total.value - 1);
+      ElMessage.success('已删除');
+    }).catch(() => {});
+  }
+}
+
 /* 无限滚动：观察底部哨兵 */
 let observer: IntersectionObserver | null = null;
 const sentinel = ref<HTMLElement | null>(null);
@@ -335,7 +361,7 @@ watch(() => app.currentBookId, () => {
 
 .list-item {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: 12px;
   padding: 12px 16px;
   cursor: pointer;
@@ -348,6 +374,19 @@ watch(() => app.currentBookId, () => {
 
 .list-item:active {
   background: var(--surface-active);
+}
+
+.item-more {
+  flex-shrink: 0;
+  font-size: 18px;
+  color: var(--text-3);
+  padding: 4px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.item-more:hover {
+  background: var(--surface-hover);
 }
 
 .deco-bar {
