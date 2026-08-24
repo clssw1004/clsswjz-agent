@@ -26,37 +26,40 @@
         <div
           v-for="item in items"
           :key="item.id"
-          class="list-item"
-          @click="goDetail(item)"
+          class="swipe-container"
+          :class="{ open: swipedId === item.id }"
         >
-          <div class="deco-bar" :style="{ background: decoGrad(item.type) }"></div>
-          <div class="item-main">
-            <div class="item-row1">
-              <span class="item-cat">{{ catName(item.categoryCode) || item.categoryCode || '未分类' }}</span>
-              <span v-if="itemTags(item).length" class="item-tag">{{ itemTags(item).join(' · ') }}</span>
-              <span class="item-amount num" :style="{ color: amountColor(item.type) }">
-                {{ fmtAmount(item.amount) }}
-              </span>
-            </div>
-            <div class="item-row2">
-              <el-icon :size="13"><Clock /></el-icon>
-              <span>{{ fullDate(item.accountDate) }}</span>
-              <template v-if="shopName(item.shopCode)">
-                <span class="row2-dot">·</span>
-                <el-icon :size="13"><Shop /></el-icon>
-                <span class="ellipsis">{{ shopName(item.shopCode) }}</span>
-              </template>
+          <div class="swipe-action">
+            <button class="swipe-del-btn" @click.stop="confirmDelete(item)">删除</button>
+          </div>
+          <div
+            class="list-item"
+            :style="{ transform: swipedId === item.id ? 'translateX(-72px)' : undefined }"
+            @touchstart.passive="onTouchStart($event, item.id)"
+            @touchmove.passive="onTouchMove($event, item.id)"
+            @touchend="onTouchEnd($event, item.id)"
+            @click="goDetail(item)"
+          >
+            <div class="deco-bar" :style="{ background: decoGrad(item.type) }"></div>
+            <div class="item-main">
+              <div class="item-row1">
+                <span class="item-cat">{{ catName(item.categoryCode) || item.categoryCode || '未分类' }}</span>
+                <span v-if="itemTags(item).length" class="item-tag">{{ itemTags(item).join(' · ') }}</span>
+                <span class="item-amount num" :style="{ color: amountColor(item.type) }">
+                  {{ fmtAmount(item.amount) }}
+                </span>
+              </div>
+              <div class="item-row2">
+                <el-icon :size="13"><Clock /></el-icon>
+                <span>{{ fullDate(item.accountDate) }}</span>
+                <template v-if="shopName(item.shopCode)">
+                  <span class="row2-dot">·</span>
+                  <el-icon :size="13"><Shop /></el-icon>
+                  <span class="ellipsis">{{ shopName(item.shopCode) }}</span>
+                </template>
+              </div>
             </div>
           </div>
-          <el-dropdown trigger="click" @command="(cmd: string) => handleItemCmd(cmd, item)" @click.stop>
-            <el-icon class="item-more"><MoreFilled /></el-icon>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="edit">编辑</el-dropdown-item>
-                <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
         </div>
 
         <!-- 触底加载哨兵 -->
@@ -94,7 +97,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { Calendar, Clock, Shop, MoreFilled } from '@element-plus/icons-vue';
+import { Calendar, Clock, Shop } from '@element-plus/icons-vue';
 import { itemApi, categoryApi, shopApi, tagApi } from '@/api';
 import { useAppStore } from '@/stores/app';
 import Panel from '@/components/Panel.vue';
@@ -248,21 +251,56 @@ function goDetail(item: any) {
   router.push(`/items/${item.id}`);
 }
 
-function handleItemCmd(cmd: string, item: any) {
-  if (cmd === 'edit') {
-    router.push(`/items/${item.id}`);
-  } else if (cmd === 'delete') {
-    ElMessageBox.confirm('确定删除这条记录吗？', '删除确认', {
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-      type: 'warning',
-    }).then(async () => {
-      await itemApi.delete(item.id);
-      items.value = items.value.filter((i) => i.id !== item.id);
-      total.value = Math.max(0, total.value - 1);
-      ElMessage.success('已删除');
-    }).catch(() => {});
+/* ===== 滑动删除 ===== */
+const swipedId = ref('');
+let touchStartX = 0;
+let touchStartY = 0;
+let swiping = false;
+
+function onTouchStart(e: TouchEvent, id: string) {
+  // 如果点击的是已滑开的项的其他位置，先收起
+  if (swipedId.value && swipedId.value !== id) {
+    swipedId.value = '';
   }
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+  swiping = false;
+}
+
+function onTouchMove(e: TouchEvent, id: string) {
+  const dx = e.touches[0].clientX - touchStartX;
+  const dy = e.touches[0].clientY - touchStartY;
+  // 水平滑动距离大于垂直时才算滑动
+  if (!swiping && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) {
+    swiping = true;
+  }
+}
+
+function onTouchEnd(_e: TouchEvent, id: string) {
+  if (!swiping) return;
+  const dx = _e.changedTouches[0].clientX - touchStartX;
+  if (dx < -40) {
+    // 左滑超过阈值 → 展开删除按钮
+    swipedId.value = id;
+  } else if (dx > 20) {
+    // 右滑 → 收起
+    swipedId.value = '';
+  }
+  swiping = false;
+}
+
+function confirmDelete(item: any) {
+  ElMessageBox.confirm('确定删除这条记录吗？', '删除确认', {
+    confirmButtonText: '删除',
+    cancelButtonText: '取消',
+    type: 'warning',
+  }).then(async () => {
+    await itemApi.delete(item.id);
+    items.value = items.value.filter((i) => i.id !== item.id);
+    total.value = Math.max(0, total.value - 1);
+    swipedId.value = '';
+    ElMessage.success('已删除');
+  }).catch(() => {});
 }
 
 /* 无限滚动：观察底部哨兵 */
@@ -359,34 +397,47 @@ watch(() => app.currentBookId, () => {
   padding: 2px 0;
 }
 
-.list-item {
+/* 滑动删除容器 */
+.swipe-container {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  margin-bottom: 8px;
+}
+
+.swipe-action {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 72px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
+  justify-content: center;
+}
+
+.swipe-del-btn {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #ef4444;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
   transition: background 0.15s ease;
 }
 
-.list-item:hover {
-  background: var(--surface-hover);
+.swipe-del-btn:hover {
+  background: #dc2626;
 }
 
-.list-item:active {
-  background: var(--surface-active);
-}
-
-.item-more {
-  flex-shrink: 0;
-  font-size: 18px;
-  color: var(--text-3);
-  padding: 4px;
-  border-radius: 6px;
-  transition: background 0.15s ease;
-}
-
-.item-more:hover {
-  background: var(--surface-hover);
+.list-item {
+  position: relative;
+  z-index: 1;
+  background: var(--surface-glass);
+  transition: transform 0.2s ease;
+  will-change: transform;
 }
 
 .deco-bar {
