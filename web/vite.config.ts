@@ -40,6 +40,7 @@ export default defineConfig(({ mode }) => {
           // vue 生态拆独立 chunk，利于缓存 & 首屏
           manualChunks: {
             vue: ['vue', 'vue-router', 'pinia'],
+            echarts: ['echarts', 'vue-echarts'],
           },
         },
       },

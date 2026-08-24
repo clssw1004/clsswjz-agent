@@ -116,9 +116,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, defineAsyncComponent } from 'vue';
 import { Calendar, Wallet, ArrowDown, ArrowUp, Coin } from '@element-plus/icons-vue';
-import VChart from 'vue-echarts';
+const VChart = defineAsyncComponent(() => import('vue-echarts'));
 import { use } from 'echarts/core';
 import { PieChart, BarChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components';
