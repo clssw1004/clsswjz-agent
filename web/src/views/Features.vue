@@ -73,7 +73,7 @@ import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   Notebook, CollectionTag, Shop, PriceTag, Folder, Wallet, Document, Sunny,
-  Setting, RefreshRight, Connection,
+  Setting, RefreshRight, Connection, Calendar,
 } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { useAppStore } from '@/stores/app';
@@ -100,6 +100,7 @@ const bookItems = [
 
 const lifeItems = [
   { label: '记事', icon: Document, grad: 'linear-gradient(135deg, #00a9c9, #22d3ee)', route: '/notes' },
+  { label: '经期记录', icon: Calendar, grad: 'linear-gradient(135deg, #e8528c, #f472b6)', route: '/periods' },
 ];
 
 const toolItems = [

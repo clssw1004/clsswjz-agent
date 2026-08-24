@@ -427,3 +427,36 @@ P6 (统计图表 + Tools Tab)  ← 依赖 P1-P5 完成后有足够数据展示
 | MEDIUM | ItemService: findAll 分页/过滤, update tag 管理 | +8 |
 | MEDIUM | AttachmentService: upload/remove 文件 I/O (需 mock fs) | +5 |
 | LOW | CRUD 服务共享测试 (Book/Category/Note/Shop/Tag/Project) | +20 |
+
+---
+
+## 开发进度 (2026-08-24)
+
+### ✅ 已完成
+
+| # | 功能 | 后端 | 前端 | 状态 |
+|---|------|------|------|------|
+| - | JWT 有效期延长 | `configuration.ts`: 24h → 90d | — | ✅ |
+| - | 登录记住用户名 | — | `Login.vue`: checkbox + localStorage | ✅ |
+| - | 单元测试 | 63 tests, 7 suites | — | ✅ |
+| P6A | 统计图表增强 | — | `Statistics.vue`: echarts 饼图 + 时间范围(周/月/年/全部) + 日历热力图 + 结余 | ✅ |
+| P5 附属 | 记事功能增强 | — | `Notes.vue`: 搜索 + 分组筛选 + 删除确认 | ✅ |
+| P4 | 经期管理-后端 | `src/periods/` (Module/Controller/Service, 6 API) | — | ✅ |
+| P4 | 经期管理-前端 | — | `Periods.vue`: 日历 + 状态卡 + 预测 + 日记录 | ✅ |
+| P4 | 经期功能入口 | — | `Features.vue`: 经期记录入口 | ✅ |
+
+### 🔄 进行中 / 待做
+
+| # | 功能 | 优先级 | 状态 |
+|---|------|-------|------|
+| P1 | 债务管理 (后端+前端) | HIGH | 待开发 |
+| P2A | 礼品卡 (后端+前端) | MED | 待开发 |
+| P2B | 打卡活动 (后端+前端) | MED | 待开发 |
+| P3A | 车辆加油 (后端+前端) | MED | 待开发 |
+| P3B | 固定收支 (后端+前端) | MED | 待开发 |
+| P3C | 记账规则 (后端+前端) | MED | 待开发 |
+| P5A | 月报自动生成 | MED | 待开发 |
+| P5B | 数据导入 | LOW | 待开发 |
+| P5C | 用户分享 | LOW | 待开发 |
+| P5D | 条目关联面板 | LOW | 待开发 |
+| P6B | Tools Tab 重构 | LOW | 待开发 |

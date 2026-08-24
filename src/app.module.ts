@@ -20,6 +20,7 @@ import { TagModule } from './tags/tag.module';
 import { ProjectModule } from './projects/project.module';
 import { NoteModule } from './notes/note.module';
 import { AttachmentModule } from './attachments/attachment.module';
+import { PeriodModule } from './periods/period.module';
 
 // 生产托管 web 构建产物（SPA 历史路由 fallback）；
 // web/dist 不存在时（纯 API 开发 / 未构建前端）不注册静态服务
@@ -51,6 +52,7 @@ const serveStaticModules = fs.existsSync(adminDist)
     ProjectModule,
     NoteModule,
     AttachmentModule,
+    PeriodModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

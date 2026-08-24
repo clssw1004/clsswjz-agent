@@ -85,3 +85,12 @@ export const syncApi = {
   reset: () => http.post('/sync/reset'),
   status: () => http.get('/sync/status'),
 };
+
+export const periodApi = {
+  listCycles: (params?: any) => http.get('/periods/cycles', { params }),
+  createCycle: (data: any) => http.post('/periods/cycles', data),
+  updateCycleEnd: (id: string, endDate: string) => http.patch(`/periods/cycles/${id}/end`, { endDate }),
+  deleteCycle: (id: string) => http.delete(`/periods/cycles/${id}`),
+  listDailyRecords: (cycleId: string) => http.get(`/periods/cycles/${cycleId}/records`),
+  upsertDailyRecord: (cycleId: string, date: string, data: any) => http.put(`/periods/cycles/${cycleId}/records/${date}`, data),
+};

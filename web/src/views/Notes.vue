@@ -1,15 +1,29 @@
 <template>
   <div class="notes-page">
+    <!-- 搜索栏 -->
+    <div class="search-bar glass">
+      <el-input v-model="searchText" placeholder="搜索记事..." clearable size="large" class="search-input">
+        <template #prefix><el-icon><Search /></el-icon></template>
+      </el-input>
+    </div>
+
+    <!-- 分组筛选（对齐 GUI NoteGroupFilter） -->
+    <div v-if="groups.length" class="group-filter">
+      <button class="group-chip" :class="{ on: activeGroup === '' }" @click="activeGroup = ''">全部</button>
+      <button v-for="g in groups" :key="g" class="group-chip" :class="{ on: activeGroup === g }" @click="activeGroup = g">
+        {{ g }}
+      </button>
+    </div>
+
     <div class="page-header">
-      <h2>记事</h2>
-      <span class="count">{{ notes.length }} 条</span>
+      <span class="count">{{ filtered.length }} 条</span>
     </div>
 
     <div v-loading="loading" class="note-list">
-      <el-empty v-if="!loading && notes.length === 0" description="暂无记事，点右下角记一条" />
+      <el-empty v-if="!loading && filtered.length === 0" description="暂无记事，点右下角记一条" />
 
       <div
-        v-for="note in notes"
+        v-for="note in filtered"
         :key="note.id"
         class="note-card glass"
         @click="goDetail(note)"
@@ -25,27 +39,33 @@
             </span>
           </div>
           <p class="note-preview">{{ preview(note.content) }}</p>
+          <div v-if="note.groupCode" class="note-group">
+            <el-icon :size="12"><Folder /></el-icon>
+            {{ note.groupCode }}
+          </div>
         </div>
-        <el-icon class="note-arrow"><ArrowRight /></el-icon>
+        <el-dropdown trigger="click" @command="(cmd: string) => handleCommand(cmd, note)" @click.stop>
+          <el-icon class="note-more"><MoreFilled /></el-icon>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="edit">编辑</el-dropdown-item>
+              <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
     </div>
 
-    <el-button
-      class="fab"
-      type="primary"
-      circle
-      @click="$router.push('/notes/new')"
-      aria-label="新建记事"
-    >
+    <el-button class="fab" type="primary" circle @click="$router.push('/notes/new')" aria-label="新建记事">
       <el-icon :size="20"><Plus /></el-icon>
     </el-button>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { onMounted, ref, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { Document, Checked, DataLine, ArrowRight, Plus } from '@element-plus/icons-vue';
+import { Document, Checked, DataLine, Plus, Search, MoreFilled, Folder } from '@element-plus/icons-vue';
 import { noteApi } from '@/api';
 import { useAppStore } from '@/stores/app';
 
@@ -54,6 +74,31 @@ const appStore = useAppStore();
 
 const loading = ref(false);
 const notes = ref<any[]>([]);
+const searchText = ref('');
+const activeGroup = ref('');
+
+const groups = computed(() => {
+  const set = new Set<string>();
+  for (const n of notes.value) {
+    if (n.groupCode) set.add(n.groupCode);
+  }
+  return Array.from(set).sort();
+});
+
+const filtered = computed(() => {
+  let list = notes.value;
+  if (activeGroup.value) {
+    list = list.filter((n) => n.groupCode === activeGroup.value);
+  }
+  if (searchText.value.trim()) {
+    const q = searchText.value.trim().toLowerCase();
+    list = list.filter((n) =>
+      (n.title || '').toLowerCase().includes(q) ||
+      (n.content || '').toLowerCase().includes(q)
+    );
+  }
+  return list;
+});
 
 async function load() {
   loading.value = true;
@@ -62,6 +107,28 @@ async function load() {
     notes.value = Array.isArray(res) ? res : res?.items || [];
   } finally {
     loading.value = false;
+  }
+}
+
+async function deleteNote(note: any) {
+  try {
+    await noteApi.delete(note.id);
+    notes.value = notes.value.filter((n) => n.id !== note.id);
+    ElMessage.success('已删除');
+  } catch {
+    ElMessage.error('删除失败');
+  }
+}
+
+function handleCommand(cmd: string, note: any) {
+  if (cmd === 'edit') {
+    router.push(`/notes/${note.id}`);
+  } else if (cmd === 'delete') {
+    ElMessageBox.confirm('确定删除这条记事？', '删除确认', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    }).then(() => deleteNote(note)).catch(() => {});
   }
 }
 
@@ -108,17 +175,52 @@ watch(() => appStore.currentBookId, load);
   padding-bottom: 88px;
 }
 
+.search-bar {
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border-radius: var(--radius-lg);
+}
+
+.search-input :deep(.el-input__wrapper) {
+  background: transparent;
+  box-shadow: none;
+}
+
+.group-filter {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.group-filter::-webkit-scrollbar { display: none; }
+
+.group-chip {
+  flex-shrink: 0;
+  border: 1px solid var(--border-glass);
+  background: var(--surface-glass);
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.group-chip.on {
+  background: var(--grad-brand);
+  color: var(--on-primary);
+  border-color: transparent;
+  font-weight: 600;
+}
+
 .page-header {
   display: flex;
   align-items: baseline;
   gap: 12px;
-  margin-bottom: 16px;
-}
-
-.page-header h2 {
-  margin: 0;
-  font-size: 18px;
-  color: var(--text-1);
+  margin-bottom: 12px;
 }
 
 .count {
@@ -143,13 +245,12 @@ watch(() => appStore.currentBookId, load);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
   cursor: pointer;
-  transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+  transition: transform 0.18s ease, background 0.18s ease;
 }
 
 .note-card.glass:hover {
   transform: translateY(-2px);
   background: var(--surface-hover);
-  box-shadow: var(--shadow-float);
 }
 
 .note-icon {
@@ -163,22 +264,11 @@ watch(() => appStore.currentBookId, load);
   color: #fff;
 }
 
-.note-icon-note {
-  background: var(--grad-brand);
-}
+.note-icon-note { background: var(--grad-brand); }
+.note-icon-todo { background: var(--grad-gold); }
+.note-icon-report { background: var(--grad-purple); }
 
-.note-icon-todo {
-  background: var(--grad-gold);
-}
-
-.note-icon-report {
-  background: var(--grad-purple);
-}
-
-.note-body {
-  flex: 1;
-  min-width: 0;
-}
+.note-body { flex: 1; min-width: 0; }
 
 .note-title-row {
   display: flex;
@@ -204,20 +294,9 @@ watch(() => appStore.currentBookId, load);
   border-radius: 999px;
 }
 
-.tag-note {
-  color: var(--brand-gold-dark);
-  background: var(--brand-gold-soft);
-}
-
-.tag-todo {
-  color: #b45309;
-  background: rgba(245, 158, 11, 0.14);
-}
-
-.tag-report {
-  color: #7c3aed;
-  background: rgba(139, 92, 246, 0.12);
-}
+.tag-note { color: var(--brand-gold-dark); background: var(--brand-gold-soft); }
+.tag-todo { color: #b45309; background: rgba(245, 158, 11, 0.14); }
+.tag-report { color: #7c3aed; background: rgba(139, 92, 246, 0.12); }
 
 .note-preview {
   margin: 7px 0 0;
@@ -231,10 +310,26 @@ watch(() => appStore.currentBookId, load);
   overflow: hidden;
 }
 
-.note-arrow {
+.note-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 11px;
   color: var(--text-3);
-  font-size: 14px;
+}
+
+.note-more {
+  color: var(--text-3);
+  font-size: 18px;
   flex-shrink: 0;
+  padding: 4px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.note-more:hover {
+  background: var(--surface-hover);
 }
 
 .fab {
@@ -249,9 +344,7 @@ watch(() => appStore.currentBookId, load);
   box-shadow: var(--glow-primary);
 }
 
-.fab:hover {
-  box-shadow: 0 10px 30px rgba(20, 184, 166, 0.4);
-}
+.fab:hover { box-shadow: 0 10px 30px rgba(20, 184, 166, 0.4); }
 
 @media (max-width: 767px) {
   .fab {
