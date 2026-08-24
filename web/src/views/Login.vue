@@ -49,6 +49,9 @@
             <template #prefix><el-icon><Lock /></el-icon></template>
           </el-input>
         </el-form-item>
+        <div class="remember-row">
+          <el-checkbox v-model="rememberMe">记住用户名</el-checkbox>
+        </div>
         <el-button type="primary" native-type="submit" :loading="loading" class="submit-btn" size="large">
           登录
         </el-button>
@@ -84,6 +87,7 @@ const loading = ref(false);
 const syncing = ref(false);
 let pollTimer: any = null;
 const form = reactive({ mainServerUrl: '', username: '', password: '' });
+const rememberMe = ref(localStorage.getItem('web_remember') === 'true');
 
 // ===== 主端地址连接检测（对齐 gui ServerUrlField + HealthService：GET {host}/api/health，3s 超时） =====
 type HostStatus = 'idle' | 'ok' | 'fail';
@@ -120,6 +124,9 @@ function resetHostStatus() {
 // 自动回填主端地址：上次登录/被 401 踢回时缓存的 web_server_url，用户无需重输 host
 onMounted(() => {
   form.mainServerUrl = localStorage.getItem('web_server_url') || '';
+  if (rememberMe.value) {
+    form.username = localStorage.getItem('web_remember_user') || '';
+  }
 });
 
 async function handleLogin() {
@@ -130,6 +137,13 @@ async function handleLogin() {
   loading.value = true;
   try {
     const res: any = await auth.login(form.mainServerUrl, form.username, form.password);
+    // 记住用户名
+    localStorage.setItem('web_remember', String(rememberMe.value));
+    if (rememberMe.value) {
+      localStorage.setItem('web_remember_user', form.username);
+    } else {
+      localStorage.removeItem('web_remember_user');
+    }
     if (res?.initialSyncing) {
       // 进入同步等待阶段：轮询进度，P0+P1 完成后跳转主页面
       syncing.value = true;
@@ -277,6 +291,17 @@ onUnmounted(() => {
   background: var(--grad-brand);
   border: none;
   box-shadow: var(--glow-primary);
+}
+
+.remember-row {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 4px;
+}
+
+.remember-row :deep(.el-checkbox__label) {
+  font-size: 13px;
+  color: var(--text-3);
 }
 
 .submit-btn:hover {
