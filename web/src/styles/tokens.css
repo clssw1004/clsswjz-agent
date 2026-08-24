@@ -64,23 +64,23 @@
   --bg-glow-cyan: rgba(6, 182, 212, 0.07);
   --bg-glow-top: #eef5f7;
 
-  /* 表面（浅色 = 高质感白卡片，轻玻璃） */
-  --surface-glass: rgba(255, 255, 255, 0.88);
-  --surface-glass-strong: rgba(255, 255, 255, 0.96);
+  /* 表面（浅色 = 高质感白卡片，近不透明避免光晕透出导致发糊） */
+  --surface-glass: rgba(255, 255, 255, 0.97);
+  --surface-glass-strong: rgba(255, 255, 255, 0.995);
   --surface-hover: rgba(255, 255, 255, 1);
   --surface-active: #ffffff;
 
-  --border-glass: rgba(15, 23, 42, 0.08);
-  --border-glass-strong: rgba(15, 23, 42, 0.14);
+  --border-glass: rgba(15, 23, 42, 0.07);
+  --border-glass-strong: rgba(15, 23, 42, 0.13);
 
-  /* 文字层级 */
+  /* 文字层级（加深次要层级，提升对比度避免发灰） */
   --text-1: #0f172a;
-  --text-2: #475569;
-  --text-3: #94a3b8;
+  --text-2: #334155;
+  --text-3: #64748b;
 
   /* 侧栏 / 顶栏背景（Layout 用） */
-  --side-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.88));
-  --topbar-bg: rgba(255, 255, 255, 0.72);
+  --side-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(255, 255, 255, 0.94));
+  --topbar-bg: rgba(255, 255, 255, 0.86);
 
   /* 滚动条 */
   --scroll-thumb: rgba(15, 23, 42, 0.16);
@@ -131,11 +131,12 @@ html.dark {
  * 3. 效果 / 圆角 / 字体
  * ========================================================= */
 :root {
-  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 20px rgba(15, 23, 42, 0.06);
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.05), 0 6px 20px rgba(15, 23, 42, 0.06);
   --shadow-pop: 0 20px 48px rgba(15, 23, 42, 0.14);
   --shadow-float: 0 8px 28px rgba(15, 23, 42, 0.1);
   --shadow-glow-gold: 0 8px 24px rgba(20, 184, 166, 0.3);
-  --blur-glass: blur(18px) saturate(1.3);
+  /* 浅色：卡片近不透明，仅保留轻微模糊防边缘锯齿；暗色下由 html.dark 覆盖为强玻璃 */
+  --blur-glass: blur(8px) saturate(1.08);
   --radius-xl: 24px;
   --radius-lg: 18px;
   --radius-md: 14px;
@@ -154,6 +155,7 @@ html.dark {
   --shadow-pop: 0 16px 48px rgba(2, 6, 23, 0.55);
   --shadow-float: 0 10px 32px rgba(2, 6, 23, 0.45);
   --shadow-glow-gold: 0 8px 24px rgba(20, 184, 166, 0.35);
+  /* 暗色保留强玻璃语言 */
   --blur-glass: blur(20px) saturate(1.4);
 }
 

@@ -199,8 +199,8 @@ function handleBookChange(id: string) {
 // 账本选择仅首页展示（对齐移动端：首页/记账页才切账本）
 const showBookSelect = computed(() => route.path === '/items');
 
-// 子页面（新增/编辑详情/列表/账本/设置）在顶栏显示返回（对齐移动端 AppBar leading 返回）
-const isDetailPage = computed(() => /^\/(items\/(new|list|[^/]+)|notes\/(new|[^/]+)|books|settings\/)/.test(route.path));
+// 子页面（新增/编辑详情/列表/账本/经期/设置）在顶栏显示返回（对齐移动端 AppBar leading 返回）
+const isDetailPage = computed(() => /^\/(items\/(new|list|[^/]+)|notes\/(new|[^/]+)|books|periods|settings\/)/.test(route.path));
 
 function goBack() {
   if (window.history.length > 1) router.back();

@@ -95,6 +95,17 @@ export class PeriodService {
     return saved;
   }
 
+  async deleteDailyRecord(userId: string, cycleId: string, recordDate: string) {
+    const repo = await this.connMgr.getRepository(userId, PeriodDailyRecord);
+    const logRepo = await this.connMgr.getRepository(userId, LogSync);
+    const existing = await repo.findOne({ where: { cycleId, recordDate } as any });
+    if (existing) {
+      await repo.delete(existing.id);
+      await this.writeLog(logRepo, BusinessType.PERIOD_DAILY_RECORD, OperateType.DELETE, userId, existing.id, { id: existing.id });
+    }
+    return { deleted: true };
+  }
+
   private async writeLog(logRepo: any, businessType: BusinessType, operateType: OperateType, userId: string, businessId: string, data: any) {
     const log = logRepo.create({
       businessType, operateType, parentType: 'root', parentId: 'None',

@@ -1,6 +1,6 @@
 services:
   agent:
-    build: .
+    image: clssw1004/clsswjz-agent
     ports:
       - "3001:3001"
     environment:

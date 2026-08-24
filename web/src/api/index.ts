@@ -95,4 +95,5 @@ export const periodApi = {
   deleteCycle: (id: string) => http.delete(`/periods/cycles/${id}`),
   listDailyRecords: (cycleId: string) => http.get(`/periods/cycles/${cycleId}/records`),
   upsertDailyRecord: (cycleId: string, date: string, data: any) => http.put(`/periods/cycles/${cycleId}/records/${date}`, data),
+  deleteDailyRecord: (cycleId: string, date: string) => http.delete(`/periods/cycles/${cycleId}/records/${date}`),
 };

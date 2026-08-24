@@ -29,7 +29,7 @@
           class="swipe-container"
           :class="{ open: swipedId === item.id }"
         >
-          <div class="swipe-action">
+          <div class="swipe-action" :class="{ 'is-visible': swipedId === item.id }">
             <button class="swipe-del-btn" @click.stop="confirmDelete(item)">删除</button>
           </div>
           <div
@@ -412,20 +412,37 @@ watch(() => app.currentBookId, () => {
   bottom: 0;
   width: 72px;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: stretch;
+  /* 非滑动状态隐藏（list-item 为玻璃半透明背景，必须隐藏否则红色透出） */
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.22s ease, visibility 0.22s ease;
+}
+
+.swipe-action.is-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .swipe-del-btn {
-  width: 100%;
-  height: 100%;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: none;
-  background: #ef4444;
+  background: var(--color-danger);
   color: #fff;
   font-size: 13px;
   font-weight: 600;
+  letter-spacing: 0.5px;
   cursor: pointer;
   transition: background 0.15s ease;
+  /* 右侧两角圆角与卡片对齐（左侧直角贴 list-item） */
+  border-top-right-radius: var(--radius-lg);
+  border-bottom-right-radius: var(--radius-lg);
 }
 
 .swipe-del-btn:hover {
@@ -435,8 +452,12 @@ watch(() => app.currentBookId, () => {
 .list-item {
   position: relative;
   z-index: 1;
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  padding: 12px 16px;
   background: var(--surface-glass);
-  transition: transform 0.2s ease;
+  transition: transform 0.22s ease;
   will-change: transform;
 }
 

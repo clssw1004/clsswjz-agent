@@ -38,9 +38,8 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           // vue 生态拆独立 chunk，利于缓存 & 首屏
-          manualChunks: {
-            vue: ['vue', 'vue-router', 'pinia'],
-            echarts: ['echarts', 'vue-echarts'],
+          manualChunks(id) {
+            if (id.includes('vue-echarts')) return 'vue-echarts';
           },
         },
       },

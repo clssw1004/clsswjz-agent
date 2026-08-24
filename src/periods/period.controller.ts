@@ -45,4 +45,9 @@ export class PeriodController {
   ) {
     return this.periodService.upsertDailyRecord(req.user.userId, cycleId, { recordDate, ...body });
   }
+
+  @Delete('cycles/:cycleId/records/:date')
+  deleteDailyRecord(@Req() req: any, @Param('cycleId') cycleId: string, @Param('date') recordDate: string) {
+    return this.periodService.deleteDailyRecord(req.user.userId, cycleId, recordDate);
+  }
 }
