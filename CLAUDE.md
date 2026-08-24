@@ -86,6 +86,34 @@ Every mutation creates a `LogSync` entry. The sync cycle:
 - **Tags on items**: Multi-tags live in `item_rel_field` (fieldCode='TAG'), not on AccountItem directly. Both ItemService and LogRunner maintain this independently
 - **LogRunner.sanitize()** silently drops fields not in the entity schema — entity columns are the source of truth during replay
 
+## Git Branching Policy
+
+**main is protected** — never develop features or fix bugs directly on main. Only these changes may be committed to main:
+
+- Project-level config files (package.json deps, `.env.example`, `Dockerfile`/`.dockerignore`, nest/vite/tsconfig configs)
+- Release operations (git tag, CHANGELOG updates)
+- Documentation & CI (docs/, `.github/workflows/`)
+
+All feature work goes on `feat/` branches, all bug fixes on `fix/` branches, merged into main via Pull Request (same convention as clsswjz-gui).
+
+### Branch naming
+
+- `feat/<module>-<short-desc>` — e.g. `feat/periods-gui-alignment`, `feat/web-panel-unify`
+- `fix/<short-desc>` — e.g. `fix/swipe-delete-style`, `fix/login-host-check`
+
+### Workflow
+
+1. Branch from up-to-date main: `git checkout -b feat/xxx origin/main`
+2. Commit with conventional messages (`feat:` / `fix:` / `refactor:` / `perf:` / `ci:` / `docs:` / `chore:`)
+3. `git push origin feat/xxx` → open PR → review → merge into main
+
+### Release
+
+1. `git checkout main && git pull origin main`
+2. Update `CHANGELOG.md` (if present) with user-facing changes; commit directly to main (release-only files)
+3. Tag & push: `git tag vX.Y.Z && git push origin vX.Y.Z` — this triggers the `docker-publish` workflow (builds & pushes `clssw1004/clsswjz-agent`)
+4. Version format: stable `x.y.z`, preview `x.y.z-alpha.n`
+
 ## Key Files
 
 | File | Role |

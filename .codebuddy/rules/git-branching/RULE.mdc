@@ -1,0 +1,42 @@
+---
+description: 开发 Git 分支管理规范。涉及 git 分支、提交、推送、PR、发版、tag、merge、发布时遵循。
+alwaysApply: true
+enabled: true
+updatedAt: 2026-08-24T22:20:00.000Z
+---
+
+# Git 分支管理规范（clsswjz-agent）
+
+参考 `clsswjz-gui/CLAUDE.md` 的约定制定，适用于本仓库（NestJS 后端 + web 前端）。
+
+## main 分支保护
+
+**main 严禁直接开发新特性或修复 bug**，仅允许以下变更直接提交到 main：
+
+- 项目级配置文件（package.json 依赖、`.env.example`、`Dockerfile` / `.dockerignore`、nest / vite / tsconfig 配置）
+- 发版操作（git tag、CHANGELOG 更新）
+- 文档与 CI（docs/、`.github/workflows/`）
+
+## 分支命名
+
+- 功能分支：`feat/<模块>-<简述>`，如 `feat/periods-gui-alignment`、`feat/web-panel-unify`
+- 修复分支：`fix/<简述>`，如 `fix/swipe-delete-style`、`fix/login-host-check`
+
+## 开发流程
+
+1. 从最新 main 拉分支：`git checkout -b feat/xxx origin/main`
+2. 提交使用 conventional commit：`feat:` / `fix:` / `refactor:` / `perf:` / `ci:` / `docs:` / `chore:`
+3. `git push origin feat/xxx` → 开 PR → 评审通过后合并到 main
+
+## 发版流程
+
+1. `git checkout main && git pull origin main`
+2. 更新 CHANGELOG（如有）后直接提交 main（仅发版文件）
+3. 打 tag 触发镜像 CI：`git tag vX.Y.Z && git push origin vX.Y.Z`
+   —— 触发 `.github/workflows/docker-publish.yml`，构建并推送 `clssw1004/clsswjz-agent`
+4. 版本号格式：正式 `x.y.z`，预览 `x.y.z-alpha.n`
+
+## 注意
+
+- 本仓库为 private，package.json 无 version 字段，发版不依赖 npm 版本号，全靠 git tag。
+- 镜像 tag 为 `clssw1004/clsswjz-agent`（Docker Hub），发版需确保 Secrets `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` 已配置。
