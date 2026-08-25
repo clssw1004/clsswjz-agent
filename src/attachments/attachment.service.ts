@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ConfigService } from '@nestjs/config';
 import { ConnectionManager } from '../core/connection-manager';
 import { AttachmentEntity } from '../entities/attachment.entity';
 import { LogSync } from '../entities/log-sync.entity';
@@ -13,12 +12,7 @@ import { SyncState } from '../enums/sync-state.enum';
 export class AttachmentService {
   constructor(
     private connMgr: ConnectionManager,
-    private config: ConfigService,
   ) {}
-
-  private attachmentsDir(userId: string): string {
-    return path.join(this.config.get('dataPath') || './data', userId, 'attachments');
-  }
 
   async upload(userId: string, file: Express.Multer.File, businessCode: string, businessId: string) {
     const repo = await this.connMgr.getRepository(userId, AttachmentEntity);
@@ -38,7 +32,7 @@ export class AttachmentService {
     const saved = await repo.save(attachment as any);
 
     // Save file to disk as {id}.{ext}
-    const dir = this.attachmentsDir(userId);
+    const dir = this.connMgr.getAttachmentsDir(userId);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, `${saved.id}.${ext}`), file.buffer);
 
@@ -69,7 +63,7 @@ export class AttachmentService {
     const repo = await this.connMgr.getRepository(userId, AttachmentEntity);
     const attachment = await repo.findOneBy({ id } as any);
     if (!attachment) throw new NotFoundException('附件不存在');
-    const filePath = path.join(this.attachmentsDir(userId), `${attachment.id}.${attachment.extension}`);
+    const filePath = path.join(this.connMgr.getAttachmentsDir(userId), `${attachment.id}.${attachment.extension}`);
     if (!fs.existsSync(filePath)) throw new NotFoundException('文件不存在');
     return { filePath, attachment };
   }
@@ -82,7 +76,7 @@ export class AttachmentService {
     if (attachment) {
       await repo.delete(id);
       // Delete file from disk
-      const filePath = path.join(this.attachmentsDir(userId), `${attachment.id}.${attachment.extension}`);
+      const filePath = path.join(this.connMgr.getAttachmentsDir(userId), `${attachment.id}.${attachment.extension}`);
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
       const log = logRepo.create({

@@ -5,6 +5,11 @@ import { UserService } from '../meta/user.service';
 import { ConnectionManager } from '../core/connection-manager';
 import { SyncService } from '../sync/sync.service';
 
+/** 从 mainServerUrl 提取目录安全的主机标识 */
+function hostDirFromUrl(url: string): string {
+  return url.replace(/^https?:\/\//, '').replace(/:\d+$/, '').replace(/\/+$/, '').replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -47,9 +52,11 @@ export class AuthService {
       mainToken: mainResponse.access_token,
     });
 
-    await this.connMgr.initUserDataDir(user.id);
+    // host 标识写入 JWT + 初始化数据目录（数据按 host 隔离，防止不同主端相同 userId 碰撞）
+    const host = hostDirFromUrl(mainServerUrl);
+    await this.connMgr.initUserDataDir(host, user.id);
 
-    const access_token = this.jwtService.sign({ sub: user.id });
+    const access_token = this.jwtService.sign({ sub: user.id, host });
 
     // 重新登录成功后清除主端鉴权失效标记（若之前被 401 踢出）
     this.syncService.clearAuthExpired(user.id);

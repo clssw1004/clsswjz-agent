@@ -38,7 +38,13 @@ Browser (Vue 3) ←HTTPS→ clsswjz-agent (NestJS+SQLite) ←push/pull→ clsswj
 ### Two Separate Database Systems
 
 - **`data/meta.db`** — Managed by `MetaModule` via standard TypeORM `@InjectRepository(MetaUser)`. Stores user connection info (mainServerUrl, mainToken).
-- **`data/<userId>/db.sqlite`** — Per-user business database managed by `ConnectionManager`. Uses `this.connMgr.getRepository(userId, Entity)` — **not** `@InjectRepository`. There is NO global TypeORM connection for business entities.
+- **`data/<host>/<userId>/db.sqlite`** — Per-user business database managed by `ConnectionManager`. Data is isolated by main server host AND userId (different main servers with the same userId get separate databases). Uses `this.connMgr.getRepository(userId, Entity)` — **not** `@InjectRepository`. Host context is set per-request via `AsyncLocalStorage` in `JwtStrategy.validate()`.
+
+### Host-Based Data Isolation
+
+`ConnectionManager` uses `AsyncLocalStorage` to track the current request's main server host. The JWT token includes `host` (derived from `mainServerUrl` at login), and `JwtStrategy.validate()` writes it to the ALS store via `connMgr.setHost(host)`. This means all `getRepository()` / `getAttachmentsDir()` calls within a request automatically route to the correct `data/<host>/<userId>/` directory — no controller or service signature changes needed.
+
+The `hostDirFromUrl()` helper normalizes URLs: strips protocol, port, and replaces non-alphanumeric chars with `_` (e.g., `http://192.168.1.100:3000` → `192.168.1.100`).
 
 ### Adding a New Backend Module
 
