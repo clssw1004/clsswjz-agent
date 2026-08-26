@@ -112,13 +112,15 @@ All feature work goes on `feat/` branches, all bug fixes on `fix/` branches, mer
 1. Branch from up-to-date main: `git checkout -b feat/xxx origin/main`
 2. Commit with conventional messages (`feat:` / `fix:` / `refactor:` / `perf:` / `ci:` / `docs:` / `chore:`)
 3. `git push origin feat/xxx` → open PR → review → merge into main
+   - PR create/merge can be automated via the Gitea API (credentials read from `git credential fill`, never hardcode tokens). See `docs/gitea_api_workflow.md`.
 
 ### Release
 
 1. `git checkout main && git pull origin main`
 2. Update `CHANGELOG.md` (if present) with user-facing changes; commit directly to main (release-only files)
 3. Tag & push: `git tag vX.Y.Z && git push origin vX.Y.Z` — this triggers the `docker-publish` workflow (builds & pushes `clssw1004/clsswjz-agent`)
-4. Version format: stable `x.y.z`, preview `x.y.z-alpha.n`
+4. Optionally create the GitHub-style Release page via the Gitea API — see `docs/gitea_api_workflow.md`
+5. Version format: stable `x.y.z`, preview `x.y.z-alpha.n`
 
 ## Key Files
 
