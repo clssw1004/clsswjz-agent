@@ -33,7 +33,8 @@ export class AttachmentController {
 
   @Get(':id')
   async download(@Req() req, @Param('id') id: string, @Res() res: Response) {
-    const { filePath, attachment } = await this.attachmentService.getFilePath(req.user.userId, id);
+    // 懒加载：本地缺失时从主端按需下载并缓存（对齐 gui downloadAttachment）
+    const { filePath, attachment } = await this.attachmentService.getOrDownloadFile(req.user.userId, id);
     res.setHeader('Content-Type', attachment.contentType || 'application/octet-stream');
     res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(attachment.originName)}`);
     fs.createReadStream(filePath).pipe(res);

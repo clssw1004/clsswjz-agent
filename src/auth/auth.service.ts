@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import axios from 'axios';
 import { UserService } from '../meta/user.service';
 import { ConnectionManager } from '../core/connection-manager';
+import { AppUser } from '../entities/app-user.entity';
 import { SyncService } from '../sync/sync.service';
 
 /** 从 mainServerUrl 提取目录安全的主机标识 */
@@ -87,13 +88,20 @@ export class AuthService {
     }
   }
 
-  /** 当前登录用户信息（同步设置页：服务器地址 + 账号） */
+  /** 当前登录用户信息（同步设置页：服务器地址 + 账号；昵称优先取业务库最新值） */
   async me(userId: string) {
     const user = await this.userService.findById(userId);
     if (!user) throw new UnauthorizedException('用户不存在');
+    // 业务库 users 表的昵称可能被本端/移动端修改过（USER UPDATE 日志回放），优先展示
+    let nickname = user.nickname;
+    try {
+      const bizRepo = await this.connMgr.getRepository(userId, AppUser);
+      const bizUser = await bizRepo.findOneBy({ id: userId });
+      if (bizUser?.nickname) nickname = bizUser.nickname;
+    } catch { /* 业务库未初始化时回退 meta */ }
     return {
       userId: user.id,
-      nickname: user.nickname,
+      nickname,
       mainServerUrl: user.mainServerUrl,
     };
   }

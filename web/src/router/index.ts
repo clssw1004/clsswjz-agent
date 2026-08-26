@@ -17,6 +17,7 @@ const router = createRouter({
         { path: 'features', component: () => import('../views/Features.vue'), meta: { title: '功能' } },
         { path: 'statistics', component: () => import('../views/Statistics.vue'), meta: { title: '统计' } },
         { path: 'mine', component: () => import('../views/Mine.vue'), meta: { title: '我的' } },
+        { path: 'user', component: () => import('../views/UserInfo.vue'), meta: { title: '个人信息' } },
         { path: 'books', component: () => import('../views/Books.vue'), meta: { title: '账本' } },
         { path: 'notes', component: () => import('../views/Notes.vue'), meta: { title: '记事' } },
         { path: 'notes/new', component: () => import('../views/NoteForm.vue'), meta: { title: '新建记事' } },

@@ -141,11 +141,18 @@
       <div v-if="!isNew" class="attach-area">
         <div class="attach-title">附件</div>
         <div v-if="attachments.length" class="attach-list">
-          <div v-for="a in attachments" :key="a.id" class="attach-item">
+          <div
+            v-for="a in attachments"
+            :key="a.id"
+            class="attach-item"
+            :title="downloadingIds.has(a.id) ? '下载中…' : a.originName"
+            @click="openAttachment(a)"
+          >
             <el-icon :size="15"><Document /></el-icon>
-            <span class="attach-name" :title="a.originName">{{ a.originName }}</span>
+            <span class="attach-name">{{ a.originName }}</span>
             <span class="attach-size">{{ fmtSize(a.fileLength) }}</span>
-            <el-icon class="attach-del" @click="removeAttachment(a)"><Close /></el-icon>
+            <el-icon v-if="downloadingIds.has(a.id)" class="is-loading attach-dl"><Loading /></el-icon>
+            <el-icon v-else class="attach-del" @click.stop="removeAttachment(a)"><Close /></el-icon>
           </div>
         </div>
         <label class="attach-add">
@@ -451,7 +458,7 @@ import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   Remove, Plus, Notebook, ArrowRight, ArrowDown, PriceTag, Folder, FolderOpened,
-  Calendar, Clock, Document, Close, UploadFilled, CircleCheckFilled, CollectionTag, Search, MagicStick,
+  Calendar, Clock, Document, Close, UploadFilled, CircleCheckFilled, CollectionTag, Search, MagicStick, Loading,
 } from '@element-plus/icons-vue';
 import type { FormInstance } from 'element-plus';
 import {
@@ -1249,6 +1256,33 @@ function fmtSize(bytes?: number) {
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
+
+/** 懒加载下载中状态（对齐 gui _downloadingIds） */
+const downloadingIds = reactive(new Set<string>());
+
+/**
+ * 打开附件（懒加载）：GET /api/attachments/:id 由后端代理——
+ * 本地缺失时自动从主端下载并缓存再返回文件流。浏览器直接展示/下载。
+ */
+async function openAttachment(a: any) {
+  if (downloadingIds.has(a.id)) return;
+  downloadingIds.add(a.id);
+  try {
+    const res = await fetch(`/api/attachments/${a.id}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('web_token') || ''}` },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch {
+    ElMessage.error('附件加载失败');
+  } finally {
+    downloadingIds.delete(a.id);
+  }
+}
+
 async function uploadAttachment(e: Event) {
   const input = e.target as HTMLInputElement;
   const file = input.files?.[0];
@@ -1648,6 +1682,16 @@ async function onDelete() {
   border: 1px solid var(--border-glass);
   font-size: 13px;
   color: var(--text-2);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.attach-item:hover {
+  background: var(--surface-hover);
+}
+
+.attach-dl {
+  color: var(--brand-gold);
 }
 
 .attach-name {

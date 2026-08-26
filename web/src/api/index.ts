@@ -8,6 +8,19 @@ export const authApi = {
     http.post('/auth/check-host', data),
 };
 
+export const userApi = {
+  profile: () => http.get('/user/profile'),
+  updateProfile: (data: { nickname?: string; email?: string; phone?: string; timezone?: string; language?: string }) =>
+    http.put('/user/profile', data),
+  uploadAvatar: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return http.post('/user/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+};
+
 export const itemApi = {
   list: (params: any) => http.get('/items', { params }),
   get: (id: string) => http.get(`/items/${id}`),
