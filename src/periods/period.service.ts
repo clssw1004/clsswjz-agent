@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConnectionManager } from '../core/connection-manager';
 import { PeriodCycle } from '../entities/period-cycle.entity';
 import { PeriodDailyRecord } from '../entities/period-daily-record.entity';
+import { UserShare } from '../entities/user-share.entity';
 import { LogSync } from '../entities/log-sync.entity';
 import { BusinessType } from '../enums/business-type.enum';
 import { OperateType } from '../enums/operate-type.enum';
@@ -11,11 +12,35 @@ import { SyncState } from '../enums/sync-state.enum';
 export class PeriodService {
   constructor(private connMgr: ConnectionManager) {}
 
+  /**
+   * 共享给我的周期数据 owner 列表（对齐 gui _getPeriodSharedBy）：
+   * periodCycle 或 periodDailyRecord 任一共享即视为可见
+   */
+  private async getSharedOwners(userId: string): Promise<string[]> {
+    const shareRepo = await this.connMgr.getRepository(userId, UserShare);
+    const shares = await shareRepo.find({ where: { targetUserId: userId, isEnabled: true } });
+    return [...new Set(
+      shares
+        .filter((s) => s.ownerUserId !== userId)
+        .filter((s) => s.businessType === 'periodCycle' || s.businessType === 'periodDailyRecord')
+        .map((s) => s.ownerUserId),
+    )];
+  }
+
   async listCycles(userId: string, query: { recent?: number; all?: boolean; active?: boolean; year?: number; month?: number }) {
     const repo = await this.connMgr.getRepository(userId, PeriodCycle);
-    const all = await repo.find({ where: { createdBy: userId }, order: { startDate: 'DESC' } });
+    // 可见范围 = 自己创建 + 共享给我的人创建（对齐 gui findByCreatorOrShared）
+    const sharedOwners = await this.getSharedOwners(userId);
+    const qb = repo.createQueryBuilder('c')
+      .where('c.createdBy IN (:...owners)', { owners: [userId, ...sharedOwners] })
+      .orderBy('c.startDate', 'DESC');
+    const all = await qb.getMany();
 
-    if (query.active) return all.filter((c) => !c.endDate).slice(0, 1);
+    if (query.active) {
+      const mineActive = all.filter((c) => !c.endDate);
+      // 活跃周期只取自己的（共享方的"进行中"不作为本地操作依据）
+      return mineActive.filter((c) => c.createdBy === userId).slice(0, 1);
+    }
     if (query.all) return all;
     if (query.recent) {
       const cutoff = new Date();
@@ -49,6 +74,8 @@ export class PeriodService {
   async updateCycleEnd(userId: string, cycleId: string, endDate: string) {
     const repo = await this.connMgr.getRepository(userId, PeriodCycle);
     const logRepo = await this.connMgr.getRepository(userId, LogSync);
+    const cycle = await repo.findOneBy({ id: cycleId });
+    if (!cycle || cycle.createdBy !== userId) return null; // 只能操作自己创建的周期
     await repo.update(cycleId, { endDate, updatedBy: userId } as any);
     const updated = await repo.findOneBy({ id: cycleId });
     if (updated) await this.writeLog(logRepo, BusinessType.PERIOD_CYCLE, OperateType.UPDATE, userId, cycleId, updated);
@@ -59,6 +86,8 @@ export class PeriodService {
     const repo = await this.connMgr.getRepository(userId, PeriodCycle);
     const recRepo = await this.connMgr.getRepository(userId, PeriodDailyRecord);
     const logRepo = await this.connMgr.getRepository(userId, LogSync);
+    const cycle = await repo.findOneBy({ id: cycleId });
+    if (!cycle || cycle.createdBy !== userId) return { deleted: false }; // 只能删除自己的
     await recRepo.delete({ cycleId } as any);
     await repo.delete(cycleId);
     await this.writeLog(logRepo, BusinessType.PERIOD_CYCLE, OperateType.DELETE, userId, cycleId, { id: cycleId });
@@ -73,6 +102,9 @@ export class PeriodService {
   async upsertDailyRecord(userId: string, cycleId: string, data: {
     recordDate: string; flowLevel?: string; symptoms?: string; mood?: string; remark?: string;
   }) {
+    const cycleRepo = await this.connMgr.getRepository(userId, PeriodCycle);
+    const cycle = await cycleRepo.findOneBy({ id: cycleId });
+    if (!cycle || cycle.createdBy !== userId) return null; // 只能给自己的周期记明细
     const repo = await this.connMgr.getRepository(userId, PeriodDailyRecord);
     const logRepo = await this.connMgr.getRepository(userId, LogSync);
     const existing = await repo.findOne({ where: { cycleId, recordDate: data.recordDate } as any });
@@ -96,6 +128,9 @@ export class PeriodService {
   }
 
   async deleteDailyRecord(userId: string, cycleId: string, recordDate: string) {
+    const cycleRepo = await this.connMgr.getRepository(userId, PeriodCycle);
+    const cycle = await cycleRepo.findOneBy({ id: cycleId });
+    if (!cycle || cycle.createdBy !== userId) return { deleted: false }; // 只能删除自己周期内的明细
     const repo = await this.connMgr.getRepository(userId, PeriodDailyRecord);
     const logRepo = await this.connMgr.getRepository(userId, LogSync);
     const existing = await repo.findOne({ where: { cycleId, recordDate } as any });

@@ -8,6 +8,19 @@ export const authApi = {
     http.post('/auth/check-host', data),
 };
 
+export const userApi = {
+  profile: () => http.get('/user/profile'),
+  updateProfile: (data: { nickname?: string; email?: string; phone?: string; timezone?: string; language?: string }) =>
+    http.put('/user/profile', data),
+  uploadAvatar: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return http.post('/user/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+};
+
 export const itemApi = {
   list: (params: any) => http.get('/items', { params }),
   get: (id: string) => http.get(`/items/${id}`),
@@ -96,4 +109,12 @@ export const periodApi = {
   listDailyRecords: (cycleId: string) => http.get(`/periods/cycles/${cycleId}/records`),
   upsertDailyRecord: (cycleId: string, date: string, data: any) => http.put(`/periods/cycles/${cycleId}/records/${date}`, data),
   deleteDailyRecord: (cycleId: string, date: string) => http.delete(`/periods/cycles/${cycleId}/records/${date}`),
+};
+
+export const userShareApi = {
+  list: () => http.get('/user-shares'),
+  eligibleUsers: () => http.get('/user-shares/eligible-users'),
+  setShare: (data: { targetUserId: string; businessType: string; isEnabled: boolean }) =>
+    http.put('/user-shares', data),
+  removeTarget: (targetUserId: string) => http.delete(`/user-shares/${targetUserId}`),
 };

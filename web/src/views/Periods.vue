@@ -1,5 +1,21 @@
 <template>
   <div class="periods-page">
+    <!-- ===== 共享用户切换条（对齐 GUI switchViewUser；仅存在共享关系时显示） ===== -->
+    <div v-if="sharedUsers.length" class="viewer-bar">
+      <button
+        class="viewer-chip"
+        :class="{ on: !viewUserId }"
+        @click="switchViewUser('', '')"
+      >我的</button>
+      <button
+        v-for="u in sharedUsers"
+        :key="u.userId"
+        class="viewer-chip"
+        :class="{ on: viewUserId === u.userId }"
+        @click="switchViewUser(u.userId, u.nickname)"
+      >{{ u.nickname }}</button>
+    </div>
+
     <!-- ===== Hero 状态卡（对齐 GUI PeriodHeroCard：6 种阶段视觉） ===== -->
     <!-- 经期中 -->
     <div v-if="currentPhase === 'period'" class="hero-card hero-period">
@@ -26,7 +42,7 @@
       <span class="hero-tag tag-predicted">即将到来</span>
       <div class="hero-title">{{ predictedDueText }}</div>
       <div class="hero-desc">经期预测基于你最近的周期记录，若已开始请点击下方按钮</div>
-      <button class="hero-btn" @click="confirmStartToday">标记开始</button>
+      <button v-if="!viewingShared" class="hero-btn" @click="confirmStartToday">标记开始</button>
     </div>
 
     <!-- 排卵期 -->
@@ -63,7 +79,7 @@
       <el-icon :size="32" class="hero-emoji"><Watermelon /></el-icon>
       <div class="hero-title">记录你的第一个经期</div>
       <div class="hero-desc">点击下方按钮开始记录，之后可随时补记历史周期</div>
-      <button class="hero-btn" @click="confirmStartToday">标记开始</button>
+      <button v-if="!viewingShared" class="hero-btn" @click="confirmStartToday">标记开始</button>
     </div>
 
     <!-- ===== 月份导航 + 日历 ===== -->
@@ -142,17 +158,17 @@
               <span class="bp-close" @click="selectedDate = ''"><el-icon><Close /></el-icon></span>
             </div>
 
-            <!-- 属于某周期：查看/编辑每日明细 + 结束 + 删除 -->
+            <!-- 属于某周期：查看/编辑每日明细 + 结束 + 删除（共享查看为只读） -->
             <template v-if="cycleOfSelected">
-              <button class="bp-btn bp-btn-primary" @click="openDailySheet">
+              <button v-if="!viewingShared" class="bp-btn bp-btn-primary" @click="openDailySheet">
                 <el-icon :size="16"><EditPen /></el-icon>
                 {{ dailyRecordOfSelected ? '编辑每日记录' : '添加每日记录' }}
               </button>
-              <button v-if="isInActiveCycle(selectedDate)" class="bp-btn bp-btn-danger" :disabled="operating" @click="confirmEndPeriod">
+              <button v-if="!viewingShared && isInActiveCycle(selectedDate)" class="bp-btn bp-btn-danger" :disabled="operating" @click="confirmEndPeriod">
                 <el-icon :size="16"><VideoPause /></el-icon>
                 结束经期
               </button>
-              <div class="bp-delete-row">
+              <div v-if="!viewingShared" class="bp-delete-row">
                 <button v-if="dailyRecordOfSelected" class="bp-btn bp-btn-outline-danger" :disabled="operating" @click="confirmDeleteDaily">
                   <el-icon :size="16"><Delete /></el-icon>
                   删除当日记录
@@ -163,16 +179,17 @@
                   <span class="bp-btn-sub">{{ cycleOfSelected.startDate }} ~ {{ cycleOfSelected.endDate || '进行中' }}</span>
                 </button>
               </div>
+              <p v-else class="bp-readonly-hint">正在查看 TA 共享的数据（只读）</p>
             </template>
 
             <!-- 今天且不在任何周期：标记开始 -->
-            <button v-else-if="selectedDate === todayStr" class="bp-btn bp-btn-primary" :disabled="operating" @click="confirmStartPeriod">
+            <button v-else-if="selectedDate === todayStr && !viewingShared" class="bp-btn bp-btn-primary" :disabled="operating" @click="confirmStartPeriod">
               <el-icon :size="16"><VideoPlay /></el-icon>
               标记经期开始
             </button>
 
             <!-- 历史空白日：补记 -->
-            <button v-else class="bp-btn bp-btn-primary" :disabled="operating" @click="openBackfill">
+            <button v-else-if="!viewingShared" class="bp-btn bp-btn-primary" :disabled="operating" @click="openBackfill">
               <el-icon :size="16"><Edit /></el-icon>
               补记经期
             </button>
@@ -268,7 +285,7 @@ import {
   Delete, DeleteFilled, WarningFilled, DataAnalysis, Watermelon,
   Refresh, Sunny, StarFilled,
 } from '@element-plus/icons-vue';
-import { periodApi } from '@/api';
+import { periodApi, userShareApi } from '@/api';
 import Panel from '@/components/Panel.vue';
 
 // ========== 常量（对齐 GUI PeriodConstants / PeriodCalcUtil） ==========
@@ -311,6 +328,47 @@ const operating = ref(false);
 const showBackfill = ref(false);
 const savingBackfill = ref(false);
 const backfill = reactive({ start: '', end: '' });
+
+// ===== 共享查看（对齐 GUI switchViewUser：查看别人共享给我的经期数据） =====
+const sharedUsers = ref<{ userId: string; nickname: string }[]>([]);
+const viewUserId = ref('');   // 空 = 我自己
+const viewingShared = computed(() => Boolean(viewUserId.value));
+
+/** 切换查看对象：只读模式（共享数据不可编辑，操作按钮由 viewingShared 隐藏） */
+async function switchViewUser(userId: string, nickname: string) {
+  if (viewUserId.value === userId) return;
+  viewUserId.value = userId;
+  localStorage.setItem('web_period_view_user', JSON.stringify({ userId, nickname }));
+  cycleDailyRecords.value = {};
+  await reloadAll();
+}
+
+async function loadSharedUsers() {
+  try {
+    const res: any = await userShareApi.list();
+    const data = res?.data ?? res ?? {};
+    const shares = Array.isArray(data.sharedToMe) ? data.sharedToMe : [];
+    // periodCycle 或 periodDailyRecord 任一启用即视为可见（对齐 GUI _getPeriodSharedBy）
+    const ownerIds = [...new Set(
+      shares
+        .filter((s: any) => s.isEnabled)
+        .filter((s: any) => s.businessType === 'periodCycle' || s.businessType === 'periodDailyRecord')
+        .map((s: any) => s.ownerUserId),
+    )];
+    sharedUsers.value = ownerIds.map((id) => ({ userId: id, nickname: `用户 ${String(id).slice(-4)}` }));
+    // 恢复上次查看的共享用户
+    try {
+      const saved = JSON.parse(localStorage.getItem('web_period_view_user') || 'null');
+      if (saved?.userId && ownerIds.includes(saved.userId)) {
+        const found = sharedUsers.value.find((u) => u.userId === saved.userId);
+        if (found && saved.nickname) found.nickname = saved.nickname;
+        viewUserId.value = saved.userId;
+      } else {
+        viewUserId.value = '';
+      }
+    } catch { /* ignore */ }
+  } catch { /* ignore */ }
+}
 
 const dailyForm = reactive({
   flowLevel: 'none',
@@ -720,7 +778,10 @@ async function reloadAll() {
     ]);
     allCycles.value = Array.isArray(monthCycles) ? monthCycles : [];
     recentCycles.value = Array.isArray(recent) ? recent : [];
-    activeCycle.value = Array.isArray(active) ? active[0] || null : active || null;
+    // 查看共享数据时后端不返回对方的"进行中"周期（active 过滤只取自己的），置空即可
+    activeCycle.value = viewingShared.value
+      ? null
+      : (Array.isArray(active) ? active[0] || null : active || null);
   } catch { /* ignore */ }
 }
 
@@ -749,11 +810,48 @@ watch([calYear, calMonth], () => {
   selectedDate.value = '';
   reloadAll();
 });
-onMounted(reloadAll);
+onMounted(async () => {
+  await loadSharedUsers();
+  await reloadAll();
+});
 </script>
 
 <style scoped>
 .periods-page { max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; padding-bottom: 20px; }
+
+/* ===== 共享用户切换条 ===== */
+.viewer-bar {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px;
+}
+
+.viewer-chip {
+  flex-shrink: 0;
+  border: 1px solid var(--border-glass);
+  background: var(--surface-glass);
+  color: var(--text-2);
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.viewer-chip.on {
+  background: var(--grad-brand);
+  border-color: transparent;
+  color: var(--on-primary);
+  font-weight: 600;
+}
+
+.bp-readonly-hint {
+  margin: 4px 0;
+  font-size: 12.5px;
+  color: var(--text-3);
+  text-align: center;
+}
 
 /* ===== Hero 状态卡（对齐 GUI PeriodHeroCard 各阶段渐变） ===== */
 .hero-card {

@@ -1,14 +1,18 @@
 <template>
   <div class="mine-page">
-    <!-- 用户信息卡（对齐移动端 UserInfoCard） -->
-    <div class="profile-card">
+    <!-- 用户信息卡（对齐移动端 UserInfoCard，点击进用户详情） -->
+    <div class="profile-card" @click="router.push('/user')">
       <div class="profile-bg"></div>
       <div class="profile-content">
-        <div class="avatar">{{ avatarText }}</div>
+        <div class="avatar">
+          <img v-if="avatarUrl" :src="avatarUrl" alt="" />
+          <span v-else>{{ avatarText }}</span>
+        </div>
         <div class="profile-info">
           <span class="profile-name">{{ auth.nickname || '未登录' }}</span>
           <span class="profile-sub mono">{{ shortUrl(auth.mainServerUrl) }}</span>
         </div>
+        <el-icon class="tile-arrow"><ArrowRight /></el-icon>
       </div>
     </div>
 
@@ -56,6 +60,16 @@
           <div class="tile-main">
             <span class="tile-label">同步设置</span>
             <span class="tile-sub">服务器与账号 · 数据管理</span>
+          </div>
+          <el-icon class="tile-arrow"><ArrowRight /></el-icon>
+        </div>
+        <div class="setting-tile" @click="router.push('/settings/share')">
+          <div class="tile-icon" style="background: linear-gradient(135deg, #f472b6, #ec4899)">
+            <el-icon :size="17"><Share /></el-icon>
+          </div>
+          <div class="tile-main">
+            <span class="tile-label">数据共享</span>
+            <span class="tile-sub">把车辆/加油/债务/活动/经期共享给家人</span>
           </div>
           <el-icon class="tile-arrow"><ArrowRight /></el-icon>
         </div>
@@ -114,10 +128,11 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { Setting, Brush, InfoFilled, Tools, Connection, ArrowRight } from '@element-plus/icons-vue';
+import { Setting, Brush, InfoFilled, Tools, Connection, Share, ArrowRight } from '@element-plus/icons-vue';
 import { ElMessageBox } from 'element-plus';
 import { useAuthStore } from '@/stores/auth';
 import { useSyncStore } from '@/stores/sync';
+import { userApi } from '@/api';
 import { THEMES, activeTheme, activeThemeId, isDark, setMode, setTheme } from '@/styles/themes';
 
 const router = useRouter();
@@ -126,8 +141,18 @@ const sync = useSyncStore();
 
 const themeSheet = ref(false);
 const aboutVisible = ref(false);
+const avatarUrl = ref('');
 
 const avatarText = computed(() => (auth.nickname || 'U').slice(0, 1).toUpperCase());
+
+/** 拉头像：懒加载（后端缺失文件时自动从主端下载缓存） */
+async function loadAvatar() {
+  try {
+    const res: any = await userApi.profile();
+    const p = res?.data ?? res ?? {};
+    if (p.avatar) avatarUrl.value = `/api/attachments/${p.avatar}`;
+  } catch { /* ignore */ }
+}
 
 function shortUrl(url?: string) {
   if (!url) return '未连接主端';
@@ -154,6 +179,7 @@ async function handleLogout() {
 
 onMounted(() => {
   auth.fetchMe();
+  loadAvatar();
 });
 </script>
 
@@ -175,6 +201,12 @@ onMounted(() => {
   background: var(--surface-glass);
   border: 1px solid var(--border-glass);
   box-shadow: var(--shadow-card);
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.profile-card:hover {
+  border-color: var(--border-glass-strong);
 }
 
 .profile-bg {
@@ -207,6 +239,13 @@ onMounted(() => {
   font-weight: 700;
   background: var(--grad-brand);
   box-shadow: var(--glow-primary);
+  overflow: hidden;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .profile-info {
