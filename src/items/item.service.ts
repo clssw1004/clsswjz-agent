@@ -57,8 +57,11 @@ export class ItemService {
     if (query.endDate) { baseConds.push('item.accountDate <= :endDate'); params.endDate = query.endDate; }
     const baseWhere = baseConds.length ? `(${baseConds.join(' AND ')})` : '1=1';
     // 退款判定：source='item' 且 sourceId 指向本账本 type=EXPENSE 的账目
+    // 注意三值逻辑：source 为 NULL 时 `source = 'item'` 得 NULL 而非 FALSE，
+    // 外层 NOT (NULL...) 结果仍为 NULL 会把普通收入整行误杀（表现为收入恒为0）。
+    // 故用 COALESCE 把 NULL 归一为空串、并显式排除 NULL sourceId。
     const refundSub = `(SELECT id FROM account_items WHERE type = 'EXPENSE'${query.accountBookId ? " AND accountBookId = :accountBookId" : ''})`;
-    const refundCond = `item.source = 'item' AND item.sourceId IN ${refundSub}`;
+    const refundCond = `COALESCE(item.source, '') = 'item' AND item.sourceId IS NOT NULL AND item.sourceId IN ${refundSub}`;
 
     const income = await repo.createQueryBuilder('item')
       .select('COALESCE(SUM(item.amount), 0)', 'total')
