@@ -97,3 +97,11 @@ export const periodApi = {
   upsertDailyRecord: (cycleId: string, date: string, data: any) => http.put(`/periods/cycles/${cycleId}/records/${date}`, data),
   deleteDailyRecord: (cycleId: string, date: string) => http.delete(`/periods/cycles/${cycleId}/records/${date}`),
 };
+
+export const userShareApi = {
+  list: () => http.get('/user-shares'),
+  eligibleUsers: () => http.get('/user-shares/eligible-users'),
+  setShare: (data: { targetUserId: string; businessType: string; isEnabled: boolean }) =>
+    http.put('/user-shares', data),
+  removeTarget: (targetUserId: string) => http.delete(`/user-shares/${targetUserId}`),
+};

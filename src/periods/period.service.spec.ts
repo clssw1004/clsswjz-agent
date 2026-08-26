@@ -8,7 +8,12 @@ function mockRepo<T extends Record<string, any>>(seed: T[] = []) {
   const store = [...seed];
   return {
     store,
-    find: jest.fn(async () => [...store]),
+    find: jest.fn(async (q?: any) => {
+      if (q?.where) {
+        return store.filter((r) => Object.entries(q.where).every(([k, v]) => r[k] === v));
+      }
+      return [...store];
+    }),
     findOne: jest.fn(async (q: any) => {
       if (q && q.where) {
         return store.find((r) => Object.entries(q.where).every(([k, v]) => r[k] === v)) || null;
@@ -38,23 +43,42 @@ function mockRepo<T extends Record<string, any>>(seed: T[] = []) {
         }
       }
     }),
+    // createQueryBuilder：模拟 createdBy IN (:...owners) + orderBy startDate DESC
+    createQueryBuilder: jest.fn(() => {
+      let owners: string[] | null = null;
+      const qb: any = {
+        where: jest.fn((_cond: string, params?: any) => {
+          if (params?.owners) owners = params.owners;
+          return qb;
+        }),
+        orderBy: jest.fn().mockReturnThis(),
+        getMany: async () =>
+          [...store]
+            .filter((r) => (owners ? owners.includes((r as any).createdBy) : true))
+            .sort((a, b) => String(b.startDate).localeCompare(String(a.startDate))),
+      };
+      return qb;
+    }),
+    findByIds: jest.fn(async (ids: string[]) => store.filter((r) => ids.includes(r.id))),
   };
 }
 
 function buildService() {
   const cycleRepo = mockRepo();
   const dailyRepo = mockRepo();
+  const shareRepo = mockRepo();
   const logRepo = mockRepo();
   const connMgr = {
     getRepository: jest.fn(async (_userId: string, entity: any) => {
       const name = typeof entity === 'string' ? entity : entity?.name;
       if (name === 'LogSync') return logRepo;
       if (name === 'PeriodDailyRecord') return dailyRepo;
+      if (name === 'UserShare') return shareRepo;
       return cycleRepo;
     }),
   } as any;
   const service = new PeriodService(connMgr);
-  return { service, cycleRepo, dailyRepo, logRepo, connMgr };
+  return { service, cycleRepo, dailyRepo, shareRepo, logRepo, connMgr };
 }
 
 /* ---------- tests ---------- */
@@ -111,6 +135,58 @@ describe('PeriodService', () => {
       // c3: 08-25 <= 08-31 && no endDate → yes
       expect(result).toHaveLength(2);
     });
+
+    it('includes cycles shared to me (periodCycle share enabled)', async () => {
+      const { service, cycleRepo, shareRepo } = buildService();
+      // owner2 把 periodCycle 共享给了 u1
+      shareRepo.store.push({
+        id: 's1', ownerUserId: 'owner2', targetUserId: 'u1',
+        businessType: 'periodCycle', isEnabled: true,
+      });
+      cycleRepo.store.push(
+        { id: 'mine', startDate: '2026-08-01', endDate: '2026-08-05', createdBy: 'u1' },
+        { id: 'shared', startDate: '2026-08-06', endDate: '2026-08-09', createdBy: 'owner2' },
+        { id: 'unrelated', startDate: '2026-08-11', endDate: null, createdBy: 'stranger' },
+      );
+
+      const result = await service.listCycles('u1', {});
+      const ids = result.map((r: any) => r.id);
+      expect(ids).toContain('mine');
+      expect(ids).toContain('shared');
+      expect(ids).not.toContain('unrelated');
+    });
+
+    it('excludes disabled or non-period shares from visibility', async () => {
+      const { service, cycleRepo, shareRepo } = buildService();
+      shareRepo.store.push(
+        { id: 's1', ownerUserId: 'owner2', targetUserId: 'u1', businessType: 'periodCycle', isEnabled: false },
+        { id: 's2', ownerUserId: 'owner3', targetUserId: 'u1', businessType: 'vehicle', isEnabled: true },
+      );
+      cycleRepo.store.push(
+        { id: 'mine', startDate: '2026-08-01', endDate: null, createdBy: 'u1' },
+        { id: 'disabled-share', startDate: '2026-08-02', endDate: null, createdBy: 'owner2' },
+        { id: 'other-module-share', startDate: '2026-08-03', endDate: null, createdBy: 'owner3' },
+      );
+
+      const result = await service.listCycles('u1', {});
+      expect(result.map((r: any) => r.id)).toEqual(['mine']);
+    });
+
+    it('active=true only returns my own active cycle, not shared ones', async () => {
+      const { service, cycleRepo, shareRepo } = buildService();
+      shareRepo.store.push({
+        id: 's1', ownerUserId: 'owner2', targetUserId: 'u1',
+        businessType: 'periodCycle', isEnabled: true,
+      });
+      cycleRepo.store.push(
+        { id: 'mine-active', startDate: '2026-08-10', endDate: null, createdBy: 'u1' },
+        { id: 'shared-active', startDate: '2026-08-12', endDate: null, createdBy: 'owner2' },
+      );
+
+      const result = await service.listCycles('u1', { active: true });
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('mine-active');
+    });
   });
 
   describe('createCycle', () => {
@@ -158,12 +234,23 @@ describe('PeriodService', () => {
       expect(log.operateType).toBe(OperateType.UPDATE);
       expect(result).toBeTruthy();
     });
+
+    it('refuses to update a cycle owned by someone else (shared-in)', async () => {
+      const { service, cycleRepo, logRepo } = buildService();
+      cycleRepo.store.push({ id: 'c1', startDate: '2026-08-10', endDate: null, createdBy: 'owner2' });
+
+      const result = await service.updateCycleEnd('u1', 'c1', '2026-08-15');
+
+      expect(result).toBeNull();
+      expect(cycleRepo.update).not.toHaveBeenCalled();
+      expect(logRepo.save).not.toHaveBeenCalled();
+    });
   });
 
   describe('deleteCycle', () => {
     it('deletes cycle, daily records, and writes LogSync', async () => {
       const { service, cycleRepo, dailyRepo, logRepo } = buildService();
-      cycleRepo.store.push({ id: 'c1', startDate: '2026-08-01' });
+      cycleRepo.store.push({ id: 'c1', startDate: '2026-08-01', createdBy: 'u1' });
       dailyRepo.store.push(
         { id: 'd1', cycleId: 'c1', recordDate: '2026-08-01' },
         { id: 'd2', cycleId: 'c1', recordDate: '2026-08-02' },
@@ -179,11 +266,24 @@ describe('PeriodService', () => {
       expect(log.businessType).toBe(BusinessType.PERIOD_CYCLE);
       expect(log.operateType).toBe(OperateType.DELETE);
     });
+
+    it('refuses to delete a cycle owned by someone else', async () => {
+      const { service, cycleRepo, dailyRepo, logRepo } = buildService();
+      cycleRepo.store.push({ id: 'c1', startDate: '2026-08-01', createdBy: 'owner2' });
+
+      const result = await service.deleteCycle('u1', 'c1');
+
+      expect(result).toEqual({ deleted: false });
+      expect(cycleRepo.delete).not.toHaveBeenCalled();
+      expect(dailyRepo.delete).not.toHaveBeenCalled();
+      expect(logRepo.save).not.toHaveBeenCalled();
+    });
   });
 
   describe('upsertDailyRecord', () => {
     it('creates new record when none exists', async () => {
-      const { service, dailyRepo, logRepo } = buildService();
+      const { service, cycleRepo, dailyRepo, logRepo } = buildService();
+      cycleRepo.store.push({ id: 'c1', startDate: '2026-08-01', createdBy: 'u1' });
 
       const result = await service.upsertDailyRecord('u1', 'c1', {
         recordDate: '2026-08-01',
@@ -199,8 +299,21 @@ describe('PeriodService', () => {
       expect(result.recordDate).toBe('2026-08-01');
     });
 
+    it('refuses to record into a shared-in cycle owned by someone else', async () => {
+      const { service, cycleRepo, dailyRepo, logRepo } = buildService();
+      cycleRepo.store.push({ id: 'c1', startDate: '2026-08-01', createdBy: 'owner2' });
+
+      const result = await service.upsertDailyRecord('u1', 'c1', { recordDate: '2026-08-01' });
+
+      expect(result).toBeNull();
+      expect(dailyRepo.save).not.toHaveBeenCalled();
+      expect(dailyRepo.update).not.toHaveBeenCalled();
+      expect(logRepo.save).not.toHaveBeenCalled();
+    });
+
     it('updates existing record', async () => {
-      const { service, dailyRepo, logRepo } = buildService();
+      const { service, cycleRepo, dailyRepo, logRepo } = buildService();
+      cycleRepo.store.push({ id: 'c1', startDate: '2026-08-01', createdBy: 'u1' });
       dailyRepo.store.push({
         id: 'd1',
         cycleId: 'c1',

@@ -27,6 +27,7 @@ const router = createRouter({
         { path: 'settings/projects', component: () => import('../views/settings/Projects.vue'), meta: { title: '项目管理' } },
         { path: 'settings/funds', component: () => import('../views/settings/Funds.vue'), meta: { title: '账户' } },
         { path: 'settings/sync', component: () => import('../views/settings/SyncSettings.vue'), meta: { title: '同步设置' } },
+        { path: 'settings/share', component: () => import('../views/settings/ShareSettings.vue'), meta: { title: '数据共享' } },
         { path: 'periods', component: () => import('../views/Periods.vue'), meta: { title: '经期记录' } },
       ],
     },
