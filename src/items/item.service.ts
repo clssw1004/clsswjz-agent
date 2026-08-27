@@ -40,11 +40,11 @@ export class ItemService {
   }
 
   /**
-   * 收支聚合（对齐 gui statistic_service.dart）：
-   * - income：type='INCOME' 且排除退款（source='item' 且 sourceId 指向本账本支出账目）
-   * - expense：type='EXPENSE'（TRANSFER 不计入收支）
-   * - refund：退款单独统计（金额为正）
-   * - balance = income + expense + refund（gui 约定：支出存负数）
+   * 收支聚合（对齐 gui statistic_service.dart getCurrentMonthStatistic/getAllTimeStatistic）：
+   * - income：type='INCOME'，含退款（gui 的收入不排除退款）
+   * - expense：type='EXPENSE' + refund（gui 约定：退款项计入支出统计，收入不再统计退款项）
+   * - refund：退款单独统计（source='item' 且 sourceId 指向本账本支出账目）
+   * - balance = income + expense（gui：balance = income - |expense| + refund 后 refund 已被计入 expense，故净值为 income + expense）
    */
   async summary(userId: string, query: {
     accountBookId?: string; startDate?: string; endDate?: string;
@@ -58,7 +58,6 @@ export class ItemService {
     const baseWhere = baseConds.length ? `(${baseConds.join(' AND ')})` : '1=1';
     // 退款判定：source='item' 且 sourceId 指向本账本 type=EXPENSE 的账目
     // 注意三值逻辑：source 为 NULL 时 `source = 'item'` 得 NULL 而非 FALSE，
-    // 外层 NOT (NULL...) 结果仍为 NULL 会把普通收入整行误杀（表现为收入恒为0）。
     // 故用 COALESCE 把 NULL 归一为空串、并显式排除 NULL sourceId。
     const refundSub = `(SELECT id FROM account_items WHERE type = 'EXPENSE'${query.accountBookId ? " AND accountBookId = :accountBookId" : ''})`;
     const refundCond = `COALESCE(item.source, '') = 'item' AND item.sourceId IS NOT NULL AND item.sourceId IN ${refundSub}`;
@@ -66,7 +65,6 @@ export class ItemService {
     const income = await repo.createQueryBuilder('item')
       .select('COALESCE(SUM(item.amount), 0)', 'total')
       .where(baseWhere).andWhere("item.type = 'INCOME'")
-      .andWhere(`NOT (${refundCond})`)
       .setParameters(params).getRawOne();
     const expense = await repo.createQueryBuilder('item')
       .select('COALESCE(SUM(item.amount), 0)', 'total')
@@ -82,7 +80,7 @@ export class ItemService {
     const refundTotal = Number(refund?.total || 0);
     return {
       income: incomeTotal,
-      expense: expenseTotal,
+      expense: expenseTotal + refundTotal,
       refund: refundTotal,
       balance: incomeTotal + expenseTotal + refundTotal,
     };
@@ -104,8 +102,12 @@ export class ItemService {
     if (query.startDate) { baseConds.push('item.accountDate >= :startDate'); params.startDate = query.startDate; }
     if (query.endDate) { baseConds.push('item.accountDate <= :endDate'); params.endDate = query.endDate; }
     const baseWhere = baseConds.length ? `(${baseConds.join(' AND ')})` : '1=1';
+    // 退款判定：source='item' 且 sourceId 指向本账本 type=EXPENSE 的账目
+    // 注意三值逻辑：source 为 NULL 时 `source = 'item'` 得 NULL 而非 FALSE，
+    // 外层 NOT (NULL...) 结果仍为 NULL 会把普通收入整行误杀（表现为收入分类恒为空）。
+    // 故用 COALESCE 把 NULL 归一为空串、并显式排除 NULL sourceId。
     const refundSub = `(SELECT id FROM account_items WHERE type = 'EXPENSE'${query.accountBookId ? " AND accountBookId = :accountBookId" : ''})`;
-    const refundCond = `item.source = 'item' AND item.sourceId IN ${refundSub}`;
+    const refundCond = `COALESCE(item.source, '') = 'item' AND item.sourceId IS NOT NULL AND item.sourceId IN ${refundSub}`;
 
     const selectCols = ['item.categoryCode', 'categoryCode']
       .concat(['SUM(item.amount)', 'total'])
