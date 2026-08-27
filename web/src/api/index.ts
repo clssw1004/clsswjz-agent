@@ -118,3 +118,11 @@ export const userShareApi = {
     http.put('/user-shares', data),
   removeTarget: (targetUserId: string) => http.delete(`/user-shares/${targetUserId}`),
 };
+
+export const dbViewerApi = {
+  tables: () => http.get('/db-viewer/tables'),
+  tableData: (name: string, params?: { page?: number; pageSize?: number }) =>
+    http.get(`/db-viewer/tables/${encodeURIComponent(name)}`, { params }),
+  query: (sql: string, pageSize?: number) =>
+    http.post('/db-viewer/query', { sql, pageSize }),
+};

@@ -73,6 +73,16 @@
           </div>
           <el-icon class="tile-arrow"><ArrowRight /></el-icon>
         </div>
+        <div class="setting-tile" @click="router.push('/db-viewer')">
+          <div class="tile-icon" style="background: linear-gradient(135deg, #06b6d4, #22d3ee)">
+            <el-icon :size="17"><Coin /></el-icon>
+          </div>
+          <div class="tile-main">
+            <span class="tile-label">数据库</span>
+            <span class="tile-sub">查看本地 SQLite 数据 · 只读</span>
+          </div>
+          <el-icon class="tile-arrow"><ArrowRight /></el-icon>
+        </div>
       </div>
     </section>
 
@@ -128,7 +138,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { Setting, Brush, InfoFilled, Tools, Connection, Share, ArrowRight } from '@element-plus/icons-vue';
+import { Setting, Brush, InfoFilled, Tools, Connection, Share, Coin, ArrowRight } from '@element-plus/icons-vue';
 import { ElMessageBox } from 'element-plus';
 import { useAuthStore } from '@/stores/auth';
 import { useSyncStore } from '@/stores/sync';

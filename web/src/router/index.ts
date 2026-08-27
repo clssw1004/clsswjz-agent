@@ -30,6 +30,7 @@ const router = createRouter({
         { path: 'settings/sync', component: () => import('../views/settings/SyncSettings.vue'), meta: { title: '同步设置' } },
         { path: 'settings/share', component: () => import('../views/settings/ShareSettings.vue'), meta: { title: '数据共享' } },
         { path: 'periods', component: () => import('../views/Periods.vue'), meta: { title: '经期记录' } },
+        { path: 'db-viewer', component: () => import('../views/DbViewer.vue'), meta: { title: '数据库' } },
       ],
     },
   ],
