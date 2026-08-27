@@ -136,14 +136,17 @@ describe('ItemService', () => {
       let callCount = 0;
       itemRepo._qb.getRawOne = jest.fn(async () => {
         callCount++;
-        if (callCount === 1) return { total: 200 };   // income
+        if (callCount === 1) return { total: 200 };   // income (含退款)
         if (callCount === 2) return { total: -100 };   // expense
         return { total: 30 };                           // refund
       });
 
       const result = await summaryWithMock(service, itemRepo);
 
+      // 对齐 gui：退款项计入支出，收入不再排除退款
       expect(result.refund).toBe(30);
+      expect(result.income).toBe(200);
+      expect(result.expense).toBe(-70); // -100 + 30
       expect(result.balance).toBe(130); // 200 + (-100) + 30
     });
   });
