@@ -76,7 +76,7 @@
                 :current-page="page"
                 :page-size="pageSize"
                 :total="currentMeta.total"
-                layout="prev, pager, next"
+                :layout="isMobile ? 'prev, next' : 'prev, pager, next'"
                 small
                 background
                 @current-change="changePage"
@@ -99,7 +99,10 @@
                         :class="typeClass(c)"
                       >
                         <span class="th-name">{{ c.name }}</span>
-                        <span class="th-type">{{ c.type }}</span>
+                        <span v-if="c.type" class="th-type" :class="'kind-' + kindByColumn(c)">
+                          <span class="th-type-sym">{{ typeSymbol(c) }}</span>
+                          <span class="th-type-txt">{{ c.type }}</span>
+                        </span>
                       </th>
                     </tr>
                   </thead>
@@ -112,16 +115,14 @@
                         :class="cellClass(c, row[c.name])"
                       >
                         <template v-if="isJson(c, row[c.name])">
+                          <span class="json-preview" :title="row[c.name]">{{ row[c.name] }}</span>
                           <button class="json-chip" @click="openJson(c.name, row[c.name])">JSON</button>
                         </template>
                         <template v-else-if="isNull(row[c.name])">
                           <span class="null-val">NULL</span>
                         </template>
-                        <template v-else-if="isLong(row[c.name])">
-                          <span class="long-val">{{ row[c.name] }}</span>
-                        </template>
                         <template v-else>
-                          <span class="cell-val">{{ row[c.name] }}</span>
+                          <span class="cell-val" :title="String(row[c.name])">{{ formatCellValue(c, row[c.name]) }}</span>
                         </template>
                       </td>
                     </tr>
@@ -133,15 +134,31 @@
                 <div v-for="(row, ri) in rows" :key="ri" class="row-card">
                   <div class="row-card-head">
                     <span class="row-card-index num">{{ pageStart + ri }}</span>
-                    <span class="row-card-id">{{ row.id || row._id || '' }}</span>
+                    <span class="row-card-id" :title="cardId(row, ri)">{{ cardId(row, ri) }}</span>
+                    <button
+                      class="row-card-copy"
+                      type="button"
+                      title="复制 ID"
+                      aria-label="复制 ID"
+                      @click.stop="copyId(row, ri)"
+                    >
+                      <el-icon :size="12"><CopyDocument /></el-icon>
+                    </button>
                   </div>
                   <div class="row-card-fields">
+                    <!-- 关键字段：信息价值评分高的短字段优先展示 -->
                     <div
-                      v-for="c in displayCols"
+                      v-for="c in cardPrimaryCols"
                       :key="c.name"
                       class="row-card-field"
                     >
-                      <span class="field-label">{{ c.name }}<template v-if="c.type">&nbsp;<em>{{ c.type }}</em></template></span>
+                      <span
+                        v-if="c.type"
+                        class="type-symbol"
+                        :class="'kind-' + kindByColumn(c)"
+                        :title="c.type"
+                      >{{ typeSymbol(c) }}</span>
+                      <span class="field-label" :title="c.name + (c.type ? ' · ' + c.type : '')">{{ c.name }}</span>
                       <span class="field-value" :class="cellClass(c, row[c.name])">
                         <template v-if="isJson(c, row[c.name])">
                           <button class="json-chip" @click="openJson(c.name, row[c.name])">JSON</button>
@@ -149,10 +166,38 @@
                         <template v-else-if="isNull(row[c.name])">
                           <span class="null-val">NULL</span>
                         </template>
-                        <template v-else>{{ row[c.name] }}</template>
+                        <template v-else>{{ formatCellValue(c, row[c.name]) }}</template>
                       </span>
                     </div>
                   </div>
+                  <!-- 其余字段折叠，点击展开（避免每张卡片 13 列全平铺导致高度失控） -->
+                  <details v-if="cardDetailCols.length" class="row-card-details">
+                    <summary>其余 {{ cardDetailCols.length }} 个字段</summary>
+                    <div class="row-card-fields">
+                      <div
+                        v-for="c in cardDetailCols"
+                        :key="c.name"
+                        class="row-card-field"
+                      >
+                        <span class="field-label" :title="c.name + (c.type ? ' · ' + c.type : '')">{{ c.name }}</span>
+                        <span
+                          v-if="c.type"
+                          class="type-symbol"
+                          :class="'kind-' + typeKind(c.type)"
+                          :title="c.type"
+                        >{{ typeSymbol(c.type) }}</span>
+                        <span class="field-value" :class="cellClass(c, row[c.name])">
+                          <template v-if="isJson(c, row[c.name])">
+                            <button class="json-chip" @click="openJson(c.name, row[c.name])">JSON</button>
+                          </template>
+                          <template v-else-if="isNull(row[c.name])">
+                            <span class="null-val">NULL</span>
+                          </template>
+                          <template v-else>{{ formatCellValue(c, row[c.name]) }}</template>
+                        </span>
+                      </div>
+                    </div>
+                  </details>
                 </div>
               </div>
             </template>
@@ -174,6 +219,7 @@
       :direction="drawerDirection"
       class="table-drawer"
       :show-close="drawerDirection === 'rtl'"
+      :lock-scroll="false"
     >
       <div v-if="drawerDirection === 'btt'" class="drawer-handle"></div>
       <div class="drawer-search">
@@ -224,7 +270,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import {
-  Coin, Lock, Search, MagicStick, VideoPlay, Loading,
+  Coin, Lock, Search, MagicStick, VideoPlay, Loading, CopyDocument,
   CircleCheckFilled, CircleCloseFilled, Close, ArrowDown,
 } from '@element-plus/icons-vue';
 import { dbViewerApi } from '@/api';
@@ -281,15 +327,174 @@ const filteredTables = computed(() => {
 const totalRows = computed(() => tables.value.reduce((s, t) => s + t.count, 0));
 
 const displayCols = computed(() => {
-  // 直接用 row key 当列：保证表头/卡片字段与实际数据始终对齐，避免 PRAGMA 与 SELECT * 结果不一致导致的"列头在、值全空"空洞表格
+  // 优先用 currentMeta.columns（带 type）：保证 th-type、cellClass 的 num/date 着色真正生效，
+  // 避免之前「优先用行 key 反推、type 永远为空」导致表头类型标签/数字右对齐/日期色全部失效的 bug
+  const metaCols = currentMeta.value?.columns;
+  if (Array.isArray(metaCols) && metaCols.length) {
+    return metaCols.map((c: any) => ({ name: c.name, type: c.type || '' }));
+  }
+  // 兜底：行 key 推列名 + 用值推断 type（让 th-type 在 columns 缺失时也能展示）
   const first = Array.isArray(rows.value) ? rows.value[0] : null;
-  if (first) return Object.keys(first).map((name) => ({ name, type: '' }));
-  // 加载中或空表，临时回退到列定义（避免列头闪烁）
-  return currentMeta.value?.columns || [];
+  if (first) {
+    return Object.keys(first).map((name) => ({ name, type: inferType(name, first[name]) }));
+  }
+  return [];
 });
+
+/** 从值推断 SQLite 类型，用于后端 columns 缺失时的兜底 */
+function inferType(name: string, val: any): string {
+  if (val == null) return '';
+  if (typeof val === 'number') return Number.isInteger(val) ? 'INTEGER' : 'REAL';
+  if (typeof val === 'boolean') return 'INTEGER';
+  if (typeof val !== 'string') return '';
+  const s = val.trim();
+  if (!s) return '';
+  // JSON
+  if ((s.startsWith('{') && s.endsWith('}')) || (s.startsWith('[') && s.endsWith(']'))) {
+    try { JSON.parse(s); return 'JSON'; } catch { /* fallthrough */ }
+  }
+  // ISO 日期 / 13 位毫秒
+  if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(s)) return 'DATETIME';
+  if (/^\d{10,13}$/.test(s) && Number(s) > 10_000_000_000) return 'DATETIME';
+  // 日期
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return 'DATE';
+  return 'TEXT';
+}
 
 /** 主视图标题：优先当前表，SQL 结果显示「SQL 结果」，否则提示选择 */
 const viewTitle = computed(() => currentTable.value || (queryResult.value ? 'SQL 结果' : '选择表'));
+
+/**
+ * 移动端卡片关键字段评分：
+ *  - 字段名命中常见业务标识（id/name/code/type/金额/日期等）加分
+ *  - 值越短分越高（hash、时间戳等长值不占关键位）
+ *  - 按得分取前 6 个展示，其余折叠进「其余 N 个字段」details
+ */
+const KEY_HINT = /^(id|_?id|name|title|label|code|type|category|categoryType|bookId|accountBookId|amount|price|count|sort|sortOrder|date|time|happenedAt|createdAt|updatedAt|parentId)$/i;
+
+function fieldScore(c: any, row: any): number {
+  let s = 0;
+  if (KEY_HINT.test(c.name)) s += 2;
+  const v = row?.[c.name];
+  const len = v == null ? 0 : String(v).length;
+  if (len <= 16) s += 1;
+  if (len > 32) s -= 2;
+  if (isJson(c, v)) s -= 1;
+  return s;
+}
+
+/** 移动端关键字段（得分 top N，保持列序；id/_id 已在卡片头展示，从字段列表剔除） */
+const cardPrimaryCols = computed(() => {
+  const cols = displayCols.value.filter((c) => !/^(id|_id)$/i.test(c.name));
+  const first = Array.isArray(rows.value) ? rows.value[0] : null;
+  if (!cols.length) return [];
+  const ranked = cols
+    .map((c, i) => ({ c, i, s: fieldScore(c, first) }))
+    .sort((a, b) => b.s - a.s || a.i - b.i);
+  const top = new Set(ranked.slice(0, Math.min(6, cols.length)).map((r) => r.i));
+  return cols.filter((_, i) => top.has(i));
+});
+
+/** 移动端折叠字段（其余列，保持列序；同样剔除 id/_id） */
+const cardDetailCols = computed(() => {
+  const cols = displayCols.value.filter((c) => !/^(id|_id)$/i.test(c.name));
+  if (!cols.length) return [];
+  const pk = new Set(cardPrimaryCols.value.map((c) => c.name));
+  return cols.filter((c) => !pk.has(c.name));
+});
+
+/** 移动端卡片头部 ID：优先 id/_id，缺失则回退为记录序号 */
+function cardId(row: any, ri: number): string {
+  const id = row?.id ?? row?._id;
+  if (id !== null && id !== undefined && id !== '') return String(id);
+  return `记录 ${pageStart.value + ri}`;
+}
+
+/** 复制 ID 到剪贴板（卡片头复制按钮） */
+async function copyId(row: any, ri: number) {
+  const id = cardId(row, ri);
+  try {
+    await navigator.clipboard.writeText(id);
+  } catch {
+    // 旧浏览器/非安全上下文回退：textarea 选中复制
+    const ta = document.createElement('textarea');
+    ta.value = id;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch { /* ignore */ }
+    document.body.removeChild(ta);
+  }
+}
+
+/**
+ * 列语义分类：字段名 + 类型共同决定（与 cellClass 同一套规则，保证 type-symbol 与值颜色一致）
+ *  - 固定字段优先：id/_id/uid/key → pk；name → name；code → code；is/has/can 前缀 → bool
+ *  - 字段名含 at/date/time 或类型 DATE/TIME → date
+ *  - 数字类型 → num；JSON/BLOB → json；其他 → text
+ */
+function kindByColumn(c: any): string {
+  const name = String(c.name || '');
+  const t = String(c.type || '').toUpperCase();
+  if (/^(id|_id|uid|key)$/i.test(name)) return 'pk';
+  if (/^name$/i.test(name)) return 'name';
+  if (/^code$/i.test(name)) return 'code';
+  if (/^(is|has|can|should|enable|disabled)\w*$/i.test(name)) return 'bool';
+  if (/(at|date|time)$/i.test(name) || /date|time/i.test(t)) return 'date';
+  if (/INT|DECIMAL|REAL|NUM|FLOAT|DOUBLE/.test(t)) return 'num';
+  if (/JSON|BLOB/i.test(t)) return 'json';
+  return 'text';
+}
+
+/** 类型符号：用几个符号区分类型（对齐设计稿的 chip 语义，避免长类型名截断） */
+const TYPE_SYMBOL: Record<string, string> = {
+  num: '#',
+  text: 'Aa',
+  date: '⟳',
+  json: '{ }',
+  bool: '✓',
+  unknown: '?',
+};
+
+/** 取列对应 type-symbol（基于字段名+类型，与 cellClass 颜色一致） */
+function typeSymbol(c: any): string {
+  const k = kindByColumn(c);
+  // pk/name/code 都是文本类字段，符号用 'Aa' 即可；分类仍走 kind-* 给颜色
+  if (k === 'pk' || k === 'name' || k === 'code') return 'Aa';
+  return TYPE_SYMBOL[k] || 'Aa';
+}
+
+/** 13 位毫秒时间戳 / ISO 日期格式化；按值格式自动判断，不依赖 typeKind 早返回
+ * （避免 BIGINT 类型列名如 createdAt 被识别为 num 跳过格式化） */
+function formatCellValue(c: any, v: any): string {
+  if (v === null || v === undefined || typeof v === 'object') return v;
+  const s = String(v);
+  // 13 位毫秒时间戳（createdAt/updatedAt 等 BIGINT 字段都走这里）
+  if (/^\d{13}$/.test(s)) {
+    const d = new Date(Number(s));
+    if (!isNaN(d.getTime())) return fmtDateTime(d);
+  }
+  // 10 位秒时间戳
+  if (/^\d{10}$/.test(s)) {
+    const d = new Date(Number(s) * 1000);
+    if (!isNaN(d.getTime())) return fmtDateTime(d);
+  }
+  // ISO T 分隔 → 空格
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s)) {
+    return s.replace('T', ' ');
+  }
+  // "2025-12-31 10:42:00.000" 去毫秒
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+$/.test(s)) {
+    return s.replace(/\.\d+$/, '');
+  }
+  return s;
+}
+
+function fmtDateTime(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
 
 /** 当前页起始行号（移动端卡片序号） */
 const pageStart = computed(() => (page.value - 1) * pageSize.value + 1);
@@ -326,8 +531,8 @@ async function loadData() {
   loading.value = true;
   queryResult.value = null;
   queryError.value = '';
-  // 立即清空旧表数据，避免切换时在新表标题下短暂显示上一张表的行
-  rows.value = [];
+  // 保留 rows 旧值让 v-loading 遮罩盖住，避免清空导致卡片/表格高度突变（切表时布局错乱）
+  // 仅清 currentMeta 让 displayCols 退到 rows 兜底分支，新数据返回后整体替换
   currentMeta.value = null;
   try {
     const res: any = await dbViewerApi.tableData(currentTable.value, {
@@ -341,7 +546,7 @@ async function loadData() {
     rows.value = Array.isArray(res.rows) ? res.rows : [];
   } catch {
     if (seq !== loadSeq) return;
-    rows.value = [];
+    // 加载失败：保留旧 rows（避免空白），清空 meta
     currentMeta.value = null;
   } finally {
     if (seq === loadSeq) loading.value = false;
@@ -437,11 +642,41 @@ function typeClass(c: any) {
   return '';
 }
 
+/** 类型 chip 分类：决定 th-type 的颜色（对齐画布：数字 teal / 文本 indigo / 日期 cyan / JSON purple / 布尔 amber） */
+function typeKind(t: any): string {
+  const s = String(t || '').toUpperCase();
+  if (!s) return 'unknown';
+  if (s.includes('INT') || s.includes('DECIMAL') || s.includes('REAL') || s.includes('NUM') || s.includes('FLOAT') || s.includes('DOUBLE')) return 'num';
+  if (s.includes('DATE') || s.includes('TIME')) return 'date';
+  if (s === 'JSON' || s.includes('JSON') || s.includes('BLOB')) return 'json';
+  if (s.includes('BOOL')) return 'bool';
+  return 'text';
+}
+
+/**
+ * 单元格视觉分类：按固定字段名 / 类型给值上色（对齐画布设计稿）
+ *  - id/_id      → pk   主键（深色加粗等宽）
+ *  - name        → name 主名称（加粗）
+ *  - code        → code 编码（indigo 等宽）
+ *  - 日期字段/类型 → date 青色
+ *  - 数字        → num  teal 右对齐
+ *  - 布尔        → bool amber
+ *  - JSON / NULL 单独处理
+ */
 function cellClass(c: any, v: any) {
   if (isNull(v)) return 'null';
   if (isJson(c, v)) return 'json';
+  const name = String(c.name || '');
   const t = String(c.type || '').toUpperCase();
-  if (t.includes('INT') || t.includes('DECIMAL') || t.includes('REAL') || t.includes('NUM')) return 'num';
+  // 固定字段特殊样式（优先于类型推断）
+  if (/^(id|_id|uid|key)$/i.test(name)) return 'pk';
+  if (/^name$/i.test(name)) return 'name';
+  if (/^code$/i.test(name)) return 'code';
+  // 布尔语义字段（is/has/can 前缀）
+  if (/^(is|has|can|should|enable|disabled)\w*$/i.test(name)) return 'bool';
+  // 日期：字段名含 at/date/time，或类型为日期
+  if (/(at|date|time)$/i.test(name) || /date|time/i.test(t)) return 'date';
+  if (/INT|DECIMAL|REAL|NUM|FLOAT|DOUBLE/.test(t)) return 'num';
   return '';
 }
 
@@ -468,6 +703,7 @@ function onKeydown(e: KeyboardEvent) {
   flex-direction: column;
   gap: 14px;
   max-width: 1200px;
+  width: 100%;
   margin: 0 auto;
 }
 
@@ -477,6 +713,8 @@ function onKeydown(e: KeyboardEvent) {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
   padding: 14px 18px;
   border-radius: var(--radius-lg);
   background: var(--surface-glass);
@@ -552,6 +790,8 @@ function onKeydown(e: KeyboardEvent) {
   display: flex;
   gap: 14px;
   align-items: flex-start;
+  width: 100%;
+  min-width: 0;
 }
 
 /* ========== 表选择按钮 ========== */
@@ -699,11 +939,8 @@ function onKeydown(e: KeyboardEvent) {
 .card-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   padding: 12px;
-  max-height: 70vh;
-  overflow-y: auto;
-  overscroll-behavior: contain;
 }
 
 .row-card {
@@ -719,20 +956,19 @@ function onKeydown(e: KeyboardEvent) {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
+  min-height: 30px;
   background: rgba(15, 23, 42, 0.025);
   border-bottom: 1px solid var(--border-glass);
   font-size: 11px;
   color: var(--text-3);
-}
-
-html.dark .row-card-head {
-  background: rgba(255, 255, 255, 0.03);
+  min-width: 0;
 }
 
 .row-card-index {
   font-weight: 700;
   color: var(--brand-gold);
   font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 
 .row-card-id {
@@ -742,30 +978,134 @@ html.dark .row-card-head {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+
+/* 卡片头复制按钮 */
+.row-card-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.row-card-copy:hover {
+  background: var(--brand-gold-soft);
+  color: var(--brand-gold-dark);
+}
+
+.row-card-copy:active {
+  transform: scale(0.92);
 }
 
 .row-card-fields {
   display: flex;
   flex-direction: column;
-  padding: 4px 0;
+  padding: 2px 0;
 }
 
 .row-card-field {
   display: flex;
   align-items: baseline;
-  gap: 10px;
-  padding: 6px 12px;
+  gap: 8px;
+  padding: 9px 12px;
+  min-height: 34px;
   min-width: 0;
 }
+
+/* 类型符号：置于字段名前，独立列（小方块 chip） */
+.type-symbol {
+  font-style: normal;
+  font-weight: 700;
+  font-size: 8.5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+  line-height: 1;
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+}
+
+.type-symbol.kind-num { color: #0d9488; background: rgba(20, 184, 166, 0.12); }
+.type-symbol.kind-text { color: #6366f1; background: #eef2ff; }
+.type-symbol.kind-date { color: #0891b2; background: #ecfeff; }
+.type-symbol.kind-json { color: #8b5cf6; background: #faf5ff; }
+.type-symbol.kind-bool { color: #b45309; background: #fef3c7; }
+.type-symbol.kind-pk { color: #0d9488; background: rgba(20, 184, 166, 0.12); }
+.type-symbol.kind-name { color: var(--text-1); background: rgba(15, 23, 42, 0.05); }
+.type-symbol.kind-code { color: #6366f1; background: #eef2ff; }
+.type-symbol.kind-unknown { color: var(--text-3); background: var(--surface-active); border: 1px solid var(--border-glass); }
 
 .row-card-field + .row-card-field {
   border-top: 1px dashed var(--border-glass);
 }
 
+/* 折叠详情：其余字段 */
+.row-card-details {
+  border-top: 1px dashed var(--border-glass);
+  margin-top: 2px;
+}
+
+.row-card-details summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 12px;
+  min-height: 34px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.row-card-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.row-card-details summary::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.row-card-details[open] summary::before {
+  transform: rotate(-135deg) translateY(-1px);
+}
+
+.row-card-details summary:hover {
+  color: var(--brand-gold-dark);
+  background: var(--surface-hover);
+}
+
+.row-card-details .row-card-fields {
+  border-top: 1px dashed var(--border-glass);
+}
+
 .field-label {
   flex-shrink: 0;
-  width: 96px;
-  font-size: 11px;
+  width: 92px;
+  font-size: 10.5px;
   font-weight: 600;
   color: var(--text-3);
   font-family: var(--font-mono);
@@ -774,32 +1114,30 @@ html.dark .row-card-head {
   white-space: nowrap;
 }
 
-.field-label em {
-  font-style: normal;
-  font-weight: 400;
-  opacity: 0.6;
-  font-size: 10px;
-}
-
 .field-value {
   flex: 1;
   min-width: 0;
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--text-1);
   word-break: break-all;
   line-height: 1.5;
   font-variant-numeric: tabular-nums;
+  text-align: left;
 }
 
-.field-value.num {
-  text-align: right;
-  color: var(--text-1);
-}
+/* 值按类型着色（与类型 chip 颜色保持一致） */
+.field-value.num { color: #0d9488; }
+.field-value.date { color: #0891b2; }
+.field-value.bool { color: #b45309; }
+.field-value.pk { color: var(--text-1); font-weight: 700; font-family: var(--font-mono); }
+.field-value.name { color: var(--text-1); font-weight: 600; }
+.field-value.code { color: #6366f1; font-family: var(--font-mono); }
 
 /* ========== 数据区 ========== */
 .db-main {
   flex: 1;
   min-width: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -807,6 +1145,8 @@ html.dark .row-card-head {
 
 /* SQL 查询框 */
 .sql-box {
+  width: 100%;
+  box-sizing: border-box;
   border-radius: var(--radius-lg);
   background: var(--surface-glass);
   border: 1px solid var(--border-glass);
@@ -915,6 +1255,8 @@ html.dark .row-card-head {
 
 /* 表数据卡 */
 .data-box {
+  width: 100%;
+  box-sizing: border-box;
   border-radius: var(--radius-lg);
   background: var(--surface-glass);
   border: 1px solid var(--border-glass);
@@ -973,7 +1315,7 @@ html.dark .row-card-head {
   z-index: 2;
   background: var(--surface-active);
   text-align: left;
-  padding: 10px 14px;
+  padding: 13px 14px 11px;
   border-bottom: 1px solid var(--border-glass-strong);
   white-space: nowrap;
 }
@@ -994,20 +1336,65 @@ html.dark .row-card-head {
 }
 
 .th-type {
-  font-size: 10px;
-  font-weight: 400;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 3px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.th-type-sym {
+  font-size: 9px;
+  font-weight: 700;
+}
+
+/* 类型 chip 分类色（对齐画布设计稿） */
+.th-type.kind-num {
+  color: #0d9488;
+  background: rgba(20, 184, 166, 0.1);
+}
+
+.th-type.kind-text {
+  color: #6366f1;
+  background: #eef2ff;
+}
+
+.th-type.kind-date {
+  color: #0891b2;
+  background: #ecfeff;
+}
+
+.th-type.kind-json {
+  color: #8b5cf6;
+  background: #faf5ff;
+}
+
+.th-type.kind-bool {
+  color: #b45309;
+  background: #fef3c7;
+}
+
+.th-type.kind-unknown {
   color: var(--text-3);
-  opacity: 0.8;
+  background: var(--surface-active);
+  border: 1px solid var(--border-glass);
 }
 
 .modern-table tbody td {
-  padding: 9px 14px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--border-glass);
   max-width: 320px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .modern-table tbody tr:last-child td {
@@ -1028,9 +1415,35 @@ html.dark .row-card-head {
 }
 
 .td-cell.date {
-  color: var(--brand-cyan);
+  color: #0891b2;
   font-variant-numeric: tabular-nums;
   font-size: 12px;
+}
+
+/* 固定字段值特殊样式（对齐画布：主键深色加粗 / 编码 indigo / 数字 teal / 布尔 amber） */
+.td-cell.pk {
+  color: var(--text-1);
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.td-cell.name {
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+.td-cell.code {
+  color: #6366f1;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.td-cell.num {
+  color: #0d9488;
+}
+
+.td-cell.bool {
+  color: #b45309;
 }
 
 .cell-val {
@@ -1038,18 +1451,29 @@ html.dark .row-card-head {
   font-variant-numeric: tabular-nums;
 }
 
-.long-val {
-  color: var(--text-2);
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .null-val {
   color: var(--text-3);
   opacity: 0.6;
   font-style: italic;
   font-size: 11px;
+}
+
+/* JSON 单元格：左侧截断预览 + 右侧 chip */
+.td-cell.json {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.json-preview {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
 }
 
 .json-chip {
@@ -1167,7 +1591,16 @@ html.dark .row-card-head {
   }
 
   .table-pick {
-    max-width: 180px;
+    max-width: 160px;
+  }
+
+  .data-head {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .data-actions {
+    min-width: 0;
   }
 
   /* 底部滑入抽屉：顶部圆角 + 遮罩层次 */
@@ -1190,6 +1623,11 @@ html.dark .row-card-head {
     flex-direction: column;
   }
 
+  .sql-input {
+    flex: none;
+    width: 100%;
+  }
+
   .sql-run {
     justify-content: center;
     padding: 10px 0;
@@ -1207,5 +1645,83 @@ html.dark .row-card-head {
   .row-card {
     transition: none !important;
   }
+}
+
+/* ========== 暗色模式适配：类型 chip / 固定字段色 / 值着色改用亮色系 ========== */
+html.dark .type-symbol.kind-num,
+html.dark .th-type.kind-num {
+  color: #2dd4bf;
+  background: rgba(45, 212, 191, 0.16);
+}
+
+html.dark .type-symbol.kind-text,
+html.dark .th-type.kind-text {
+  color: #a5b4fc;
+  background: rgba(165, 180, 252, 0.15);
+}
+
+html.dark .type-symbol.kind-date,
+html.dark .th-type.kind-date {
+  color: #22d3ee;
+  background: rgba(34, 211, 238, 0.15);
+}
+
+html.dark .type-symbol.kind-json,
+html.dark .th-type.kind-json {
+  color: #a78bfa;
+  background: rgba(167, 139, 250, 0.16);
+}
+
+html.dark .type-symbol.kind-bool,
+html.dark .th-type.kind-bool {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.15);
+}
+
+html.dark .type-symbol.kind-pk,
+html.dark .th-type.kind-pk {
+  color: #2dd4bf;
+  background: rgba(45, 212, 191, 0.16);
+}
+
+html.dark .type-symbol.kind-code,
+html.dark .th-type.kind-code {
+  color: #a5b4fc;
+  background: rgba(165, 180, 252, 0.15);
+}
+
+html.dark .type-symbol.kind-name,
+html.dark .th-type.kind-name {
+  color: var(--text-1);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+html.dark .field-value.num,
+html.dark .td-cell.num {
+  color: #2dd4bf;
+}
+
+html.dark .field-value.date,
+html.dark .td-cell.date {
+  color: #22d3ee;
+}
+
+html.dark .field-value.code,
+html.dark .td-cell.code {
+  color: #a5b4fc;
+}
+
+html.dark .field-value.bool,
+html.dark .td-cell.bool {
+  color: #fbbf24;
+}
+
+html.dark .field-value.pk,
+html.dark .td-cell.pk {
+  color: var(--text-1);
+}
+
+html.dark .row-card-head {
+  background: rgba(255, 255, 255, 0.04);
 }
 </style>
