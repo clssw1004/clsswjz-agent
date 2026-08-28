@@ -23,6 +23,7 @@ import { AttachmentModule } from './attachments/attachment.module';
 import { PeriodModule } from './periods/period.module';
 import { UserShareModule } from './user-shares/user-share.module';
 import { UserModule } from './users/user.module';
+import { DbViewerModule } from './db-viewer/db-viewer.module';
 
 // 生产托管 web 构建产物（SPA 历史路由 fallback）；
 // web/dist 不存在时（纯 API 开发 / 未构建前端）不注册静态服务
@@ -57,6 +58,7 @@ const serveStaticModules = fs.existsSync(adminDist)
     PeriodModule,
     UserShareModule,
     UserModule,
+    DbViewerModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
