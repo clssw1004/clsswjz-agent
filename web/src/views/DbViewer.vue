@@ -19,35 +19,8 @@
       </div>
     </div>
 
-    <!-- 主体：左列表 + 右内容 -->
+    <!-- 主体 -->
     <div class="db-body">
-      <!-- 表列表（桌面常驻，移动端可折叠为横向滚动 chips） -->
-      <aside class="db-side">
-        <div class="side-search">
-          <el-input
-            v-model="search"
-            placeholder="搜索表"
-            size="small"
-            clearable
-            :prefix-icon="Search"
-          />
-        </div>
-        <div class="side-list">
-          <button
-            v-for="t in filteredTables"
-            :key="t.name"
-            class="side-item"
-            :class="{ on: currentTable === t.name }"
-            @click="selectTable(t.name)"
-          >
-            <el-icon :size="15" class="side-item-icon"><Grid /></el-icon>
-            <span class="side-item-name">{{ t.name }}</span>
-            <span class="side-item-count">{{ t.count.toLocaleString() }}</span>
-          </button>
-          <div v-if="!filteredTables.length" class="side-empty">无匹配表</div>
-        </div>
-      </aside>
-
       <!-- 数据区 -->
       <section class="db-main">
         <!-- 原始 SQL 查询 -->
@@ -72,14 +45,14 @@
               <span>运行</span>
             </button>
           </div>
-          <div v-if="queryResult" class="sql-result-meta" :class="{ err: queryError }">
+          <div v-if="queryResult || queryError" class="sql-result-meta" :class="{ err: queryError }">
             <template v-if="queryError">
               <el-icon><CircleCloseFilled /></el-icon>{{ queryError }}
             </template>
             <template v-else>
               <el-icon><CircleCheckFilled /></el-icon>
               {{ queryResult.count }} 行
-              <template v-if="queryResult.limited"> · 已自动限制 {{ queryResult.pageSize }} 行</template>
+              <template v-if="queryResult.limited"> · 已自动限制 {{ limitText }} 行</template>
               <template v-else> · 未加限制</template>
             </template>
           </div>
@@ -89,12 +62,17 @@
         <div class="data-box">
           <div class="data-head">
             <div class="data-title-row">
-              <span class="data-title">{{ currentTable || '选择表' }}</span>
-              <span v-if="currentMeta" class="data-sub">{{ currentMeta.total.toLocaleString() }} 行 · {{ currentMeta.columns.length }} 列</span>
+              <button class="table-pick" :disabled="!tables.length" @click="openDrawer">
+                <el-icon :size="15"><Coin /></el-icon>
+                <span class="table-pick-name">{{ viewTitle }}</span>
+                <el-icon :size="12" class="table-pick-caret"><ArrowDown /></el-icon>
+              </button>
+              <span v-if="currentMeta" class="data-sub">{{ currentMeta.total.toLocaleString() }} 行 · {{ displayCols.length }} 列</span>
             </div>
             <div class="data-actions">
+              <!-- 仅表数据可分页：查询结果直接展示已限制的行数，不显示分页 -->
               <el-pagination
-                v-if="currentMeta && currentMeta.total > pageSize"
+                v-if="currentTable && currentMeta && currentMeta.total > pageSize"
                 :current-page="page"
                 :page-size="pageSize"
                 :total="currentMeta.total"
@@ -107,61 +85,133 @@
           </div>
 
           <div v-loading="loading" class="data-table-wrap">
-            <el-empty v-if="!currentTable" description="从左侧选择一张表，或在上方执行 SQL" />
-            <el-empty v-else-if="!loading && !rows.length" description="暂无数据" />
-            <div v-else-if="rows.length" class="data-scroll">
-              <table class="modern-table">
-                <thead>
-                  <tr>
-                    <th
+            <!-- rows.length 优先于空态：SQL 查询结果 / 表数据都能渲染，空态只在真正无数据时出现 -->
+            <template v-if="rows.length">
+              <!-- 桌面端：现代表格 -->
+              <div v-if="!isMobile" class="data-scroll">
+                <table class="modern-table">
+                  <thead>
+                    <tr>
+                      <th
+                        v-for="c in displayCols"
+                        :key="c.name"
+                        class="th-cell"
+                        :class="typeClass(c)"
+                      >
+                        <span class="th-name">{{ c.name }}</span>
+                        <span class="th-type">{{ c.type }}</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(row, ri) in rows" :key="ri">
+                      <td
+                        v-for="c in displayCols"
+                        :key="c.name"
+                        class="td-cell"
+                        :class="cellClass(c, row[c.name])"
+                      >
+                        <template v-if="isJson(c, row[c.name])">
+                          <button class="json-chip" @click="openJson(c.name, row[c.name])">JSON</button>
+                        </template>
+                        <template v-else-if="isNull(row[c.name])">
+                          <span class="null-val">NULL</span>
+                        </template>
+                        <template v-else-if="isLong(row[c.name])">
+                          <span class="long-val">{{ row[c.name] }}</span>
+                        </template>
+                        <template v-else>
+                          <span class="cell-val">{{ row[c.name] }}</span>
+                        </template>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <!-- 移动端：卡片列表（不横向滚动） -->
+              <div v-else class="card-list">
+                <div v-for="(row, ri) in rows" :key="ri" class="row-card">
+                  <div class="row-card-head">
+                    <span class="row-card-index num">{{ pageStart + ri }}</span>
+                    <span class="row-card-id">{{ row.id || row._id || '' }}</span>
+                  </div>
+                  <div class="row-card-fields">
+                    <div
                       v-for="c in displayCols"
                       :key="c.name"
-                      class="th-cell"
-                      :class="typeClass(c)"
+                      class="row-card-field"
                     >
-                      <span class="th-name">{{ c.name }}</span>
-                      <span class="th-type">{{ c.type }}</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(row, ri) in rows" :key="ri">
-                    <td
-                      v-for="c in displayCols"
-                      :key="c.name"
-                      class="td-cell"
-                      :class="cellClass(c, row[c.name])"
-                    >
-                      <template v-if="isJson(c, row[c.name])">
-                        <button class="json-chip" @click="openJson(c.name, row[c.name])">JSON</button>
-                      </template>
-                      <template v-else-if="isNull(row[c.name])">
-                        <span class="null-val">NULL</span>
-                      </template>
-                      <template v-else-if="isLong(row[c.name])">
-                        <span class="long-val">{{ row[c.name] }}</span>
-                      </template>
-                      <template v-else>
-                        <span class="cell-val">{{ row[c.name] }}</span>
-                      </template>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+                      <span class="field-label">{{ c.name }}<template v-if="c.type">&nbsp;<em>{{ c.type }}</em></template></span>
+                      <span class="field-value" :class="cellClass(c, row[c.name])">
+                        <template v-if="isJson(c, row[c.name])">
+                          <button class="json-chip" @click="openJson(c.name, row[c.name])">JSON</button>
+                        </template>
+                        <template v-else-if="isNull(row[c.name])">
+                          <span class="null-val">NULL</span>
+                        </template>
+                        <template v-else>{{ row[c.name] }}</template>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+            <!-- 空态：仅在非加载且确实无行时显示 -->
+            <el-empty
+              v-else-if="!loading"
+              :description="queryResult ? '查询无结果，请调整 SQL' : (!currentTable ? '选择一张表，或在上方执行 SQL' : '暂无数据')"
+            />
           </div>
         </div>
       </section>
     </div>
 
+    <!-- 表选择抽屉（移动端底部滑入，桌面端右侧滑入；方向在打开前锁定，避免弹层动画期间改尺寸导致高度抖动） -->
+    <el-drawer
+      v-model="drawer"
+      title="选择表"
+      :size="drawerSize"
+      :direction="drawerDirection"
+      class="table-drawer"
+      :show-close="drawerDirection === 'rtl'"
+    >
+      <div v-if="drawerDirection === 'btt'" class="drawer-handle"></div>
+      <div class="drawer-search">
+        <el-input
+          v-model="search"
+          placeholder="搜索表名"
+          clearable
+          :prefix-icon="Search"
+          size="large"
+          autofocus
+        />
+      </div>
+      <div class="drawer-list">
+        <button
+          v-for="t in filteredTables"
+          :key="t.name"
+          class="drawer-item"
+          :class="{ on: currentTable === t.name }"
+          @click="pickTable(t.name)"
+        >
+          <span class="drawer-item-name">{{ t.name }}</span>
+          <span class="drawer-item-count">{{ t.count.toLocaleString() }} 行</span>
+          <el-icon v-if="currentTable === t.name" class="drawer-item-check"><CircleCheckFilled /></el-icon>
+        </button>
+        <div v-if="!filteredTables.length" class="drawer-empty">
+          <el-empty description="无匹配表" :image-size="60" />
+        </div>
+      </div>
+    </el-drawer>
+
     <!-- JSON 详情抽屉 -->
     <teleport to="body">
       <transition name="sheet">
-        <div v-if="jsonVisible" class="json-mask" @click.self="jsonVisible = false">
+        <div v-if="jsonVisible" class="json-mask" role="dialog" aria-modal="true" aria-label="JSON 详情" @click.self="jsonVisible = false">
           <div class="json-sheet">
             <div class="json-head">
               <span class="json-title">{{ jsonTitle }}</span>
-              <button class="json-close" @click="jsonVisible = false"><el-icon><Close /></el-icon></button>
+              <button class="json-close" aria-label="关闭" @click="jsonVisible = false"><el-icon><Close /></el-icon></button>
             </div>
             <pre class="json-body">{{ jsonContent }}</pre>
           </div>
@@ -172,13 +222,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import {
-  Coin, Lock, Search, Grid, MagicStick, VideoPlay, Loading,
-  CircleCheckFilled, CircleCloseFilled, Close,
+  Coin, Lock, Search, MagicStick, VideoPlay, Loading,
+  CircleCheckFilled, CircleCloseFilled, Close, ArrowDown,
 } from '@element-plus/icons-vue';
 import { dbViewerApi } from '@/api';
+import { useResponsive } from '@/composables/useResponsive';
 
+const { isMobile } = useResponsive();
 const PAGE_SIZE = 50;
 
 const tables = ref<{ name: string; count: number }[]>([]);
@@ -196,6 +248,25 @@ const running = ref(false);
 const queryResult = ref<any>(null);
 const queryError = ref('');
 
+// 表选择抽屉
+const drawer = ref(false);
+/** 抽屉打开时锁定的方向/尺寸（避免运行中响应式切换导致抽屉大小抖动） */
+const drawerMode = ref<{ direction: 'rtl' | 'btt'; size: number | string }>({ direction: 'rtl', size: 360 });
+const drawerDirection = computed(() => drawerMode.value.direction);
+const drawerSize = computed(() => drawerMode.value.size);
+
+function lockDrawerMode() {
+  drawerMode.value = isMobile.value
+    ? { direction: 'btt', size: '72vh' }
+    : { direction: 'rtl', size: 360 };
+}
+
+/** 打开表选择抽屉：先按当前断点锁定方向/尺寸，再弹出（保证弹层动画全程尺寸稳定，避免"时高时低"） */
+function openDrawer() {
+  lockDrawerMode();
+  drawer.value = true;
+}
+
 // JSON 抽屉
 const jsonVisible = ref(false);
 const jsonTitle = ref('');
@@ -209,7 +280,22 @@ const filteredTables = computed(() => {
 
 const totalRows = computed(() => tables.value.reduce((s, t) => s + t.count, 0));
 
-const displayCols = computed(() => currentMeta.value?.columns || []);
+const displayCols = computed(() => {
+  // 直接用 row key 当列：保证表头/卡片字段与实际数据始终对齐，避免 PRAGMA 与 SELECT * 结果不一致导致的"列头在、值全空"空洞表格
+  const first = Array.isArray(rows.value) ? rows.value[0] : null;
+  if (first) return Object.keys(first).map((name) => ({ name, type: '' }));
+  // 加载中或空表，临时回退到列定义（避免列头闪烁）
+  return currentMeta.value?.columns || [];
+});
+
+/** 主视图标题：优先当前表，SQL 结果显示「SQL 结果」，否则提示选择 */
+const viewTitle = computed(() => currentTable.value || (queryResult.value ? 'SQL 结果' : '选择表'));
+
+/** 当前页起始行号（移动端卡片序号） */
+const pageStart = computed(() => (page.value - 1) * pageSize.value + 1);
+
+/** SQL 查询的自动限制行数（后端响应没有 pageSize 字段，限制值来自前端请求的 PAGE_SIZE） */
+const limitText = computed(() => PAGE_SIZE.toLocaleString());
 
 async function loadTables() {
   try {
@@ -225,27 +311,45 @@ async function selectTable(name: string) {
   await loadData();
 }
 
+/** 抽屉中选中表：切换并关闭抽屉 */
+function pickTable(name: string) {
+  drawer.value = false;
+  search.value = '';
+  selectTable(name);
+}
+
+let loadSeq = 0;
+
 async function loadData() {
   if (!currentTable.value) return;
+  const seq = ++loadSeq;
   loading.value = true;
   queryResult.value = null;
   queryError.value = '';
+  // 立即清空旧表数据，避免切换时在新表标题下短暂显示上一张表的行
+  rows.value = [];
+  currentMeta.value = null;
   try {
     const res: any = await dbViewerApi.tableData(currentTable.value, {
       page: page.value,
       pageSize: pageSize.value,
     });
-    currentMeta.value = res;
+    // 仅当本次请求仍是最近一次时写入，避免快速切表时旧响应覆盖新数据
+    if (seq !== loadSeq) return;
+    // 若后端返回行数据但列定义缺失（如 PRAGMA 未返回列的表），用行 key 反推列，避免"有行无表头"的空洞表格
+    currentMeta.value = ensureColumns(res, res.rows);
     rows.value = Array.isArray(res.rows) ? res.rows : [];
   } catch {
+    if (seq !== loadSeq) return;
     rows.value = [];
     currentMeta.value = null;
   } finally {
-    loading.value = false;
+    if (seq === loadSeq) loading.value = false;
   }
 }
 
 async function changePage(p: number) {
+  if (!currentTable.value) return; // 查询结果不分页，忽略无效翻页
   page.value = p;
   await loadData();
 }
@@ -255,26 +359,48 @@ async function runQuery() {
   if (!sql || running.value) return;
   running.value = true;
   queryError.value = '';
+  // 使在途的 loadData 失效，避免其响应覆盖 SQL 结果；同时记录本次序号让查询结果也受保护
+  const seq = ++loadSeq;
+  page.value = 1; // 回到首页，避免移动端卡片序号从中间页开始
   try {
     const res: any = await dbViewerApi.query(sql, PAGE_SIZE);
+    if (seq !== loadSeq) return; // 期间用户已切表/翻页，丢弃过期查询结果
     queryResult.value = res;
-    // 查询结果直接作为表格展示（覆盖表数据视图）
-    currentMeta.value = {
+    // 查询结果直接作为表格展示（覆盖表数据视图）；查询结果同样用行 key 兜底列，防空洞
+    currentMeta.value = ensureColumns({
       table: 'SQL 结果',
       total: res.count,
       columns: (res.columns || []).map((n: string) => ({ name: n, type: '' })),
-    };
+    }, res.rows);
     rows.value = res.rows || [];
     currentTable.value = '';
+    loading.value = false; // 吸收被打断的 loadData 残留 loading，避免表格区遮罩常驻
   } catch (e: any) {
+    if (seq !== loadSeq) return; // 过期错误不覆盖当前视图
     queryError.value = e?.response?.data?.message || e?.message || '查询失败';
-    queryResult.value = { count: 0, limited: false };
+    // 查询失败不切换视图：保留当前表/上次结果，仅在上方提示错误
+    queryResult.value = null;
+    loading.value = false; // 吸收被打断的 loadData 残留 loading
   } finally {
-    running.value = false;
+    if (seq === loadSeq) running.value = false;
   }
 }
 
 /* ---------- 单元格渲染辅助 ---------- */
+/**
+ * 归一化表数据元信息：后端返回 rows 但 columns 缺失/为空时（如某些表 PRAGMA 未返回列），
+ * 用第一行的 key 反推（name + 空 type），保证表头/卡片字段 label 始终与数据对齐，不出现"有行无表头"空洞。
+ */
+function ensureColumns(meta: any, rows: any[]): any {
+  if (!meta) return meta;
+  const cols = Array.isArray(meta.columns) ? meta.columns : [];
+  if (cols.length) return meta;
+  const first = Array.isArray(rows) ? rows[0] : null;
+  if (!first) return meta;
+  const derived = Object.keys(first).map((name) => ({ name, type: '' }));
+  return { ...meta, columns: derived };
+}
+
 function isNull(v: any): boolean {
   return v === null || v === undefined;
 }
@@ -319,17 +445,21 @@ function cellClass(c: any, v: any) {
   return '';
 }
 
-watch(search, () => {
-  // 搜索时若当前表被过滤掉，不清空选择（列表仍可点击）
-});
-watch(currentTable, () => {
-  if (currentTable.value) {
-    // 表格被 SQL 覆盖后，选中表时恢复表数据视图
-    loadData();
-  }
+onMounted(() => {
+  loadTables();
+  // ESC 关闭 JSON 抽屉（焦点管理辅助）
+  window.addEventListener('keydown', onKeydown);
 });
 
-onMounted(loadTables);
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown);
+});
+
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && jsonVisible.value) {
+    jsonVisible.value = false;
+  }
+}
 </script>
 
 <style scoped>
@@ -424,40 +554,91 @@ onMounted(loadTables);
   align-items: flex-start;
 }
 
-/* ========== 表列表 ========== */
-.db-side {
-  width: 240px;
-  flex-shrink: 0;
-  border-radius: var(--radius-lg);
-  background: var(--surface-glass);
+/* ========== 表选择按钮 ========== */
+.table-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 320px;
+  padding: 7px 14px;
   border: 1px solid var(--border-glass);
-  backdrop-filter: var(--blur-glass);
-  box-shadow: var(--shadow-card);
+  border-radius: var(--radius-md);
+  background: var(--surface-active);
+  color: var(--text-1);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+}
+
+.table-pick:hover:not(:disabled) {
+  border-color: var(--border-glass-strong);
+  background: var(--surface-hover);
+}
+
+.table-pick:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.table-pick:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.table-pick .el-icon {
+  color: var(--brand-gold);
+  flex-shrink: 0;
+}
+
+.table-pick-name {
   overflow: hidden;
-  position: sticky;
-  top: 76px;
-  max-height: calc(100vh - 100px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.table-pick-caret {
+  color: var(--text-3) !important;
+  font-size: 12px;
+  transition: transform 0.2s ease;
+}
+
+/* ========== 表选择抽屉 ========== */
+.table-drawer :deep(.el-drawer__header) {
+  margin-bottom: 0;
+  padding: 18px 20px 10px;
+  color: var(--text-1);
+  font-weight: 700;
+  border-bottom: 1px solid var(--border-glass);
+}
+
+.table-drawer :deep(.el-drawer__body) {
+  padding: 14px 16px 20px;
   display: flex;
   flex-direction: column;
+  gap: 12px;
 }
 
-.side-search {
-  padding: 12px 12px 8px;
+.drawer-search {
+  flex-shrink: 0;
 }
 
-.side-list {
+.drawer-list {
   flex: 1;
   overflow-y: auto;
-  padding: 4px 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   overscroll-behavior: contain;
 }
 
-.side-item {
+.drawer-item {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
   width: 100%;
-  padding: 9px 10px;
+  padding: 10px 12px;
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -466,47 +647,153 @@ onMounted(loadTables);
   transition: background 0.15s ease;
 }
 
-.side-item:hover {
+.drawer-item:hover {
   background: var(--surface-hover);
 }
 
-.side-item.on {
+.drawer-item.on {
   background: var(--brand-gold-soft);
 }
 
-.side-item-icon {
-  color: var(--text-3);
-  flex-shrink: 0;
-}
-
-.side-item.on .side-item-icon {
-  color: var(--brand-gold-dark);
-}
-
-.side-item-name {
+.drawer-item-name {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-1);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-1);
 }
 
-.side-item-count {
+.drawer-item-count {
   font-size: 11px;
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 
-.side-empty {
-  padding: 20px 10px;
-  text-align: center;
-  font-size: 12px;
+.drawer-item-check {
+  color: var(--brand-gold);
+  flex-shrink: 0;
+  font-size: 15px;
+}
+
+.drawer-empty {
+  padding: 30px 0;
+}
+
+/* 底部抽屉把手（移动端） */
+.drawer-handle {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--text-3);
+  opacity: 0.4;
+  margin: 0 auto 12px;
+  flex-shrink: 0;
+}
+
+/* ========== 移动端卡片列表（替代表格，避免横向滚动） ========== */
+.card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  max-height: 70vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.row-card {
+  border-radius: var(--radius-md);
+  background: var(--surface-active);
+  border: 1px solid var(--border-glass);
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+
+.row-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(15, 23, 42, 0.025);
+  border-bottom: 1px solid var(--border-glass);
+  font-size: 11px;
   color: var(--text-3);
+}
+
+html.dark .row-card-head {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.row-card-index {
+  font-weight: 700;
+  color: var(--brand-gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.row-card-id {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+
+.row-card-fields {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+}
+
+.row-card-field {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 12px;
+  min-width: 0;
+}
+
+.row-card-field + .row-card-field {
+  border-top: 1px dashed var(--border-glass);
+}
+
+.field-label {
+  flex-shrink: 0;
+  width: 96px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field-label em {
+  font-style: normal;
+  font-weight: 400;
+  opacity: 0.6;
+  font-size: 10px;
+}
+
+.field-value {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--text-1);
+  word-break: break-all;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.field-value.num {
+  text-align: right;
+  color: var(--text-1);
 }
 
 /* ========== 数据区 ========== */
@@ -647,19 +934,9 @@ onMounted(loadTables);
 
 .data-title-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   min-width: 0;
-}
-
-.data-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-1);
-  font-family: var(--font-mono);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .data-sub {
@@ -885,44 +1162,28 @@ onMounted(loadTables);
 
 /* ========== 响应式 ========== */
 @media (max-width: 767px) {
-  .db-side {
-    position: static;
-    width: 100%;
-    max-height: none;
-  }
-
   .db-body {
     flex-direction: column;
   }
 
-  .side-list {
-    display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    gap: 6px;
-    padding: 4px 12px 10px;
+  .table-pick {
+    max-width: 180px;
   }
 
-  .side-item {
-    width: auto;
-    flex-shrink: 0;
-    padding: 7px 12px;
-    border-radius: 999px;
-    border: 1px solid var(--border-glass);
-    background: var(--surface-active);
+  /* 底部滑入抽屉：顶部圆角 + 遮罩层次 */
+  .table-drawer {
+    width: 100% !important;
+    max-width: 100%;
+    border-radius: 18px 18px 0 0;
   }
 
-  .side-item.on {
-    background: var(--brand-gold-soft);
-    border-color: rgba(20, 184, 166, 0.3);
+  .table-drawer :deep(.el-drawer__header) {
+    padding-top: 6px;
+    justify-content: center;
   }
 
-  .side-item-name {
-    font-size: 12px;
-  }
-
-  .side-search {
-    display: none;
+  .table-drawer :deep(.el-drawer__title) {
+    font-size: 15px;
   }
 
   .sql-row {
@@ -934,12 +1195,17 @@ onMounted(loadTables);
     padding: 10px 0;
   }
 
-  .data-scroll {
-    max-height: 60vh;
-  }
-
   .db-meta {
     display: none;
+  }
+}
+
+/* 尊重系统减弱动态偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .table-drawer :deep(.el-drawer),
+  .json-sheet,
+  .row-card {
+    transition: none !important;
   }
 }
 </style>
