@@ -47,6 +47,9 @@ export const categoryApi = {
 
 export const fundApi = {
   list: (params?: any) => http.get('/funds', { params }),
+  create: (data: any) => http.post('/funds', data),
+  update: (id: string, data: any) => http.put(`/funds/${id}`, data),
+  delete: (id: string) => http.delete(`/funds/${id}`),
 };
 
 export const shopApi = {
@@ -125,4 +128,31 @@ export const dbViewerApi = {
     http.get(`/db-viewer/tables/${encodeURIComponent(name)}`, { params }),
   query: (sql: string, pageSize?: number) =>
     http.post('/db-viewer/query', { sql, pageSize }),
+};
+
+export const activityDefApi = {
+  list: (params?: any) => http.get('/activity-defs', { params }),
+  create: (data: any) => http.post('/activity-defs', data),
+  update: (id: string, data: any) => http.put(`/activity-defs/${id}`, data),
+  delete: (id: string) => http.delete(`/activity-defs/${id}`),
+};
+
+export const activityRecordApi = {
+  list: (params?: any) => http.get('/activity-records', { params }),
+  create: (data: any) => http.post('/activity-records', data),
+  delete: (id: string) => http.delete(`/activity-records/${id}`),
+};
+
+export const vehicleApi = {
+  list: () => http.get('/vehicles'),
+  create: (data: any) => http.post('/vehicles', data),
+  update: (id: string, data: any) => http.put(`/vehicles/${id}`, data),
+  delete: (id: string) => http.delete(`/vehicles/${id}`),
+};
+
+export const fuelRecordApi = {
+  list: (params?: any) => http.get('/fuel-records', { params }),
+  create: (data: any) => http.post('/fuel-records', data),
+  update: (id: string, data: any) => http.put(`/fuel-records/${id}`, data),
+  delete: (id: string) => http.delete(`/fuel-records/${id}`),
 };
