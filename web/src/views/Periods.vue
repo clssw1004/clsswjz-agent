@@ -209,13 +209,15 @@
             <div class="field-group">
               <label class="field-label">开始日期</label>
               <el-date-picker v-model="backfill.start" type="date" value-format="YYYY-MM-DD"
-                :disabled-date="(d) => d.getTime() > Date.now()" class="bp-date-picker" placeholder="选择开始日期" />
+                :disabled-date="(d) => d.getTime() > Date.now()" class="bp-date-picker"
+                popper-class="bp-date-popper" placeholder="选择开始日期" />
             </div>
             <div class="field-group">
               <label class="field-label">结束日期</label>
               <el-date-picker v-model="backfill.end" type="date" value-format="YYYY-MM-DD"
+                :default-value="endDefaultDate"
                 :disabled-date="(d) => d.getTime() > Date.now() || (backfill.start && d.getTime() < new Date(backfill.start).getTime())"
-                class="bp-date-picker" placeholder="选择结束日期" />
+                class="bp-date-picker" popper-class="bp-date-popper" placeholder="选择结束日期" />
             </div>
             <div class="sheet-actions">
               <el-button @click="showBackfill = false">取消</el-button>
@@ -676,10 +678,17 @@ async function confirmEndPeriod() {
 }
 
 function openBackfill() {
-  backfill.start = '';
+  // 开始日期默认 = 当前选中的日期（用户点击的日历日期）
+  backfill.start = selectedDate.value;
   backfill.end = '';
   showBackfill.value = true;
 }
+
+/** 结束日期选择器打开时的初始定位：开始日期 + 7 天所在月份 */
+const endDefaultDate = computed(() => {
+  if (!backfill.start) return undefined;
+  return new Date(addDays(backfill.start, 7) + 'T00:00:00');
+});
 
 async function saveBackfill() {
   if (!backfill.start || !backfill.end) return;
@@ -1068,6 +1077,11 @@ html.dark .cal-cell.type-safe .cal-day { color: #8FD0B0; }
 .bp-date-picker { width: 100%; }
 
 .grad-btn { background: var(--grad-brand); border: none; font-weight: 600; }
+
+/* 补记抽屉内日期选择器的弹出面板层级需高于抽屉遮罩（sheet-mask z-index 3000） */
+:global(.bp-date-popper) {
+  z-index: 3100 !important;
+}
 
 .sheet-enter-active, .sheet-leave-active { transition: opacity 0.22s ease; }
 .sheet-enter-active .sheet, .sheet-leave-active .sheet { transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.3, 1); }
