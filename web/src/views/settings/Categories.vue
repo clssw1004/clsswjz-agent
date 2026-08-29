@@ -24,8 +24,15 @@
         </div>
       </template>
 
-      <el-table v-if="!isMobile" :data="group.list" v-loading="loading" empty-text="暂无数据" class="mini-table">
-        <el-table-column prop="name" label="名称" min-width="160" />
+      <el-table v-if="!isMobile" :data="group.tree" v-loading="loading" empty-text="暂无数据" class="mini-table" row-key="id" default-expand-all>
+        <el-table-column prop="name" label="名称" min-width="160">
+          <template #default="{ row }">
+            <span :style="{ paddingLeft: (row._depth * 20) + 'px' }">
+              <span v-if="row._depth > 0" class="tree-line">└</span>
+              {{ row.name }}
+            </span>
+          </template>
+        </el-table-column>
         <el-table-column prop="code" label="编码" min-width="140" />
         <el-table-column prop="categoryType" label="类型" width="100">
           <template #default="{ row }">
@@ -45,9 +52,12 @@
       <!-- 移动端：卡片列表 -->
       <div v-else class="m-list" v-loading="loading">
         <el-empty v-if="!loading && group.list.length === 0" description="暂无数据" />
-        <div v-for="row in group.list" :key="row.id" class="m-item">
+        <div v-for="row in group.tree" :key="row.id" class="m-item" :style="{ paddingLeft: (12 + row._depth * 18) + 'px' }">
           <div class="m-main">
-            <span class="m-name">{{ row.name }}</span>
+            <span class="m-name">
+              <span v-if="row._depth > 0" class="tree-line">└</span>
+              {{ row.name }}
+            </span>
             <span class="m-sub mono">{{ row.code }}</span>
           </div>
           <span class="type-chip" :class="row.categoryType === 'INCOME' ? 'chip-income' : 'chip-expense'">
@@ -81,6 +91,16 @@
             <el-option label="收入" value="INCOME" />
           </el-select>
         </el-form-item>
+        <el-form-item label="上级分类">
+          <el-select v-model="form.parentId" placeholder="无（顶级分类）" clearable style="width: 100%" size="large">
+            <el-option
+              v-for="p in parentCandidates"
+              :key="p.id"
+              :label="('　'.repeat(p._depth)) + p.name"
+              :value="p.id"
+            />
+          </el-select>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button round @click="dialogVisible = false">取消</el-button>
@@ -107,7 +127,7 @@ const items = ref<any[]>([]);
 const dialogVisible = ref(false);
 const formRef = ref<FormInstance>();
 
-const form = reactive({ id: '', name: '', code: '', categoryType: 'EXPENSE' });
+const form = reactive({ id: '', name: '', code: '', categoryType: 'EXPENSE', parentId: '' });
 
 const rules: FormRules = {
   name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
@@ -115,18 +135,43 @@ const rules: FormRules = {
   categoryType: [{ required: true, message: '请选择类型', trigger: 'change' }],
 };
 
+function typeLabel(t?: string) {
+  return t === 'INCOME' ? '收入' : t === 'EXPENSE' ? '支出' : (t || '-');
+}
+
+/** 构建树：为每个节点标记 _depth，按 sortOrder 排序后递归展开 */
+function buildTree(list: any[], parentId = ''): any[] {
+  return list
+    .filter((i) => (i.parentId || '') === parentId)
+    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+    .flatMap((node) => {
+      const children = list.filter((i) => i.parentId === node.id);
+      const depth = parentId === '' ? 0 : (list.find((i) => i.id === parentId)?._depth ?? 0) + 1;
+      const item = { ...node, _depth: depth };
+      if (children.length) {
+        return [item, ...buildTree(list, node.id).map((c) => ({ ...c, _depth: depth + 1 }))];
+      }
+      return [item];
+    });
+}
+
 const groups = computed(() => {
   const expense = items.value.filter((i) => i.categoryType !== 'INCOME');
   const income = items.value.filter((i) => i.categoryType === 'INCOME');
   return [
-    { type: 'EXPENSE', label: '支出分类', list: expense },
-    { type: 'INCOME', label: '收入分类', list: income },
+    { type: 'EXPENSE', label: '支出分类', list: expense, tree: buildTree(expense) },
+    { type: 'INCOME', label: '收入分类', list: income, tree: buildTree(income) },
   ];
 });
 
-function typeLabel(t?: string) {
-  return t === 'INCOME' ? '收入' : t === 'EXPENSE' ? '支出' : (t || '-');
-}
+/** 上级分类候选（排除自身及子分类，按类型过滤） */
+const parentCandidates = computed(() => {
+  const currentType = form.categoryType;
+  const candidates = items.value.filter(
+    (i) => i.categoryType === currentType && i.id !== form.id,
+  );
+  return buildTree(candidates);
+});
 
 async function load() {
   loading.value = true;
@@ -144,6 +189,7 @@ function openDialog(row?: any) {
     name: row?.name || '',
     code: row?.code || '',
     categoryType: row?.categoryType || 'EXPENSE',
+    parentId: row?.parentId || '',
   });
   dialogVisible.value = true;
 }
@@ -158,6 +204,7 @@ async function save() {
       name: form.name,
       code: form.code,
       categoryType: form.categoryType,
+      parentId: form.parentId || null,
       accountBookId: appStore.currentBookId,
     };
     if (form.id) {
@@ -264,6 +311,12 @@ watch(() => appStore.currentBookId, load);
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
+}
+
+.tree-line {
+  color: var(--text-3);
+  margin-right: 4px;
+  font-family: monospace;
 }
 
 .chip-expense {

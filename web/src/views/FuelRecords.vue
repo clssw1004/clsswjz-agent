@@ -255,11 +255,13 @@ function energyLabel(t?: string) {
   }
 }
 
+const FILTER_KEY = 'fuel_filter_vehicleId';
+
 const loading = ref(false);
 const saving = ref(false);
 const records = ref<any[]>([]);
 const vehicles = ref<any[]>([]);
-const filterVehicleId = ref('');
+const filterVehicleId = ref(localStorage.getItem(FILTER_KEY) || '');
 const dialogVisible = ref(false);
 const formRef = ref<FormInstance>();
 
@@ -428,16 +430,21 @@ async function remove(row: any) {
 }
 
 function onFilterChange() {
-  // 统计自然响应；无需特别处理
+  if (filterVehicleId.value) {
+    localStorage.setItem(FILTER_KEY, filterVehicleId.value);
+  } else {
+    localStorage.removeItem(FILTER_KEY);
+  }
 }
 
 onMounted(async () => {
   await loadVehicles();
   await loadRecords();
-  // 支持 ?vehicleId=xxx 直达筛选
+  // URL ?vehicleId=xxx 优先级最高；否则用 localStorage 缓存
   const vid = route.query.vehicleId;
   if (vid && typeof vid === 'string') {
     filterVehicleId.value = vid;
+    localStorage.setItem(FILTER_KEY, vid);
   }
 });
 </script>

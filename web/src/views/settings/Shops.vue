@@ -24,8 +24,15 @@
         </el-input>
       </div>
 
-      <el-table v-if="!isMobile" :data="filtered" v-loading="loading" empty-text="暂无数据" class="mini-table">
-        <el-table-column prop="name" label="名称" min-width="180" />
+      <el-table v-if="!isMobile" :data="treeItems" v-loading="loading" empty-text="暂无数据" class="mini-table" row-key="id" default-expand-all>
+        <el-table-column prop="name" label="名称" min-width="180">
+          <template #default="{ row }">
+            <span :style="{ paddingLeft: (row._depth * 20) + 'px' }">
+              <span v-if="row._depth > 0" class="tree-line">└</span>
+              {{ row.name }}
+            </span>
+          </template>
+        </el-table-column>
         <el-table-column prop="code" label="编码" min-width="160">
           <template #default="{ row }">
             <span class="code-text">{{ row.code }}</span>
@@ -42,9 +49,12 @@
       <!-- 移动端：卡片列表 -->
       <div v-else class="m-list" v-loading="loading">
         <el-empty v-if="!loading && filtered.length === 0" description="暂无数据" />
-        <div v-for="row in filtered" :key="row.id" class="m-item">
+        <div v-for="row in treeItems" :key="row.id" class="m-item" :style="{ paddingLeft: (12 + row._depth * 18) + 'px' }">
           <div class="m-main">
-            <span class="m-name">{{ row.name }}</span>
+            <span class="m-name">
+              <span v-if="row._depth > 0" class="tree-line">└</span>
+              {{ row.name }}
+            </span>
             <span class="m-sub mono">{{ row.code }}</span>
           </div>
           <div class="m-ops">
@@ -67,6 +77,16 @@
         </el-form-item>
         <el-form-item label="编码" prop="code">
           <el-input v-model="form.code" placeholder="请输入编码" size="large" />
+        </el-form-item>
+        <el-form-item label="上级商户">
+          <el-select v-model="form.parentId" placeholder="无（顶级商户）" clearable style="width: 100%" size="large">
+            <el-option
+              v-for="p in parentCandidates"
+              :key="p.id"
+              :label="('　'.repeat(p._depth)) + p.name"
+              :value="p.id"
+            />
+          </el-select>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -95,7 +115,7 @@ const items = ref<any[]>([]);
 const dialogVisible = ref(false);
 const formRef = ref<FormInstance>();
 
-const form = reactive({ id: '', name: '', code: '' });
+const form = reactive({ id: '', name: '', code: '', parentId: '' });
 
 const rules: FormRules = {
   name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
@@ -110,6 +130,30 @@ const filtered = computed(() => {
       String(i.name || '').toLowerCase().includes(k) ||
       String(i.code || '').toLowerCase().includes(k),
   );
+});
+
+/** 构建树：为每个节点标记 _depth，按 sortOrder 排序后递归展开 */
+function buildTree(list: any[], parentId = ''): any[] {
+  return list
+    .filter((i) => (i.parentId || '') === parentId)
+    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+    .flatMap((node) => {
+      const depth = parentId === '' ? 0 : (list.find((i) => i.id === parentId)?._depth ?? 0) + 1;
+      const item = { ...node, _depth: depth };
+      const children = list.filter((i) => i.parentId === node.id);
+      if (children.length) {
+        return [item, ...buildTree(list, node.id).map((c) => ({ ...c, _depth: depth + 1 }))];
+      }
+      return [item];
+    });
+}
+
+const treeItems = computed(() => buildTree(filtered.value));
+
+/** 上级商户候选（排除自身及子级） */
+const parentCandidates = computed(() => {
+  const candidates = items.value.filter((i) => i.id !== form.id);
+  return buildTree(candidates);
 });
 
 async function load() {
@@ -127,6 +171,7 @@ function openDialog(row?: any) {
     id: row?.id || '',
     name: row?.name || '',
     code: row?.code || '',
+    parentId: row?.parentId || '',
   });
   dialogVisible.value = true;
 }
@@ -140,6 +185,7 @@ async function save() {
     const data = {
       name: form.name,
       code: form.code,
+      parentId: form.parentId || null,
       accountBookId: appStore.currentBookId,
     };
     if (form.id) {
@@ -222,6 +268,12 @@ watch(() => appStore.currentBookId, load);
   font-family: var(--font-mono);
   font-size: 13px;
   color: var(--text-2);
+}
+
+.tree-line {
+  color: var(--text-3);
+  margin-right: 4px;
+  font-family: monospace;
 }
 
 .mini-table :deep(th.el-table__cell) {
