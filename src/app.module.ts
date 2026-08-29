@@ -23,6 +23,9 @@ import { AttachmentModule } from './attachments/attachment.module';
 import { PeriodModule } from './periods/period.module';
 import { UserShareModule } from './user-shares/user-share.module';
 import { UserModule } from './users/user.module';
+import { ActivityModule } from './activity/activity.module';
+import { VehicleModule } from './vehicle/vehicle.module';
+import { FuelModule } from './fuel/fuel.module';
 import { DbViewerModule } from './db-viewer/db-viewer.module';
 
 // 生产托管 web 构建产物（SPA 历史路由 fallback）；
@@ -58,6 +61,9 @@ const serveStaticModules = fs.existsSync(adminDist)
     PeriodModule,
     UserShareModule,
     UserModule,
+    ActivityModule,
+    VehicleModule,
+    FuelModule,
     DbViewerModule,
   ],
   providers: [
