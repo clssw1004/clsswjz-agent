@@ -176,7 +176,7 @@ const syncTitle = computed(() =>
 );
 
 onMounted(() => {
-  app.loadBooks();
+  app.bootstrap();
   sync.startPolling();
 });
 
@@ -200,7 +200,7 @@ function handleBookChange(id: string) {
 const showBookSelect = computed(() => route.path === '/items');
 
 // 子页面（新增/编辑详情/列表/账本/经期/设置）在顶栏显示返回（对齐移动端 AppBar leading 返回）
-const isDetailPage = computed(() => /^\/(items\/(new|list|[^/]+)|notes\/(new|[^/]+)|books|periods|db-viewer|settings\/)/.test(route.path));
+const isDetailPage = computed(() => /^\/(items\/(new|list|[^/]+)|notes\/(new|[^/]+)|books|periods|activities|vehicles|fuel-records|db-viewer|settings\/)/.test(route.path));
 
 function goBack() {
   if (window.history.length > 1) router.back();
@@ -537,7 +537,7 @@ function handleSync() {
 /* ========== 内容区 ========== */
 .content {
   flex: 1;
-  padding: 24px;
+  padding: 16px;
   max-width: 1200px;
   width: 100%;
   margin: 0 auto;

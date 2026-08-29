@@ -46,6 +46,9 @@ export class SyncService implements OnModuleInit, OnModuleDestroy {
     }
     for (const user of users) {
       if (!user.mainServerUrl || !user.mainToken) continue;
+      // 主端鉴权已失效的用户跳过自动同步：避免每轮定时都触发 401 刷错误日志。
+      // 用户重新登录（AuthService.login → clearAuthExpired + 刷新 mainToken）后自动恢复。
+      if (this.isMainAuthExpired(user.id)) continue;
       if (this.syncingUsers.has(user.id)) continue;
       this.syncingUsers.add(user.id);
       try {
@@ -157,7 +160,10 @@ export class SyncService implements OnModuleInit, OnModuleDestroy {
   /** 主端请求错误统一处理：401 时标记鉴权失效，其余透传 */
   private handleMainError(userId: string, err: any): void {
     if (err?.response?.status === 401) {
+      this.logger.warn(`Main server 401 for user ${userId}: ${err.response?.data?.message || 'unauthorized'}`);
       this.markMainAuthExpired(userId);
+    } else {
+      this.logger.error(`Main server error for user ${userId}: ${err?.response?.status || err?.code} ${err?.message || ''}`);
     }
   }
 
@@ -181,7 +187,10 @@ export class SyncService implements OnModuleInit, OnModuleDestroy {
       return { pushed: unsyncedLogs.length, commitId: result.commitId };
     } catch (err) {
       this.handleMainError(userId, err);
-      this.logger.error(`Push failed: ${err.message}`);
+      // 401 属于已知鉴权失效（handleMainError 已 WARN + 标记），非系统错误，避免刷 ERROR 噪音
+      if (err?.response?.status !== 401) {
+        this.logger.error(`Push failed: ${err.message}`);
+      }
       throw err;
     }
   }
@@ -196,6 +205,8 @@ export class SyncService implements OnModuleInit, OnModuleDestroy {
     const user = await this.userService.findById(userId);
     if (!user) throw new Error('User not found');
     const logRepo = await this.connMgr.getRepository(userId, LogSync);
+    const tokenPreview = user.mainToken ? user.mainToken.substring(0, 10) + '...' : '(empty)';
+    this.logger.debug(`Pull for ${userId}: server=${user.mainServerUrl}, token=${tokenPreview}`);
     // 游标优先级：显式指定 > 本地最新游标。显式游标用于两阶段同步（阶段1限类型/阶段2全量共用同一游标），
     // 防止"部分类型拉取把游标推到 P0 日志最新 syncTime、导致非优先类型早期日志永久漏拉"（对齐移动端不推进 lastSyncTime）。
     const syncTimeStamp = syncTimeStampOverride !== undefined
@@ -232,7 +243,10 @@ export class SyncService implements OnModuleInit, OnModuleDestroy {
         page++;
       } catch (err) {
         this.handleMainError(userId, err);
-        this.logger.error(`Pull failed: ${err.message}`);
+        // 401 属于已知鉴权失效（handleMainError 已 WARN + 标记），非系统错误，避免刷 ERROR 噪音
+        if (err?.response?.status !== 401) {
+          this.logger.error(`Pull failed: ${err.message}`);
+        }
         throw err;
       }
     }

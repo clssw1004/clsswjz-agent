@@ -11,60 +11,78 @@
       </el-button>
     </div>
 
-    <el-card v-for="group in groups" :key="group.type" class="glass group-card" shadow="never">
-      <template #header>
-        <div class="group-header">
-          <span class="group-title">
-            <span class="group-dot" :class="group.type === 'INCOME' ? 'dot-income' : 'dot-expense'"></span>
-            {{ group.label }}
-          </span>
-          <el-tag :type="group.type === 'INCOME' ? 'success' : 'danger'" size="small" effect="light" round>
-            {{ group.list.length }} 项
-          </el-tag>
-        </div>
-      </template>
+    <!-- 支出/收入 切换 -->
+    <div class="seg-wrap">
+      <div class="seg-control">
+        <button
+          v-for="g in segGroups"
+          :key="g.type"
+          class="seg-item"
+          :class="{ active: activeType === g.type }"
+          @click="activeType = g.type"
+        >
+          {{ g.label }}
+        </button>
+      </div>
+    </div>
 
-      <el-table v-if="!isMobile" :data="group.list" v-loading="loading" empty-text="暂无数据" class="mini-table">
-        <el-table-column prop="name" label="名称" min-width="160" />
-        <el-table-column prop="code" label="编码" min-width="140" />
-        <el-table-column prop="categoryType" label="类型" width="100">
-          <template #default="{ row }">
-            <span class="type-chip" :class="row.categoryType === 'INCOME' ? 'chip-income' : 'chip-expense'">
-              {{ typeLabel(row.categoryType) }}
+    <!-- 树形列表卡片 -->
+    <el-card class="glass tree-card" shadow="never">
+      <div v-loading="loading" class="tree-list">
+        <el-empty v-if="!loading && visibleTree.length === 0" description="暂无数据" />
+
+        <template v-for="row in visibleTree" :key="row.id">
+          <div
+            class="t-row"
+            :class="{ 't-row-parent': row._children.length > 0 }"
+            :style="{ paddingLeft: 12 + row._depth * 18 + 'px' }"
+          >
+            <button
+              v-if="row._children.length > 0"
+              class="t-chevron"
+              :class="{ expanded: isExpanded(row.id) }"
+              @click="toggle(row.id)"
+            >
+              <el-icon :size="14">
+                <ArrowDown v-if="isExpanded(row.id)" />
+                <ArrowRight v-else />
+              </el-icon>
+            </button>
+
+            <span
+              class="t-icon"
+              :class="row._children.length > 0 ? 'icon-folder' : 'icon-leaf'"
+            >
+              <el-icon :size="16">
+                <FolderOpened v-if="row._children.length > 0 && isExpanded(row.id)" />
+                <Folder v-else-if="row._children.length > 0" />
+                <Document v-else />
+              </el-icon>
             </span>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="140" align="right">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="openDialog(row)">编辑</el-button>
-            <el-button link type="danger" @click="remove(row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
 
-      <!-- 移动端：卡片列表 -->
-      <div v-else class="m-list" v-loading="loading">
-        <el-empty v-if="!loading && group.list.length === 0" description="暂无数据" />
-        <div v-for="row in group.list" :key="row.id" class="m-item">
-          <div class="m-main">
-            <span class="m-name">{{ row.name }}</span>
-            <span class="m-sub mono">{{ row.code }}</span>
+            <span class="t-name">{{ row.name }}</span>
+            <span v-if="row._children.length > 0" class="t-badge">{{ row._children.length }}</span>
+
+            <span class="t-ops">
+              <button class="t-op add" title="添加子分类" @click="openDialog(undefined, row)">
+                <el-icon :size="16"><Plus /></el-icon>
+              </button>
+              <button class="t-op" title="编辑" @click="openDialog(row)">
+                <el-icon :size="15"><EditPen /></el-icon>
+              </button>
+              <button class="t-op danger" title="删除" @click="remove(row)">
+                <el-icon :size="15"><Delete /></el-icon>
+              </button>
+            </span>
           </div>
-          <span class="type-chip" :class="row.categoryType === 'INCOME' ? 'chip-income' : 'chip-expense'">
-            {{ typeLabel(row.categoryType) }}
-          </span>
-          <div class="m-ops">
-            <button class="m-edit" @click="openDialog(row)">编辑</button>
-            <button class="m-del" @click="remove(row)">删除</button>
-          </div>
-        </div>
+        </template>
       </div>
     </el-card>
 
     <el-dialog
       v-model="dialogVisible"
       :title="form.id ? '编辑分类' : '新增分类'"
-      width="440px"
+      width="min(440px, 90vw)"
       destroy-on-close
       class="form-dialog"
     >
@@ -72,13 +90,26 @@
         <el-form-item label="名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入名称" size="large" />
         </el-form-item>
-        <el-form-item label="编码" prop="code">
-          <el-input v-model="form.code" placeholder="请输入编码" size="large" />
-        </el-form-item>
         <el-form-item label="类型" prop="categoryType">
-          <el-select v-model="form.categoryType" style="width: 100%" size="large">
+          <el-select v-model="form.categoryType" style="width: 100%" size="large" :disabled="!!form.id">
             <el-option label="支出" value="EXPENSE" />
             <el-option label="收入" value="INCOME" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="记账可选">
+          <div class="switch-row">
+            <el-switch v-model="form.isBookkeepingSelectable" />
+            <span class="switch-label">{{ form.isBookkeepingSelectable ? '记账时可选' : '隐藏' }}</span>
+          </div>
+        </el-form-item>
+        <el-form-item label="上级分类">
+          <el-select v-model="form.parentId" placeholder="无（顶级分类）" clearable style="width: 100%" size="large">
+            <el-option
+              v-for="p in parentCandidates"
+              :key="p.id"
+              :label="('　'.repeat(p._depth)) + p.name"
+              :value="p.id"
+            />
           </el-select>
         </el-form-item>
       </el-form>
@@ -92,14 +123,12 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { Plus } from '@element-plus/icons-vue';
+import { Plus, ArrowDown, ArrowRight, Folder, FolderOpened, Document, EditPen, Delete } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import { categoryApi } from '@/api';
 import { useAppStore } from '@/stores/app';
-import { useResponsive } from '@/composables/useResponsive';
 
 const appStore = useAppStore();
-const { isMobile } = useResponsive();
 
 const loading = ref(false);
 const saving = ref(false);
@@ -107,26 +136,78 @@ const items = ref<any[]>([]);
 const dialogVisible = ref(false);
 const formRef = ref<FormInstance>();
 
-const form = reactive({ id: '', name: '', code: '', categoryType: 'EXPENSE' });
+const activeType = ref<'EXPENSE' | 'INCOME'>('EXPENSE');
+/** 折叠的父级 id 集合 */
+const collapsedIds = ref<Set<string>>(new Set());
+
+const form = reactive({ id: '', name: '', categoryType: 'EXPENSE', parentId: '', isBookkeepingSelectable: true });
 
 const rules: FormRules = {
   name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
-  code: [{ required: true, message: '请输入编码', trigger: 'blur' }],
   categoryType: [{ required: true, message: '请选择类型', trigger: 'change' }],
 };
 
-const groups = computed(() => {
-  const expense = items.value.filter((i) => i.categoryType !== 'INCOME');
-  const income = items.value.filter((i) => i.categoryType === 'INCOME');
-  return [
-    { type: 'EXPENSE', label: '支出分类', list: expense },
-    { type: 'INCOME', label: '收入分类', list: income },
-  ];
-});
+const segGroups = [
+  { type: 'EXPENSE', label: '支出' },
+  { type: 'INCOME', label: '收入' },
+];
 
 function typeLabel(t?: string) {
   return t === 'INCOME' ? '收入' : t === 'EXPENSE' ? '支出' : (t || '-');
 }
+
+/** 构建树：标记 _depth 与 _children（直接子级），按 sortOrder 排序 */
+function buildTree(list: any[], parentId = '', depth = 0): any[] {
+  return list
+    .filter((i) => (i.parentId || '') === parentId)
+    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+    .map((node) => ({
+      ...node,
+      _depth: depth,
+      _children: buildTree(list, node.id, depth + 1),
+    }));
+}
+
+/** 当前类型下的树 */
+const currentTree = computed(() => {
+  const list = items.value.filter((i) => (i.categoryType || 'EXPENSE') === activeType.value);
+  return buildTree(list);
+});
+
+/** 按展开状态拍平（DFS），折叠的父级不展开其子级 */
+const visibleTree = computed(() => {
+  const result: any[] = [];
+  const walk = (nodes: any[]) => {
+    for (const n of nodes) {
+      result.push(n);
+      if (n._children.length > 0 && !collapsedIds.value.has(n.id)) {
+        walk(n._children);
+      }
+    }
+  };
+  walk(currentTree.value);
+  return result;
+});
+
+function isExpanded(id: string) {
+  return !collapsedIds.value.has(id);
+}
+
+function toggle(id: string) {
+  const s = new Set(collapsedIds.value);
+  if (s.has(id)) s.delete(id);
+  else s.add(id);
+  collapsedIds.value = s;
+}
+
+/** 上级分类候选（排除自身及子分类，按当前类型过滤） */
+const parentCandidates = computed(() => {
+  const currentType = form.categoryType;
+  const candidates = items.value.filter(
+    (i) => i.categoryType === currentType && i.id !== form.id,
+  );
+  return buildTree(candidates);
+});
 
 async function load() {
   loading.value = true;
@@ -138,12 +219,13 @@ async function load() {
   }
 }
 
-function openDialog(row?: any) {
+function openDialog(row?: any, parent?: any) {
   Object.assign(form, {
     id: row?.id || '',
     name: row?.name || '',
-    code: row?.code || '',
-    categoryType: row?.categoryType || 'EXPENSE',
+    categoryType: row?.categoryType || (parent ? parent.categoryType : activeType.value) || 'EXPENSE',
+    parentId: row?.parentId || parent?.id || '',
+    isBookkeepingSelectable: row?.isBookkeepingSelectable !== false,
   });
   dialogVisible.value = true;
 }
@@ -156,8 +238,9 @@ async function save() {
   try {
     const data = {
       name: form.name,
-      code: form.code,
       categoryType: form.categoryType,
+      parentId: form.parentId || null,
+      isBookkeepingSelectable: form.isBookkeepingSelectable,
       accountBookId: appStore.currentBookId,
     };
     if (form.id) {
@@ -193,7 +276,7 @@ watch(() => appStore.currentBookId, load);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 18px;
+  margin: 4px 0 8px;
   gap: 12px;
 }
 
@@ -220,8 +303,42 @@ watch(() => appStore.currentBookId, load);
   box-shadow: var(--glow-primary);
 }
 
-.group-card.glass {
-  margin-bottom: 16px;
+/* 支出/收入 segmented */
+.seg-wrap {
+  margin-bottom: 8px;
+}
+
+.seg-control {
+  display: flex;
+  padding: 3px;
+  border-radius: 18px;
+  background: #eaecef;
+  max-width: 300px;
+  gap: 3px;
+}
+
+.seg-item {
+  flex: 1;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 15px;
+  font-size: 14px;
+  font-weight: 400;
+  color: #8a8f99;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.seg-item.active {
+  background: #ffffff;
+  font-weight: 600;
+  color: #1a1d26;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* 树形卡片 */
+.tree-card.glass {
   background: var(--surface-glass);
   backdrop-filter: var(--blur-glass);
   border: 1px solid var(--border-glass);
@@ -229,120 +346,162 @@ watch(() => appStore.currentBookId, load);
   box-shadow: var(--shadow-card);
 }
 
-.group-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.tree-card :deep(.el-card__body) {
+  padding: 4px 10px;
 }
 
-.group-title {
+.tree-list {
+  min-height: 80px;
+}
+
+/* 行 */
+.t-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  padding: 0 6px;
+  height: 44px;
+  border-radius: 10px;
+  transition: background 0.15s;
+}
+
+.t-row:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.t-row-parent {
+  height: 50px;
+}
+
+.t-chevron {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: #8a8f99;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 0;
+}
+
+.t-chevron:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #1a1d26;
+}
+
+.t-chevron-empty {
+  cursor: default;
+}
+
+.t-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+}
+
+.t-icon .el-icon {
+  color: inherit;
+}
+
+.icon-folder {
+  background: #fff6e0;
+  color: #f0a33c;
+}
+
+.icon-leaf {
+  background: #e9f9f0;
+  color: #3ba55d;
+}
+
+.t-name {
+  min-width: 0;
+  font-size: 15px;
+  color: #1a1d26;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.t-push {
+  margin-left: auto;
+}
+
+.t-row-parent .t-name {
+  font-size: 16px;
   font-weight: 600;
-  color: var(--text-1);
 }
 
-.group-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.dot-expense {
-  background: var(--brand-red);
-}
-
-.dot-income {
-  background: var(--color-success);
-}
-
-.type-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 10px;
-  border-radius: 999px;
+.t-badge {
+  flex-shrink: 0;
+  padding: 2px 9px;
+  border-radius: 10px;
+  background: #edf1fb;
+  color: #8a8f99;
   font-size: 12px;
-  font-weight: 600;
 }
 
-.chip-expense {
-  color: var(--brand-red);
-  background: rgba(239, 68, 68, 0.1);
-}
-
-.chip-income {
-  color: var(--color-success);
-  background: rgba(16, 185, 129, 0.12);
-}
-
-.mini-table :deep(th.el-table__cell) {
-  background: transparent;
-  color: var(--text-3);
-  font-weight: 600;
-}
-
-.mini-table :deep(.el-table__row) {
-  background: transparent;
-}
-
-/* 移动端卡片列表 */
-.m-list {
+.t-ops {
+  flex-shrink: 0;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
 }
 
-.m-item {
+.t-op {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #8a8f99;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.t-op:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #1a1d26;
+}
+
+.t-op.add {
+  color: #2e6be6;
+}
+
+.t-op.add:hover {
+  background: rgba(46, 107, 230, 0.1);
+  color: #2e6be6;
+}
+
+.t-op.danger:hover {
+  background: rgba(242, 87, 62, 0.1);
+  color: #f2573e;
+}
+
+.t-push {
+  margin-left: auto;
+}
+
+.switch-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 12px;
-  border-radius: var(--radius-md);
-  background: var(--surface-glass-strong);
-  border: 1px solid var(--border-glass);
 }
 
-.m-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.m-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-1);
-}
-
-.m-sub {
-  font-size: 11px;
-  color: var(--text-3);
-}
-
-.m-ops {
-  display: flex;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.m-ops button {
-  border: none;
-  background: transparent;
+.switch-label {
   font-size: 13px;
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-.m-edit {
-  color: var(--brand-gold);
-}
-
-.m-del {
-  color: var(--brand-red);
+  color: var(--text-2);
 }
 
 @media (max-width: 767px) {
@@ -353,6 +512,15 @@ watch(() => appStore.currentBookId, load);
   .page-header :deep(.el-button) {
     padding: 8px 14px;
     font-size: 13px;
+  }
+
+  .seg-control {
+    max-width: 100%;
+  }
+
+  .t-row,
+  .t-row-parent {
+    height: 48px;
   }
 }
 </style>

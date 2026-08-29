@@ -44,12 +44,6 @@
       </div>
       <Panel noPad>
         <div class="hub-grid">
-          <div v-for="f in toolItems" :key="f.label" class="hub-item" @click="go(f.route)">
-            <div class="hub-icon" :style="{ background: f.grad }">
-              <el-icon :size="20"><component :is="f.icon" /></el-icon>
-            </div>
-            <span class="hub-label">{{ f.label }}</span>
-          </div>
           <div class="hub-item" @click="go('/settings/sync')">
             <div class="hub-icon" style="background: linear-gradient(135deg, #00a9c9, #38bdf8)">
               <el-icon :size="20"><Connection /></el-icon>
@@ -73,7 +67,7 @@ import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   Notebook, CollectionTag, Shop, PriceTag, Folder, Wallet, Document, Sunny,
-  Setting, RefreshRight, Connection, Calendar,
+  Setting, RefreshRight, Connection, Calendar, Trophy, Coin,
 } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { useAppStore } from '@/stores/app';
@@ -101,10 +95,8 @@ const bookItems = [
 const lifeItems = [
   { label: '记事', icon: Document, grad: 'linear-gradient(135deg, #00a9c9, #22d3ee)', route: '/notes' },
   { label: '经期记录', icon: Calendar, grad: 'linear-gradient(135deg, #e8528c, #f472b6)', route: '/periods' },
-];
-
-const toolItems = [
-  { label: '账本', icon: Notebook, grad: 'linear-gradient(135deg, #5c6bc0, #818cf8)', route: '/books' },
+  { label: '活动打卡', icon: Trophy, grad: 'linear-gradient(135deg, #a78bfa, #8b5cf6)', route: '/activities' },
+  { label: '加油记录', icon: Coin, grad: 'linear-gradient(135deg, #fbbf24, #f59e0b)', route: '/fuel-records' },
 ];
 
 function go(route: string) {

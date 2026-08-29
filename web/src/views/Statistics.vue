@@ -89,11 +89,8 @@
     <!-- 日历热力图（对齐 GUI DailyStatisticCalendar） -->
     <Panel title="每日支出">
       <div v-loading="loading" class="heatmap-area">
-        <el-empty v-if="!loading || dailyData.length" description="">
-          <template #default v-if="!loading && !dailyData.length">暂无数据</template>
-        </el-empty>
-        <div v-else></div>
-        <div v-if="dailyData.length" class="heatmap-wrap">
+        <el-empty v-if="!loading && !dailyData.length" description="暂无数据" :image-size="60" />
+        <div v-else class="heatmap-wrap">
           <div class="heatmap-header">
             <span v-for="d in ['一', '二', '三', '四', '五', '六', '日']" :key="d" class="heatmap-dow">{{ d }}</span>
           </div>
@@ -430,14 +427,14 @@ onMounted(reload);
 
 /* 收支概览 */
 .stat-head-book { flex: 1; font-size: 12px; color: var(--text-3); }
-.stat-body { display: flex; align-items: stretch; gap: 14px; padding: 18px 16px 16px; }
+.stat-body { display: flex; align-items: stretch; gap: 10px; padding: 16px 12px 14px; }
 .stat-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 10px; min-width: 0; }
 .stat-pill { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 500; }
 .pill-expense { color: var(--amount-expense); background: rgba(185, 91, 75, 0.12); }
 .pill-income { color: var(--amount-income); background: rgba(67, 160, 71, 0.12); }
 .pill-balance { color: var(--text-2); background: rgba(15, 23, 42, 0.08); }
 html.dark .pill-balance { background: rgba(255, 255, 255, 0.08); }
-.stat-num { font-size: 20px; font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stat-num { font-size: 16px; font-weight: 700; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: clip; }
 .stat-num.expense { color: var(--amount-expense); }
 .stat-num.income { color: var(--amount-income); }
 .stat-divider { width: 1px; height: 44px; align-self: center; background: var(--border-glass); }

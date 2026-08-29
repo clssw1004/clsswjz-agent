@@ -45,7 +45,7 @@ export class UserService {
     }
     if (!Object.keys(fields).length) return this.getProfile(userId);
 
-    await repo.update(userId, { ...fields, updatedBy: userId } as any);
+    await repo.update(userId, { ...fields } as any);
     const updated = await repo.findOneBy({ id: userId });
 
     const operateData = { ...fields, updatedAt: Date.now() };
@@ -69,7 +69,7 @@ export class UserService {
   async updateAvatar(userId: string, attachmentId: string) {
     const repo = await this.connMgr.getRepository(userId, AppUser);
     const logRepo = await this.connMgr.getRepository(userId, LogSync);
-    await repo.update(userId, { avatar: attachmentId, updatedBy: userId } as any);
+    await repo.update(userId, { avatar: attachmentId } as any);
 
     const log = logRepo.create({
       businessType: BusinessType.USER,
@@ -100,5 +100,42 @@ export class UserService {
       language: user.language,
       timezone: user.timezone,
     };
+  }
+
+  /** 读取用户偏好（JSON parse，损坏时降级为空对象） */
+  async getPreferences(userId: string): Promise<Record<string, any>> {
+    const repo = await this.connMgr.getRepository(userId, AppUser);
+    const user = await repo.findOneBy({ id: userId });
+    if (!user) throw new NotFoundException('用户不存在');
+    if (!user.preferences) return {};
+    try {
+      const parsed = JSON.parse(user.preferences);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  /**
+   * 合并更新用户偏好。键值为 null/undefined 表示清除该键。
+   * 不写 LogSync —— 偏好是 agent 本地的视图状态，不属于业务数据。
+   */
+  async updatePreferences(userId: string, patch: Record<string, any>): Promise<Record<string, any>> {
+    const repo = await this.connMgr.getRepository(userId, AppUser);
+    const user = await repo.findOneBy({ id: userId });
+    if (!user) throw new NotFoundException('用户不存在');
+    let existing: Record<string, any> = {};
+    if (user.preferences) {
+      try {
+        const parsed = JSON.parse(user.preferences);
+        if (parsed && typeof parsed === 'object') existing = parsed;
+      } catch { /* ignore corrupted JSON, overwrite */ }
+    }
+    const merged = { ...existing, ...patch };
+    for (const [k, v] of Object.entries(merged)) {
+      if (v === null || v === undefined) delete merged[k];
+    }
+    await repo.update(userId, { preferences: JSON.stringify(merged) } as any);
+    return merged;
   }
 }

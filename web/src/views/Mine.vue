@@ -142,7 +142,7 @@ import { Setting, Brush, InfoFilled, Tools, Connection, Share, Coin, ArrowRight 
 import { ElMessageBox } from 'element-plus';
 import { useAuthStore } from '@/stores/auth';
 import { useSyncStore } from '@/stores/sync';
-import { userApi } from '@/api';
+import { loadAttachmentUrl, userApi } from '@/api';
 import { THEMES, activeTheme, activeThemeId, isDark, setMode, setTheme } from '@/styles/themes';
 
 const router = useRouter();
@@ -155,12 +155,14 @@ const avatarUrl = ref('');
 
 const avatarText = computed(() => (auth.nickname || 'U').slice(0, 1).toUpperCase());
 
-/** 拉头像：懒加载（后端缺失文件时自动从主端下载缓存） */
+/** 拉头像：带鉴权懒加载（<img> 直接请求会 401，用 fetch + token 拿 blob） */
 async function loadAvatar() {
   try {
     const res: any = await userApi.profile();
     const p = res?.data ?? res ?? {};
-    if (p.avatar) avatarUrl.value = `/api/attachments/${p.avatar}`;
+    if (p.avatar) {
+      avatarUrl.value = await loadAttachmentUrl(p.avatar);
+    }
   } catch { /* ignore */ }
 }
 

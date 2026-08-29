@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { authApi } from '@/api';
 import router from '@/router';
+import { usePrefsStore } from './prefs';
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -55,6 +56,8 @@ export const useAuthStore = defineStore('auth', {
       localStorage.removeItem('web_nickname');
       localStorage.removeItem('web_user_id');
       localStorage.removeItem('web_server_url');
+      // 切换账号时清空偏好缓存，避免不同账号互相污染
+      try { usePrefsStore().reset(); } catch { /* store 尚未初始化，忽略 */ }
       router.push('/login');
     },
     /**
@@ -68,6 +71,7 @@ export const useAuthStore = defineStore('auth', {
       localStorage.removeItem('web_token');
       localStorage.removeItem('web_nickname');
       localStorage.removeItem('web_user_id');
+      try { usePrefsStore().reset(); } catch { /* ignore */ }
       router.push('/login');
     },
   },

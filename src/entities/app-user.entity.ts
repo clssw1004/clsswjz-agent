@@ -33,4 +33,8 @@ export class AppUser extends BaseEntity {
 
   @Column({ length: 40, default: 'Asia/Shanghai' })
   timezone: string;
+
+  /** 用户偏好（JSON 字符串），仅本 agent 持久化，不同步到主端 */
+  @Column({ type: 'text', nullable: true })
+  preferences: string;
 }

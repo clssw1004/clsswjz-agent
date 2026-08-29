@@ -21,6 +21,11 @@ export const userApi = {
   },
 };
 
+export const userPrefApi = {
+  get: () => http.get('/user/preferences'),
+  update: (data: Record<string, any>) => http.put('/user/preferences', data),
+};
+
 export const itemApi = {
   list: (params: any) => http.get('/items', { params }),
   get: (id: string) => http.get(`/items/${id}`),
@@ -47,6 +52,9 @@ export const categoryApi = {
 
 export const fundApi = {
   list: (params?: any) => http.get('/funds', { params }),
+  create: (data: any) => http.post('/funds', data),
+  update: (id: string, data: any) => http.put(`/funds/${id}`, data),
+  delete: (id: string) => http.delete(`/funds/${id}`),
 };
 
 export const shopApi = {
@@ -93,6 +101,19 @@ export const attachmentApi = {
   remove: (id: string) => http.delete(`/attachments/${id}`),
 };
 
+/**
+ * 带鉴权加载附件为 objectURL（<img> 直接请求下载端点不会带 Authorization 头，
+ * 后端 JWT 守卫会返回 401；此函数用 fetch + Bearer token 拿 blob 转 objectURL）。
+ * 返回的 objectURL 用完需 URL.revokeObjectURL 释放（组件卸载时处理）。
+ */
+export async function loadAttachmentUrl(id: string): Promise<string> {
+  const res = await fetch(`/api/attachments/${id}`, {
+    headers: { Authorization: `Bearer ${localStorage.getItem('web_token') || ''}` },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return URL.createObjectURL(await res.blob());
+}
+
 export const syncApi = {
   push: () => http.post('/sync/push'),
   pull: (data?: any) => http.post('/sync/pull', data),
@@ -125,4 +146,32 @@ export const dbViewerApi = {
     http.get(`/db-viewer/tables/${encodeURIComponent(name)}`, { params }),
   query: (sql: string, pageSize?: number) =>
     http.post('/db-viewer/query', { sql, pageSize }),
+};
+
+export const activityDefApi = {
+  list: (params?: any) => http.get('/activity-defs', { params }),
+  create: (data: any) => http.post('/activity-defs', data),
+  update: (id: string, data: any) => http.put(`/activity-defs/${id}`, data),
+  delete: (id: string) => http.delete(`/activity-defs/${id}`),
+};
+
+export const activityRecordApi = {
+  list: (params?: any) => http.get('/activity-records', { params }),
+  create: (data: any) => http.post('/activity-records', data),
+  delete: (id: string) => http.delete(`/activity-records/${id}`),
+};
+
+export const vehicleApi = {
+  list: () => http.get('/vehicles'),
+  create: (data: any) => http.post('/vehicles', data),
+  update: (id: string, data: any) => http.put(`/vehicles/${id}`, data),
+  delete: (id: string) => http.delete(`/vehicles/${id}`),
+};
+
+export const fuelRecordApi = {
+  list: (params?: any) => http.get('/fuel-records', { params }),
+  get: (id: string) => http.get(`/fuel-records/${id}`),
+  create: (data: any) => http.post('/fuel-records', data),
+  update: (id: string, data: any) => http.put(`/fuel-records/${id}`, data),
+  delete: (id: string) => http.delete(`/fuel-records/${id}`),
 };
