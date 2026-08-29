@@ -57,6 +57,7 @@ HTTP 200 即成功；合并后 `state=closed`、`merged=true`。
 curl -s -X POST $AUTH -H "Content-Type: application/json" \
   -d '{
     "tag_name": "v1.6.0",
+    "target_commitish": "main",
     "name": "发版 v1.6.0",
     "body": "<CHANGELOG 中该版本的内容>",
     "draft": false,
@@ -65,7 +66,7 @@ curl -s -X POST $AUTH -H "Content-Type: application/json" \
   "$GITEA/api/v1/repos/opensource/<repo>/releases"
 ```
 
-> tag 需先在本地打好并 push：`git tag v1.6.0 && git push origin v1.6.0`
+> `target_commitish` 指定 tag 所在分支，Gitea 会自动创建 tag，无需本地打 tag。
 
 ### 上传构建产物到 Release
 
@@ -98,9 +99,8 @@ git checkout main && git pull origin main
 1. `git checkout main && git pull`
 2. 更新版本号与 CHANGELOG（gui 项目见 `docs/release_guide.md`）
 3. 提交并 push 到 main
-4. 打 tag 并 push：`git tag vX.Y.Z && git push origin vX.Y.Z`
-5. API 创建 Release（正文取 CHANGELOG 对应版本条目）
-6. （可选）构建产物后通过 API 上传附件
+4. API 创建 Release（`target_commitish: "main"`，Gitea 自动打 tag）（正文取 CHANGELOG 对应版本条目）
+5. （可选）构建产物后通过 API 上传附件
 
 ## 注意事项
 
