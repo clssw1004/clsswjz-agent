@@ -537,7 +537,7 @@ function handleSync() {
 /* ========== 内容区 ========== */
 .content {
   flex: 1;
-  padding: 24px;
+  padding: 16px;
   max-width: 1200px;
   width: 100%;
   margin: 0 auto;

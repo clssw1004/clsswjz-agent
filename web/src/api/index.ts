@@ -170,6 +170,7 @@ export const vehicleApi = {
 
 export const fuelRecordApi = {
   list: (params?: any) => http.get('/fuel-records', { params }),
+  get: (id: string) => http.get(`/fuel-records/${id}`),
   create: (data: any) => http.post('/fuel-records', data),
   update: (id: string, data: any) => http.put(`/fuel-records/${id}`, data),
   delete: (id: string) => http.delete(`/fuel-records/${id}`),

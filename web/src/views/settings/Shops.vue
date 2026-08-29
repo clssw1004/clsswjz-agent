@@ -37,7 +37,7 @@
           <div
             class="t-row"
             :class="{ 't-row-parent': row._children.length > 0 }"
-            :style="{ paddingLeft: 12 + row._depth * 28 + 'px' }"
+            :style="{ paddingLeft: 12 + row._depth * 18 + 'px' }"
           >
             <button
               v-if="row._children.length > 0"
@@ -50,7 +50,6 @@
                 <ArrowRight v-else />
               </el-icon>
             </button>
-            <span v-else class="t-chevron t-chevron-empty"></span>
 
             <span
               class="t-icon"
@@ -64,25 +63,20 @@
             </span>
 
             <span class="t-name">{{ row.name }}</span>
-            <span v-if="row._children.length > 0" class="t-badge">{{ row._children.length }}</span>
-            <span v-else-if="row.lastAccountItemAt" class="t-meta">最近 {{ formatRecent(row.lastAccountItemAt) }}</span>
+            <span v-if="row._children.length > 0" class="t-badge t-push">{{ row._children.length }}</span>
+            <span v-else-if="row.lastAccountItemAt" class="t-meta t-push">最近 {{ formatRecent(row.lastAccountItemAt) }}</span>
 
             <span class="t-ops">
-              <el-button link type="primary" @click="openDialog(row)">编辑</el-button>
-              <el-button link type="danger" @click="remove(row)">删除</el-button>
+              <button class="t-op add" title="添加子商户" @click="openDialog(undefined, row)">
+                <el-icon :size="16"><Plus /></el-icon>
+              </button>
+              <button class="t-op" title="编辑" @click="openDialog(row)">
+                <el-icon :size="15"><EditPen /></el-icon>
+              </button>
+              <button class="t-op danger" title="删除" @click="remove(row)">
+                <el-icon :size="15"><Delete /></el-icon>
+              </button>
             </span>
-          </div>
-
-          <!-- 展开时：虚线添加子商户 -->
-          <div
-            v-if="row._children.length > 0 && isExpanded(row.id)"
-            class="t-add"
-            :style="{ marginLeft: 12 + (row._depth + 1) * 28 + 'px' }"
-          >
-            <button class="t-add-btn" @click="openDialog(undefined, row)">
-              <el-icon :size="13" style="margin-right: 4px"><CirclePlus /></el-icon>
-              添加子商户
-            </button>
           </div>
         </template>
       </div>
@@ -125,7 +119,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { Plus, CirclePlus, ArrowDown, ArrowRight, Folder, FolderOpened, Document, Search, Clock } from '@element-plus/icons-vue';
+import { Plus, ArrowDown, ArrowRight, Folder, FolderOpened, Document, Search, Clock, EditPen, Delete } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import { shopApi } from '@/api';
 import { useAppStore } from '@/stores/app';
@@ -295,7 +289,7 @@ watch(() => appStore.currentBookId, load);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 18px;
+  margin: 4px 0 8px;
   gap: 12px;
   flex-wrap: wrap;
 }
@@ -353,20 +347,20 @@ watch(() => appStore.currentBookId, load);
 }
 
 .tree-card :deep(.el-card__body) {
-  padding: 8px 12px;
+  padding: 4px 10px;
 }
 
 .tree-list {
-  min-height: 120px;
+  min-height: 80px;
 }
 
 /* 行 */
 .t-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 8px;
-  height: 52px;
+  gap: 6px;
+  padding: 0 6px;
+  height: 44px;
   border-radius: 10px;
   transition: background 0.15s;
 }
@@ -376,12 +370,12 @@ watch(() => appStore.currentBookId, load);
 }
 
 .t-row-parent {
-  height: 58px;
+  height: 50px;
 }
 
 .t-chevron {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -404,8 +398,8 @@ watch(() => appStore.currentBookId, load);
 }
 
 .t-icon {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -424,13 +418,16 @@ watch(() => appStore.currentBookId, load);
 }
 
 .t-name {
-  flex: 1;
   min-width: 0;
   font-size: 15px;
   color: #1a1d26;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.t-push {
+  margin-left: auto;
 }
 
 .t-row-parent .t-name {
@@ -460,32 +457,37 @@ watch(() => appStore.currentBookId, load);
   gap: 2px;
 }
 
-.t-ops :deep(.el-button) {
-  font-size: 13px;
-}
-
-/* 虚线添加行 */
-.t-add {
-  padding: 2px 8px 6px 0;
-}
-
-.t-add-btn {
+.t-op {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #8a8f99;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  height: 38px;
-  border: 1px dashed rgba(46, 107, 230, 0.5);
-  border-radius: 10px;
-  background: #f6f8fc;
-  color: #2e6be6;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
 
-.t-add-btn:hover {
-  background: #eef3ff;
+.t-op:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #1a1d26;
+}
+
+.t-op.add {
+  color: #2e6be6;
+}
+
+.t-op.add:hover {
+  background: rgba(46, 107, 230, 0.1);
+  color: #2e6be6;
+}
+
+.t-op.danger:hover {
+  background: rgba(242, 87, 62, 0.1);
+  color: #f2573e;
 }
 
 .switch-row {
@@ -516,10 +518,6 @@ watch(() => appStore.currentBookId, load);
   .t-row,
   .t-row-parent {
     height: 48px;
-  }
-
-  .t-ops :deep(.el-button) {
-    padding: 4px 6px;
   }
 }
 </style>

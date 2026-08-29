@@ -44,12 +44,6 @@
       </div>
       <Panel noPad>
         <div class="hub-grid">
-          <div v-for="f in toolItems" :key="f.label" class="hub-item" @click="go(f.route)">
-            <div class="hub-icon" :style="{ background: f.grad }">
-              <el-icon :size="20"><component :is="f.icon" /></el-icon>
-            </div>
-            <span class="hub-label">{{ f.label }}</span>
-          </div>
           <div class="hub-item" @click="go('/settings/sync')">
             <div class="hub-icon" style="background: linear-gradient(135deg, #00a9c9, #38bdf8)">
               <el-icon :size="20"><Connection /></el-icon>
@@ -103,10 +97,6 @@ const lifeItems = [
   { label: '经期记录', icon: Calendar, grad: 'linear-gradient(135deg, #e8528c, #f472b6)', route: '/periods' },
   { label: '活动打卡', icon: Trophy, grad: 'linear-gradient(135deg, #a78bfa, #8b5cf6)', route: '/activities' },
   { label: '加油记录', icon: Coin, grad: 'linear-gradient(135deg, #fbbf24, #f59e0b)', route: '/fuel-records' },
-];
-
-const toolItems = [
-  { label: '账本', icon: Notebook, grad: 'linear-gradient(135deg, #5c6bc0, #818cf8)', route: '/books' },
 ];
 
 function go(route: string) {
