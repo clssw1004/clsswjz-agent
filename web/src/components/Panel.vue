@@ -75,7 +75,7 @@ const emit = defineEmits<{ (e: 'click'): void }>();
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 12px;
+  padding: 10px 12px 8px;
   color: var(--text-1);
   line-height: 1;
 }
@@ -124,7 +124,7 @@ const emit = defineEmits<{ (e: 'click'): void }>();
 }
 
 .panel-body {
-  padding: 12px 12px 14px;
+  padding: 8px 12px 12px;
 }
 
 .panel-body.no-pad {

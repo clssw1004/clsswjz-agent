@@ -45,7 +45,7 @@ export class UserService {
     }
     if (!Object.keys(fields).length) return this.getProfile(userId);
 
-    await repo.update(userId, { ...fields, updatedBy: userId } as any);
+    await repo.update(userId, { ...fields } as any);
     const updated = await repo.findOneBy({ id: userId });
 
     const operateData = { ...fields, updatedAt: Date.now() };
@@ -69,7 +69,7 @@ export class UserService {
   async updateAvatar(userId: string, attachmentId: string) {
     const repo = await this.connMgr.getRepository(userId, AppUser);
     const logRepo = await this.connMgr.getRepository(userId, LogSync);
-    await repo.update(userId, { avatar: attachmentId, updatedBy: userId } as any);
+    await repo.update(userId, { avatar: attachmentId } as any);
 
     const log = logRepo.create({
       businessType: BusinessType.USER,
@@ -135,7 +135,7 @@ export class UserService {
     for (const [k, v] of Object.entries(merged)) {
       if (v === null || v === undefined) delete merged[k];
     }
-    await repo.update(userId, { preferences: JSON.stringify(merged), updatedBy: userId } as any);
+    await repo.update(userId, { preferences: JSON.stringify(merged) } as any);
     return merged;
   }
 }

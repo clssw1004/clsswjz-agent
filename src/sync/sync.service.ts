@@ -46,6 +46,9 @@ export class SyncService implements OnModuleInit, OnModuleDestroy {
     }
     for (const user of users) {
       if (!user.mainServerUrl || !user.mainToken) continue;
+      // 主端鉴权已失效的用户跳过自动同步：避免每轮定时都触发 401 刷错误日志。
+      // 用户重新登录（AuthService.login → clearAuthExpired + 刷新 mainToken）后自动恢复。
+      if (this.isMainAuthExpired(user.id)) continue;
       if (this.syncingUsers.has(user.id)) continue;
       this.syncingUsers.add(user.id);
       try {
@@ -184,7 +187,10 @@ export class SyncService implements OnModuleInit, OnModuleDestroy {
       return { pushed: unsyncedLogs.length, commitId: result.commitId };
     } catch (err) {
       this.handleMainError(userId, err);
-      this.logger.error(`Push failed: ${err.message}`);
+      // 401 属于已知鉴权失效（handleMainError 已 WARN + 标记），非系统错误，避免刷 ERROR 噪音
+      if (err?.response?.status !== 401) {
+        this.logger.error(`Push failed: ${err.message}`);
+      }
       throw err;
     }
   }
@@ -237,7 +243,10 @@ export class SyncService implements OnModuleInit, OnModuleDestroy {
         page++;
       } catch (err) {
         this.handleMainError(userId, err);
-        this.logger.error(`Pull failed: ${err.message}`);
+        // 401 属于已知鉴权失效（handleMainError 已 WARN + 标记），非系统错误，避免刷 ERROR 噪音
+        if (err?.response?.status !== 401) {
+          this.logger.error(`Pull failed: ${err.message}`);
+        }
         throw err;
       }
     }

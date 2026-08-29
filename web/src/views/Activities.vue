@@ -1,125 +1,172 @@
 <template>
-  <div class="activities-page">
-    <!-- ===== 活动定义区 ===== -->
-    <div class="page-header">
-      <div class="page-header-title">
-        <h2>活动定义</h2>
-        <span class="count">{{ defs.length }} 项</span>
+  <div class="acts">
+    <!-- ===== 顶部：标题 + 新建活动 ===== -->
+    <div class="acts-head">
+      <div class="acts-title-row">
+        <h2>活动打卡</h2>
+        <span class="acts-count">{{ defs.length }} 项</span>
       </div>
-      <el-button type="primary" round @click="openDefDialog()">
+      <el-button type="primary" round class="acts-add" @click="openDefDialog()">
         <el-icon style="margin-right: 4px"><Plus /></el-icon>
         新建活动
       </el-button>
     </div>
 
-    <div v-loading="defsLoading" class="def-cloud">
+    <!-- ===== 统计卡（今日 / 连续 / 累计） ===== -->
+    <div class="acts-stats glass-card">
+      <div class="stat-item">
+        <span class="stat-v primary">{{ todayTotal }}</span>
+        <span class="stat-l">今日打卡</span>
+      </div>
+      <span class="stat-div"></span>
+      <div class="stat-item">
+        <span class="stat-v">{{ streakDays }}</span>
+        <span class="stat-l">连续打卡</span>
+      </div>
+      <span class="stat-div"></span>
+      <div class="stat-item">
+        <span class="stat-v">{{ totalRecords }}</span>
+        <span class="stat-l">累计打卡</span>
+      </div>
+    </div>
+
+    <!-- ===== 活动卡片列表 ===== -->
+    <div v-loading="defsLoading" class="acts-list">
       <el-empty v-if="!defsLoading && defs.length === 0" description="暂无活动，点右上角新建一个" />
       <div
         v-for="d in defs"
         :key="d.id"
-        class="def-chip"
-        :class="{ on: activeDefId === d.id }"
-        :style="{ '--def-color': colorHex(d.color) }"
-        @click="selectDef(d)"
+        class="act-card"
+        @click="openDetail(d)"
       >
-        <span class="def-emoji">{{ d.emoji || '🎯' }}</span>
-        <div class="def-meta">
-          <span class="def-name">{{ d.name }}</span>
-          <span v-if="d.maxDailyCount" class="def-badge">每日 {{ d.maxDailyCount }} 次</span>
+        <span class="act-emoji" :style="{ background: colorHex(d.color) + '22' }">{{ d.emoji || '🎯' }}</span>
+        <div class="act-info">
+          <span class="act-name">{{ d.name }}</span>
+          <span class="act-sub">每日 {{ d.maxDailyCount || '不限' }} 次 · 已打卡 {{ todayCountOf(d) }}/{{ d.maxDailyCount || '∞' }}</span>
         </div>
-        <el-dropdown trigger="click" @click.stop @command="(cmd: string) => handleDefCmd(cmd, d)">
-          <el-icon class="def-more"><MoreFilled /></el-icon>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="edit">编辑</el-dropdown-item>
-              <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+        <el-icon class="act-arrow" :size="16"><ArrowRight /></el-icon>
       </div>
     </div>
 
-    <!-- ===== 打卡记录区 ===== -->
-    <div class="page-header records-header">
-      <div class="page-header-title">
+    <!-- ===== 打卡记录：日期分组 ===== -->
+    <div class="acts-head records-head">
+      <div class="acts-title-row">
         <h2>打卡记录</h2>
-        <span class="count">{{ filteredRecords.length }} 条</span>
+        <span class="acts-count">{{ filteredRecords.length }} 条</span>
       </div>
-      <el-button
-        type="primary"
-        round
-        :disabled="!activeDef"
-        @click="checkIn"
-      >
+      <el-button type="primary" round class="acts-add" :disabled="!defs.length" @click="openCheckin()">
         <el-icon style="margin-right: 4px"><Check /></el-icon>
         今日打卡
       </el-button>
     </div>
 
-    <div v-if="activeDef" class="filter-hint">
-      当前查看：<b>{{ activeDef.emoji }} {{ activeDef.name }}</b>
-      <button class="clear-filter" @click="activeDefId = ''">清除筛选</button>
+    <div class="rec-filter">
+      <button class="rec-filter-chip" :class="{ on: !activeDefId }" @click="activeDefId = ''">全部</button>
+      <button
+        v-for="d in defs"
+        :key="d.id"
+        class="rec-filter-chip"
+        :class="{ on: activeDefId === d.id }"
+        :style="activeDefId === d.id ? { background: colorHex(d.color), color: '#fff' } : {}"
+        @click="toggleFilter(d)"
+      >
+        {{ d.emoji }} {{ d.name }}
+      </button>
     </div>
 
-    <div v-loading="recordsLoading" class="record-list">
-      <el-empty v-if="!recordsLoading && filteredRecords.length === 0" :description="activeDef ? '该活动还没有打卡记录' : '选择活动或直接打卡'" />
-
-      <div v-for="group in groupedRecords" :key="group.date" class="record-group">
+    <div v-loading="recordsLoading" class="rec-list">
+      <el-empty v-if="!recordsLoading && filteredRecords.length === 0" :description="activeDef ? '该活动还没有打卡记录' : '点击活动卡片 +1 打卡'" />
+      <div v-for="group in groupedRecords" :key="group.date" class="rec-group">
         <div class="group-date">
           <span class="date-main">{{ group.date }}</span>
+          <span v-if="group.tag" class="date-tag">{{ group.tag }}</span>
           <span class="date-sub">{{ group.weekday }}</span>
           <span class="date-count">{{ group.list.length }} 条</span>
         </div>
-        <div
-          v-for="r in group.list"
-          :key="r.id"
-          class="record-card glass"
-        >
-          <div class="record-emoji">
-            <span>{{ emojiOf(r) }}</span>
-          </div>
-          <div class="record-body">
-            <div class="record-title-row">
-              <span class="record-name">{{ r.activityName }}</span>
-              <span v-if="r.location" class="record-loc">
-                <el-icon :size="12"><Location /></el-icon>
-                {{ r.location }}
-              </span>
+        <div v-for="r in group.list" :key="r.id" class="rec-card glass-card" @click="openDetailByRecord(r)">
+          <span class="rec-emoji" :style="{ background: emojiBg(r) }">{{ emojiOf(r) }}</span>
+          <div class="rec-body">
+            <div class="rec-title">
+              <span class="rec-name">{{ r.activityName }}</span>
+              <span v-if="recTime(r)" class="rec-time">{{ recTime(r) }}</span>
             </div>
-            <p v-if="r.remark" class="record-remark">{{ r.remark }}</p>
+            <div v-if="r.location || r.remark" class="rec-sub">
+              <span v-if="r.location" class="rec-loc"><el-icon :size="12"><Location /></el-icon>{{ r.location }}</span>
+              <span v-if="r.remark" class="rec-remark">{{ r.remark }}</span>
+            </div>
           </div>
-          <el-button class="del-btn" link type="danger" @click="removeRecord(r)">
-            <el-icon :size="16"><Delete /></el-icon>
-          </el-button>
         </div>
       </div>
     </div>
 
+    <!-- ===== 添加打卡：底部抽屉 ===== -->
+    <el-drawer v-model="checkinVisible" direction="btt" size="auto" :with-header="false" :append-to-body="false" class="sheet-drawer">
+      <div class="sheet">
+        <div class="sheet-grabber"></div>
+        <div class="sheet-head">
+          <span class="sheet-title">添加打卡</span>
+          <button class="sheet-close" @click="checkinVisible = false">×</button>
+        </div>
+        <div class="sheet-body">
+          <span class="sheet-label">选择活动</span>
+          <div class="sheet-chips">
+            <button
+              v-for="d in defs"
+              :key="d.id"
+              class="sheet-chip"
+              :class="{ on: checkinForm.activityDefId === d.id }"
+              :style="checkinForm.activityDefId === d.id ? { background: colorHex(d.color) } : {}"
+              @click="checkinForm.activityDefId = d.id"
+            >
+              <span>{{ d.emoji || '🎯' }}</span>{{ d.name }}
+            </button>
+          </div>
+          <span class="sheet-label">打卡日期</span>
+          <div class="sheet-row">
+            <el-date-picker
+              v-model="checkinForm.recordDate"
+              type="date"
+              value-format="YYYY-MM-DD"
+              format="YYYY/MM/DD"
+              :clearable="false"
+              size="large"
+              class="sheet-row-picker"
+            />
+          </div>
+          <span class="sheet-label">打卡说明</span>
+          <div class="sheet-row sheet-row-area">
+            <el-input
+              v-model="checkinForm.remark"
+              type="textarea"
+              :rows="2"
+              maxlength="100"
+              placeholder="记录一下感受，如：5km 配速、状态不错"
+              class="sheet-row-input"
+            />
+          </div>
+        </div>
+        <el-button type="primary" round size="large" class="sheet-save" :loading="savingCheckin" @click="submitCheckin">
+          <el-icon style="margin-right: 4px"><Check /></el-icon>保存打卡
+        </el-button>
+      </div>
+    </el-drawer>
+
     <!-- ===== 活动定义编辑弹窗 ===== -->
-    <el-dialog
-      v-model="defDialogVisible"
-      :title="defForm.id ? '编辑活动' : '新建活动'"
-      width="420px"
-      destroy-on-close
-    >
+    <el-dialog v-model="defDialogVisible" :title="defForm.id ? '编辑活动' : '新建活动'" width="min(420px, 92vw)" destroy-on-close>
       <el-form ref="defFormRef" :model="defForm" :rules="defRules" label-position="top">
         <el-form-item label="名称" prop="name">
           <el-input v-model="defForm.name" placeholder="如：晨跑、冥想" maxlength="20" size="large" />
         </el-form-item>
-        <el-form-item label="Emoji" prop="emoji">
-          <el-input v-model="defForm.emoji" placeholder="如：🏃 🧘 💧" maxlength="8" size="large" />
+        <el-form-item label="图标" prop="emoji">
+          <div class="emoji-trigger" @click="emojiDrawer = true">
+            <span class="emoji-trigger-icon">{{ defForm.emoji || '🎯' }}</span>
+            <span class="emoji-trigger-txt">点击选择图标</span>
+            <el-icon class="emoji-trigger-arrow"><ArrowRight /></el-icon>
+          </div>
         </el-form-item>
         <el-form-item label="颜色" prop="color">
           <div class="color-row">
-            <button
-              v-for="c in PRESET_COLORS"
-              :key="c.hex"
-              type="button"
-              class="color-dot"
-              :class="{ on: defForm.color === c.idx }"
-              :style="{ background: c.hex }"
-              @click="defForm.color = c.idx"
-            />
+            <button v-for="c in PRESET_COLORS" :key="c.hex" type="button" class="color-dot" :class="{ on: defForm.color === c.idx }" :style="{ background: c.hex }" @click="defForm.color = c.idx" />
           </div>
         </el-form-item>
         <el-form-item label="每日最多打卡次数">
@@ -135,25 +182,62 @@
         <el-button type="primary" round :loading="savingDef" @click="saveDef">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- ===== 选择图标：底部抽屉 ===== -->
+    <el-drawer v-model="emojiDrawer" direction="btt" size="auto" :with-header="false" :append-to-body="false" class="sheet-drawer">
+      <div class="emoji-sheet">
+        <div class="sheet-grabber"></div>
+        <div class="sheet-head">
+          <span class="sheet-title">选择图标</span>
+          <button class="sheet-close" @click="emojiDrawer = false">×</button>
+        </div>
+        <div class="emoji-sheet-body">
+          <div v-for="cat in EMOJI_CATEGORIES" :key="cat.name" class="emoji-cat">
+            <span class="emoji-cat-name">{{ cat.name }}</span>
+            <div class="emoji-grid">
+              <button
+                v-for="e in cat.list"
+                :key="e"
+                type="button"
+                class="emoji-cell"
+                :class="{ on: defForm.emoji === e }"
+                @click="pickEmoji(e)"
+              >
+                {{ e }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { Plus, Check, MoreFilled, Delete, Location } from '@element-plus/icons-vue';
+import { useRouter } from 'vue-router';
+import { Plus, Check, Location, ArrowRight } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import { activityDefApi, activityRecordApi } from '@/api';
 import { useAppStore } from '@/stores/app';
 
+const router = useRouter();
+
 const PRESET_COLORS = [
-  { idx: 0, hex: '#a78bfa' }, // 紫
-  { idx: 1, hex: '#22d3ee' }, // 青
-  { idx: 2, hex: '#10b981' }, // 绿
-  { idx: 3, hex: '#fbbf24' }, // 黄
-  { idx: 4, hex: '#f472b6' }, // 粉
-  { idx: 5, hex: '#fb7185' }, // 红
-  { idx: 6, hex: '#60a5fa' }, // 蓝
-  { idx: 7, hex: '#fb923c' }, // 橙
+  { idx: 0, hex: '#a78bfa' }, { idx: 1, hex: '#22d3ee' }, { idx: 2, hex: '#10b981' },
+  { idx: 3, hex: '#fbbf24' }, { idx: 4, hex: '#f472b6' }, { idx: 5, hex: '#fb7185' },
+  { idx: 6, hex: '#60a5fa' }, { idx: 7, hex: '#fb923c' },
+];
+
+/** 预设图标（对齐 gui activity_def_edit_page._emojiCategories） */
+const EMOJI_CATEGORIES = [
+  { name: '运动', list: ['🏃', '🚶', '🏊', '🚴', '🧘', '🤸', '⛹️', '🏋️', '⚽', '🏀', '🎾', '🏸'] },
+  { name: '学习', list: ['📖', '✍️', '📝', '📚', '🎓', '💡', '🧠', '📌'] },
+  { name: '生活', list: ['💧', '🥗', '☕', '🍎', '🥦', '💊', '🦷', '🧹', '🛌', '🚿'] },
+  { name: '健康', list: ['❤️', '💪', '🧘‍♀️', '🌿', '🧴', '🏥', '🩺', '😌'] },
+  { name: '爱好', list: ['🎵', '🎨', '🎮', '🎬', '📷', '🎸', '🎹', '🎧', '✈️', '🌍'] },
+  { name: '自然', list: ['🌱', '🌻', '🌲', '🌸', '☀️', '🌙', '⭐', '🌈', '🍀'] },
+  { name: '其他', list: ['🎯', '⭐', '🔥', '💎', '🎁', '🔔', '💼', '🗂️', '🔄', '💩'] },
 ];
 
 function colorHex(idx?: number) {
@@ -162,7 +246,6 @@ function colorHex(idx?: number) {
 }
 
 const app = useAppStore();
-
 const defs = ref<any[]>([]);
 const records = ref<any[]>([]);
 const defsLoading = ref(false);
@@ -174,6 +257,21 @@ const filteredRecords = computed(() =>
   activeDefId.value ? records.value.filter((r) => r.activityDefId === activeDefId.value) : records.value,
 );
 
+const totalRecords = computed(() => records.value.length);
+const todayTotal = computed(() => records.value.filter((r) => (r.recordDate || '').slice(0, 10) === todayStr()).length);
+
+/** 连续打卡天数（按 recordDate 去重，从今天往前推连续天数） */
+const streakDays = computed(() => {
+  const dates = new Set(records.value.map((r) => (r.recordDate || '').slice(0, 10)).filter(Boolean));
+  let streak = 0;
+  const d = new Date();
+  while (dates.has(fmtDate(d))) {
+    streak++;
+    d.setDate(d.getDate() - 1);
+  }
+  return streak;
+});
+
 const groupedRecords = computed(() => {
   const groups: Record<string, any[]> = {};
   for (const r of filteredRecords.value) {
@@ -181,11 +279,26 @@ const groupedRecords = computed(() => {
     if (!d) continue;
     (groups[d] ??= []).push(r);
   }
-  const sorted = Object.entries(groups)
+  const today = todayStr();
+  const yesterday = fmtDate(new Date(Date.now() - 86400000));
+  return Object.entries(groups)
     .sort(([a], [b]) => b.localeCompare(a))
-    .map(([date, list]) => ({ date, weekday: weekdayOf(date), list }));
-  return sorted;
+    .map(([date, list]) => ({
+      date,
+      weekday: weekdayOf(date),
+      tag: date === today ? '今天' : date === yesterday ? '昨天' : '',
+      list,
+    }));
 });
+
+function fmtDate(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function todayStr() {
+  return fmtDate(new Date());
+}
 
 function weekdayOf(dateStr: string) {
   if (!dateStr) return '';
@@ -193,6 +306,11 @@ function weekdayOf(dateStr: string) {
   if (Number.isNaN(d.getTime())) return '';
   const names = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
   return names[d.getDay()];
+}
+
+function todayCountOf(d: any) {
+  const today = todayStr();
+  return records.value.filter((r) => r.activityDefId === d.id && (r.recordDate || '').slice(0, 10) === today).length;
 }
 
 function emojiOf(record: any) {
@@ -203,18 +321,37 @@ function emojiOf(record: any) {
   return '🎯';
 }
 
+function emojiBg(record: any) {
+  if (record.activityDefId) {
+    const d = defs.value.find((x) => x.id === record.activityDefId);
+    if (d) return colorHex(d.color) + '22';
+  }
+  return '#f0f1f4';
+}
+
+/** 记录卡时间：recordDate 中携带的 HH:mm */
+function recTime(record: any) {
+  const m = /(\d{1,2}):(\d{2})/.exec(record.recordDate || '');
+  if (!m) return '';
+  return `${m[1].padStart(2, '0')}:${m[2]}`;
+}
+
+function toggleFilter(d: any) {
+  activeDefId.value = activeDefId.value === d.id ? '' : d.id;
+}
+
 // ===== 活动定义 =====
 const defDialogVisible = ref(false);
 const savingDef = ref(false);
 const defFormRef = ref<FormInstance>();
-const defForm = reactive({
-  id: '',
-  name: '',
-  emoji: '🎯',
-  color: 0,
-  sortOrder: 0,
-  maxDailyCount: undefined as number | undefined,
-});
+const defForm = reactive({ id: '', name: '', emoji: '🎯', color: 0, sortOrder: 0, maxDailyCount: undefined as number | undefined });
+
+/** 选择图标抽屉 */
+const emojiDrawer = ref(false);
+function pickEmoji(e: string) {
+  defForm.emoji = e;
+  emojiDrawer.value = false;
+}
 
 const defRules: FormRules = {
   name: [{ required: true, message: '请输入活动名称', trigger: 'blur' }],
@@ -250,17 +387,11 @@ async function saveDef() {
   savingDef.value = true;
   try {
     const data: any = {
-      name: defForm.name,
-      emoji: defForm.emoji,
-      color: defForm.color,
-      sortOrder: defForm.sortOrder,
-      accountBookId: app.currentBookId,
+      name: defForm.name, emoji: defForm.emoji, color: defForm.color,
+      sortOrder: defForm.sortOrder, accountBookId: app.currentBookId,
     };
-    if (defForm.maxDailyCount !== undefined && defForm.maxDailyCount !== null) {
-      data.maxDailyCount = defForm.maxDailyCount;
-    } else {
-      data.maxDailyCount = null;
-    }
+    if (defForm.maxDailyCount !== undefined && defForm.maxDailyCount !== null) data.maxDailyCount = defForm.maxDailyCount;
+    else data.maxDailyCount = null;
     if (defForm.id) await activityDefApi.update(defForm.id, data);
     else await activityDefApi.create(data);
     ElMessage.success(defForm.id ? '更新成功' : '创建成功');
@@ -284,13 +415,61 @@ async function removeDef(row: any) {
   await loadRecords();
 }
 
-function handleDefCmd(cmd: string, row: any) {
-  if (cmd === 'edit') openDefDialog(row);
-  else if (cmd === 'delete') removeDef(row).catch(() => {});
+// ===== 活动详情（整页跳转） =====
+function openDetail(def: any) {
+  router.push(`/activities/${def.id}`);
 }
 
-function selectDef(d: any) {
-  activeDefId.value = activeDefId.value === d.id ? '' : d.id;
+function openDetailByRecord(record: any) {
+  if (record.activityDefId) router.push(`/activities/${record.activityDefId}`);
+}
+
+// ===== 添加打卡 =====
+const checkinVisible = ref(false);
+const savingCheckin = ref(false);
+const checkinForm = reactive({ activityDefId: '', recordDate: todayStr(), remark: '' });
+
+function openCheckin(def?: any) {
+  checkinForm.activityDefId = def?.id || activeDef.value?.id || defs.value[0]?.id || '';
+  checkinForm.recordDate = todayStr();
+  checkinForm.remark = '';
+  checkinVisible.value = true;
+}
+
+async function submitCheckin() {
+  if (!checkinForm.activityDefId) {
+    ElMessage.warning('请选择活动');
+    return;
+  }
+  const def = defs.value.find((d) => d.id === checkinForm.activityDefId);
+  if (!def) return;
+  if (def.maxDailyCount) {
+    const count = records.value.filter(
+      (r) => r.activityDefId === def.id && (r.recordDate || '').slice(0, 10) === checkinForm.recordDate,
+    ).length;
+    if (count >= def.maxDailyCount) {
+      ElMessage.warning(`该日打卡已达上限 ${def.maxDailyCount} 次`);
+      return;
+    }
+  }
+  savingCheckin.value = true;
+  try {
+    await activityRecordApi.create({
+      activityDefId: def.id,
+      activityName: def.name,
+      recordDate: checkinForm.recordDate,
+      remark: checkinForm.remark.trim() || null,
+      maxDailyCount: def.maxDailyCount ?? null,
+      accountBookId: app.currentBookId,
+    });
+    ElMessage.success('打卡成功');
+    checkinVisible.value = false;
+    await loadRecords();
+  } catch (e: any) {
+    ElMessage.error(e?.message || '打卡失败');
+  } finally {
+    savingCheckin.value = false;
+  }
 }
 
 // ===== 打卡记录 =====
@@ -304,48 +483,6 @@ async function loadRecords() {
   }
 }
 
-function todayStr() {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-async function checkIn() {
-  if (!activeDef.value) return;
-  const today = todayStr();
-  // 检查今日打卡次数是否已达上限
-  if (activeDef.value.maxDailyCount) {
-    const todayCount = records.value.filter(
-      (r) => r.activityDefId === activeDef.value.id && (r.recordDate || '').slice(0, 10) === today,
-    ).length;
-    if (todayCount >= activeDef.value.maxDailyCount) {
-      ElMessage.warning(`今日打卡已达上限 ${activeDef.value.maxDailyCount} 次`);
-      return;
-    }
-  }
-  try {
-    await activityRecordApi.create({
-      activityDefId: activeDef.value.id,
-      activityName: activeDef.value.name,
-      recordDate: today,
-      accountBookId: app.currentBookId,
-    });
-    ElMessage.success('打卡成功');
-    await loadRecords();
-  } catch (e: any) {
-    ElMessage.error(e?.message || '打卡失败');
-  }
-}
-
-async function removeRecord(row: any) {
-  await ElMessageBox.confirm('确定删除这条打卡记录吗？', '删除确认', {
-    confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning',
-  });
-  await activityRecordApi.delete(row.id);
-  ElMessage.success('已删除');
-  records.value = records.value.filter((r) => r.id !== row.id);
-}
-
 async function loadAll() {
   await Promise.all([loadDefs(), loadRecords()]);
 }
@@ -355,177 +492,206 @@ watch(() => app.currentBookId, loadAll);
 </script>
 
 <style scoped>
-.activities-page {
-  max-width: 920px;
+.acts {
+  max-width: 480px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding-bottom: 20px;
+  padding: 0 0 24px;
 }
 
-.page-header {
+/* ===== 头部 ===== */
+.acts-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 8px 4px 0;
+  margin: 8px 12px 0;
   gap: 12px;
 }
 
-.page-header-title {
+.acts-title-row {
   display: flex;
   align-items: baseline;
   gap: 10px;
 }
 
-.page-header h2 {
+.acts-head h2 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-1);
-}
-
-.count {
-  font-size: 12px;
-  color: var(--text-3);
-}
-
-.page-header :deep(.el-button--primary) {
-  background: var(--grad-brand);
-  border: none;
-  box-shadow: var(--glow-primary);
-}
-
-.records-header {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border-glass);
-}
-
-/* ===== 活动定义 chips ===== */
-.def-cloud {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 14px;
-  background: var(--surface-glass);
-  backdrop-filter: var(--blur-glass);
-  border: 1px solid var(--border-glass);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
-  min-height: 64px;
-}
-
-.def-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 12px 9px 14px;
-  border-radius: 14px;
-  background: var(--surface-glass-strong);
-  border: 1px solid var(--border-glass);
-  cursor: pointer;
-  transition: all 0.18s ease;
-  position: relative;
-  --def-color: #a78bfa;
-}
-
-.def-chip::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 14px;
-  background: var(--def-color);
-  opacity: 0.08;
-  pointer-events: none;
-}
-
-.def-chip:hover {
-  transform: translateY(-1px);
-  border-color: var(--def-color);
-}
-
-.def-chip.on {
-  background: var(--def-color);
-  border-color: transparent;
-  color: #fff;
-}
-
-.def-chip.on .def-name,
-.def-chip.on .def-badge {
-  color: #fff;
-}
-
-.def-emoji {
   font-size: 18px;
-  line-height: 1;
+  font-weight: 600;
+  color: #1a1d26;
 }
 
-.def-meta {
+.acts-count {
+  font-size: 12px;
+  color: #8a8f99;
+}
+
+.acts-head :deep(.el-button--primary) {
+  background: linear-gradient(135deg, #4a8cf7, #2e6be6);
+  border: none;
+  border-radius: 18px;
+}
+
+.records-head {
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid #eceef2;
+}
+
+/* ===== 玻璃卡片 ===== */
+.glass-card {
+  background: #ffffff;
+  border: 1px solid rgba(230, 233, 240, 0.9);
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(26, 29, 38, 0.05);
+}
+
+/* ===== 统计卡 ===== */
+.acts-stats {
+  display: flex;
+  align-items: center;
+  padding: 14px 0;
+  margin: 0 12px;
+}
+
+.stat-item {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  min-width: 0;
+  align-items: center;
+  gap: 2px;
 }
 
-.def-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-1);
-  white-space: nowrap;
+.stat-v {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1d26;
+  font-family: Inter, sans-serif;
 }
 
-.def-badge {
-  font-size: 10px;
-  color: var(--text-3);
+.stat-v.primary {
+  color: #2e6be6;
 }
 
-.def-more {
-  color: var(--text-3);
-  padding: 4px;
-  border-radius: 6px;
-  font-size: 14px;
-  cursor: pointer;
+.stat-l {
+  font-size: 11px;
+  color: #9ca1ad;
 }
 
-.def-more:hover {
-  background: rgba(0, 0, 0, 0.08);
+.stat-div {
+  width: 1px;
+  height: 34px;
+  background: #eceef2;
 }
 
-.def-chip.on .def-more {
-  color: rgba(255, 255, 255, 0.85);
+/* ===== 活动卡片 ===== */
+.acts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 12px;
+  min-height: 80px;
 }
 
-/* ===== 筛选提示 ===== */
-.filter-hint {
+.act-card {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: var(--brand-gold-soft);
-  color: var(--brand-gold-dark);
-  border-radius: var(--radius-md);
-  font-size: 12px;
+  gap: 12px;
+  height: 64px;
+  padding: 0 12px;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid rgba(230, 233, 240, 0.9);
+  box-shadow: 0 2px 8px rgba(26, 29, 38, 0.05);
+  cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.clear-filter {
-  margin-left: auto;
-  border: none;
-  background: transparent;
-  color: var(--brand-gold-dark);
-  cursor: pointer;
+.act-card.on {
+  border-color: #2e6be6;
+  box-shadow: 0 0 0 2px rgba(46, 107, 230, 0.15);
+}
+
+.act-card:hover {
+  transform: translateY(-1px);
+}
+
+.act-emoji {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 13px;
+  font-size: 22px;
+}
+
+.act-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.act-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1d26;
+}
+
+.act-sub {
   font-size: 12px;
-  text-decoration: underline;
+  color: #9ca1ad;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.act-arrow {
+  flex-shrink: 0;
+  color: #c6cbd6;
+}
+
+/* ===== 记录筛选 chips ===== */
+.rec-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 12px;
+}
+
+.rec-filter-chip {
+  height: 32px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 16px;
+  background: #f0f1f4;
+  color: #8a8f99;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rec-filter-chip.on {
+  background: #2e6be6;
+  color: #fff;
+  font-weight: 600;
 }
 
 /* ===== 记录分组 ===== */
-.record-list {
+.rec-list {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  padding: 0 12px;
+  min-height: 80px;
 }
 
-.record-group {
+.rec-group {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -537,32 +703,40 @@ watch(() => app.currentBookId, loadAll);
   gap: 10px;
   padding: 0 4px;
   font-size: 12px;
-  color: var(--text-3);
+  color: #9ca1ad;
 }
 
 .date-main {
   font-size: 14px;
   font-weight: 700;
-  color: var(--text-1);
+  color: #1a1d26;
+}
+
+.date-tag {
+  font-size: 12px;
+  color: #2e6be6;
+  font-weight: 500;
 }
 
 .date-count {
   margin-left: auto;
 }
 
-.record-card.glass {
+.rec-card {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 14px;
-  background: var(--surface-glass);
-  backdrop-filter: var(--blur-glass);
-  border: 1px solid var(--border-glass);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
+  padding: 12px;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
 }
 
-.record-emoji {
+.rec-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(46, 107, 230, 0.35);
+}
+
+.rec-emoji {
   width: 38px;
   height: 38px;
   flex-shrink: 0;
@@ -570,11 +744,10 @@ watch(() => app.currentBookId, loadAll);
   align-items: center;
   justify-content: center;
   border-radius: 11px;
-  background: var(--surface-glass-strong);
   font-size: 18px;
 }
 
-.record-body {
+.rec-body {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -582,40 +755,283 @@ watch(() => app.currentBookId, loadAll);
   gap: 4px;
 }
 
-.record-title-row {
+.rec-title {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.record-name {
+.rec-name {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-1);
+  color: #1a1d26;
 }
 
-.record-loc {
+.rec-time {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 500;
+  color: #8a8f99;
+  flex-shrink: 0;
+}
+
+.rec-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rec-loc {
   display: inline-flex;
   align-items: center;
   gap: 3px;
   font-size: 11px;
-  color: var(--text-3);
+  color: #9ca1ad;
+  flex-shrink: 0;
 }
 
-.record-remark {
+.rec-remark {
   margin: 0;
   font-size: 12px;
   line-height: 1.5;
-  color: var(--text-2);
-  word-break: break-word;
+  color: #8a8f99;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.del-btn {
-  flex-shrink: 0;
-  padding: 4px;
+/* ===== 抽屉 ===== */
+.sheet {
+  padding: 0 20px 20px;
 }
 
-/* ===== 表单 ===== */
+.sheet-grabber {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: #d8dbe0;
+  margin: 8px auto 10px;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.sheet-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #1a1d26;
+  flex: 1;
+}
+
+.sheet-close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: #f0f1f4;
+  color: #8a8f99;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sheet-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #8a8f99;
+  margin-top: 4px;
+}
+
+.sheet-label:first-child {
+  margin-top: 0;
+}
+
+.sheet-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.sheet-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 19px;
+  background: #f0f1f4;
+  color: #8a8f99;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sheet-chip.on {
+  color: #fff;
+  font-weight: 600;
+}
+
+/* 日期 / 说明 行（圆角 12 灰底 46/64 高，对齐设计稿 4:453） */
+.sheet-row {
+  height: 46px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: #f6f8fc;
+  display: flex;
+  align-items: center;
+}
+
+.sheet-row-area {
+  height: auto;
+  min-height: 64px;
+  padding: 8px 14px;
+  align-items: stretch;
+}
+
+.sheet-row-picker {
+  width: 100%;
+}
+
+.sheet-row-picker :deep(.el-input__wrapper) {
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
+}
+
+.sheet-row-picker :deep(.el-input__inner) {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1a1d26;
+}
+
+.sheet-row-input :deep(.el-textarea__inner) {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
+  font-size: 13px;
+  resize: none;
+  min-height: 48px;
+}
+
+.sheet-save {
+  width: 100%;
+  margin-top: 12px;
+  background: linear-gradient(135deg, #4a8cf7, #2e6be6) !important;
+  border: none !important;
+  color: #ffffff !important;
+}
+
+.sheet-save:hover,
+.sheet-save:focus {
+  background: linear-gradient(135deg, #5a9aff, #3a7bf0) !important;
+  color: #ffffff !important;
+}
+
+/* ===== 活动编辑 ===== */
+/* 图标触发器（表单内紧凑展示，点击弹抽屉） */
+.emoji-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid rgba(230, 233, 240, 0.9);
+  border-radius: 10px;
+  background: #fafbfc;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.emoji-trigger:hover {
+  border-color: #2e6be6;
+  background: #f6f8fc;
+}
+
+.emoji-trigger-icon {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.emoji-trigger-txt {
+  flex: 1;
+  font-size: 13px;
+  color: #8a8f99;
+}
+
+.emoji-trigger-arrow {
+  color: #c6cbd6;
+}
+
+/* 选择图标抽屉 */
+.emoji-sheet {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0 20px 20px;
+}
+
+.emoji-sheet-body {
+  max-height: 46vh;
+  overflow-y: auto;
+  padding: 4px 4px 8px;
+}
+
+.emoji-cat {
+  margin-bottom: 10px;
+}
+
+.emoji-cat:last-child {
+  margin-bottom: 0;
+}
+
+.emoji-cat-name {
+  display: block;
+  font-size: 12px;
+  color: #8a8f99;
+  margin-bottom: 6px;
+}
+
+.emoji-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.emoji-cell {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 10px;
+  background: #f6f8fc;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.emoji-cell:hover {
+  background: #eceef2;
+}
+
+.emoji-cell.on {
+  background: #e9f1fe;
+  outline: 2px solid #2e6be6;
+}
+
 .color-row {
   display: flex;
   flex-wrap: wrap;
@@ -636,22 +1052,13 @@ watch(() => app.currentBookId, loadAll);
 }
 
 .color-dot.on {
-  border-color: var(--text-1);
-  box-shadow: 0 0 0 2px var(--surface-glass-strong);
+  border-color: #1a1d26;
+  box-shadow: 0 0 0 2px #fff;
 }
 
 .form-hint {
   margin-left: 8px;
   font-size: 11px;
-  color: var(--text-3);
-}
-
-@media (max-width: 767px) {
-  .page-header h2 {
-    font-size: 15px;
-  }
-  .def-chip {
-    padding: 7px 10px 7px 12px;
-  }
+  color: #9ca1ad;
 }
 </style>

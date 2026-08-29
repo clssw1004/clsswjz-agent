@@ -1,241 +1,253 @@
 <template>
-  <div class="settings-page">
-    <div class="page-header">
-      <div class="page-header-title">
+  <div class="fuel">
+    <!-- ===== 头部：标题 + 管理/新建 ===== -->
+    <div class="fuel-head">
+      <div class="fuel-title-row">
         <h2>加油记录</h2>
-        <span class="count">{{ filtered.length }} 条</span>
+        <span class="fuel-count">{{ filtered.length }} 条</span>
       </div>
-      <el-button type="primary" round :disabled="!vehicles.length" @click="openDialog()">
-        <el-icon style="margin-right: 4px"><Plus /></el-icon>
-        新建记录
-      </el-button>
+      <div class="fuel-actions">
+        <el-button round class="veh-manage" @click="goVehicles">
+          <el-icon :size="15"><Setting /></el-icon>
+          <span>管理</span>
+        </el-button>
+        <el-button type="primary" round class="fuel-add" :disabled="!vehicles.length" @click="openDialog()">
+          <el-icon style="margin-right: 4px"><Plus /></el-icon>
+          加油
+        </el-button>
+      </div>
     </div>
 
-    <!-- 车辆筛选 -->
-    <div class="filter-bar glass">
-      <div class="filter-label">车辆</div>
-      <el-select
-        v-model="filterVehicleId"
-        placeholder="全部车辆"
-        clearable
-        size="default"
-        class="filter-select"
-        @change="onFilterChange"
-      >
-        <el-option
-          v-for="v in vehicles"
-          :key="v.id"
-          :label="`${v.plateNumber}（${v.brand} ${v.model}）`"
-          :value="v.id"
-        />
+    <!-- ===== 车辆选择条 ===== -->
+    <div class="veh-bar glass-card">
+      <el-icon class="veh-ic" :size="20"><Van /></el-icon>
+      <el-select v-model="filterVehicleId" placeholder="全部车辆" clearable size="default" class="veh-select" @change="onFilterChange">
+        <el-option v-for="v in vehicles" :key="v.id" :label="`${v.plateNumber}（${v.brand} ${v.model}）`" :value="v.id" />
       </el-select>
-      <div class="filter-stats">
-        <span>合计 <b>¥{{ totalAmount.toFixed(2) }}</b></span>
-        <span class="dim">|</span>
-        <span><b>{{ totalVolume.toFixed(2) }}</b> L</span>
+      <span class="veh-stat">{{ filtered.length }} 条记录</span>
+    </div>
+
+    <!-- ===== 统计卡（2×3） ===== -->
+    <div class="fuel-stats glass-card">
+      <div class="stats-row">
+        <div class="stat-item">
+          <span class="stat-v stat-blue">¥{{ totalAmount.toFixed(2) }}</span>
+          <span class="stat-l">总费用</span>
+        </div>
+        <span class="stat-div"></span>
+        <div class="stat-item">
+          <span class="stat-v">{{ totalMileage.toLocaleString('zh-CN') }} km</span>
+          <span class="stat-l">总里程</span>
+        </div>
+        <span class="stat-div"></span>
+        <div class="stat-item">
+          <span class="stat-v">{{ totalVolume.toFixed(2) }} L</span>
+          <span class="stat-l">总油量</span>
+        </div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-item">
+          <span class="stat-v stat-green">{{ avgConsumption || '--' }}</span>
+          <span class="stat-l">平均油耗 L/100km</span>
+        </div>
+        <span class="stat-div"></span>
+        <div class="stat-item">
+          <span class="stat-v">¥{{ avgCostPerKm }}</span>
+          <span class="stat-l">每公里费用</span>
+        </div>
+        <span class="stat-div"></span>
+        <div class="stat-item">
+          <span class="stat-v">{{ filtered.length }} 次</span>
+          <span class="stat-l">记录次数</span>
+        </div>
       </div>
     </div>
 
-    <div v-loading="loading" class="record-list">
+    <!-- ===== 时间线列表 ===== -->
+    <div v-loading="loading" class="tl">
       <el-empty v-if="!loading && filtered.length === 0" :description="filterVehicleId ? '该车辆暂无加油记录' : '暂无加油记录'" />
-
-      <!-- 桌面：表格 -->
-      <el-table
-        v-if="!isMobile && filtered.length"
-        :data="filtered"
-        class="mini-table"
-        empty-text="暂无数据"
-      >
-        <el-table-column label="加油时间" min-width="110">
-          <template #default="{ row }">{{ formatTime(row.refuelTime) }}</template>
-        </el-table-column>
-        <el-table-column label="车辆" min-width="160">
-          <template #default="{ row }">{{ vehicleName(row.vehicleId) }}</template>
-        </el-table-column>
-        <el-table-column label="里程(km)" min-width="100" align="right">
-          <template #default="{ row }">{{ Number(row.mileage || 0).toLocaleString('zh-CN') }}</template>
-        </el-table-column>
-        <el-table-column label="能源/标号" min-width="110">
-          <template #default="{ row }">
-            <span class="grade-chip">{{ row.fuelGrade }}</span>
-            <span class="energy-sub">{{ energyLabel(row.energyType) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="数量(L)" min-width="90" align="right">
-          <template #default="{ row }">{{ Number(row.volume || 0).toFixed(2) }}</template>
-        </el-table-column>
-        <el-table-column label="单价" min-width="90" align="right">
-          <template #default="{ row }">¥{{ Number(row.unitPrice || 0).toFixed(2) }}</template>
-        </el-table-column>
-        <el-table-column label="金额" min-width="110" align="right">
-          <template #default="{ row }">
-            <span class="amount">¥{{ Number(row.totalAmount || 0).toFixed(2) }}</span>
-            <el-icon v-if="row.isFullTank" class="full-icon" :size="14"><Check /></el-icon>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="140" align="right" fixed="right">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="openDialog(row)">编辑</el-button>
-            <el-button link type="danger" @click="remove(row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <!-- 移动端：卡片 -->
-      <div v-else-if="isMobile" class="m-list">
-        <div v-for="r in filtered" :key="r.id" class="m-card glass">
-          <div class="m-top">
-            <span class="m-time">{{ formatTime(r.refuelTime) }}</span>
-            <span class="m-amount">¥{{ Number(r.totalAmount || 0).toFixed(2) }}</span>
+      <div v-for="(r, i) in filtered" :key="r.id" class="tl-entry">
+        <div class="tl-col">
+          <span class="tl-dot"></span>
+          <span v-if="i < filtered.length - 1" class="tl-line"></span>
+        </div>
+        <div class="tl-content">
+          <div class="tl-head">
+            <span class="tl-time">{{ formatTime(r.refuelTime) }}</span>
+            <span v-if="tripKm(r, i) > 0" class="tl-km">+{{ tripKm(r, i) }} km</span>
+            <button class="tl-del" @click="remove(r)"><el-icon :size="16"><Delete /></el-icon></button>
           </div>
-          <div class="m-mid">
-            <span class="m-vehicle">{{ vehicleName(r.vehicleId) }}</span>
-            <span class="m-grade">{{ r.fuelGrade }}</span>
-            <span v-if="r.isFullTank" class="m-full">满箱</span>
-          </div>
-          <div class="m-detail">
-            <span><b>{{ Number(r.volume || 0).toFixed(2) }}</b> L</span>
-            <span class="dim">×</span>
-            <span>¥{{ Number(r.unitPrice || 0).toFixed(2) }}</span>
-            <span class="dim">|</span>
-            <span>{{ Number(r.mileage || 0).toLocaleString('zh-CN') }} km</span>
-            <span v-if="r.station" class="dim">|</span>
-            <span v-if="r.station" class="station">{{ r.station }}</span>
-          </div>
-          <div v-if="r.remark" class="m-remark">{{ r.remark }}</div>
-          <div class="m-ops">
-            <button class="m-edit" @click="openDialog(r)">编辑</button>
-            <button class="m-del" @click="remove(r)">删除</button>
+          <div class="fuel-card" @click="openDialog(r)">
+            <div class="fc-top">
+              <span class="fc-eco"><el-icon :size="14" style="margin-right: 3px"><CircleCheck /></el-icon>{{ fuelConsumptionText(r, i) }}</span>
+              <span class="fc-edit"><el-icon :size="13"><Edit /></el-icon>编辑</span>
+            </div>
+            <div class="fc-mid">
+              <div class="fc-cell">
+                <span class="fc-v stat-blue">¥{{ Number(r.totalAmount || 0).toFixed(2) }}</span>
+                <span class="fc-l">金额</span>
+              </div>
+              <span class="fc-div"></span>
+              <div class="fc-cell">
+                <span class="fc-v">{{ Number(r.unitPrice || 0).toFixed(2) }}</span>
+                <span class="fc-l">元/L</span>
+              </div>
+              <span class="fc-div"></span>
+              <div class="fc-cell">
+                <span class="fc-v">{{ Number(r.volume || 0).toFixed(2) }}</span>
+                <span class="fc-l">L</span>
+              </div>
+            </div>
+            <div class="fc-sub">
+              <span class="fc-sub-t">总里程 {{ Number(r.mileage || 0).toLocaleString('zh-CN') }} km</span>
+              <span class="fc-sub-dot"></span>
+              <span class="fc-sub-t">每公里 ¥{{ costPerKm(r, i) }}</span>
+            </div>
+            <div class="fc-badges">
+              <span v-if="r.isFullTank" class="fc-badge full">跳枪</span>
+              <span v-if="r.isFuelLightOn" class="fc-badge light">油灯亮</span>
+              <span class="fc-grade">{{ gradeText(r) }}</span>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <el-dialog
-      v-model="dialogVisible"
-      :title="form.id ? '编辑加油记录' : '新建加油记录'"
-      width="min(520px, 92vw)"
-      destroy-on-close
-      class="form-dialog"
-    >
-      <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
-        <div class="form-row">
-          <el-form-item label="车辆" prop="vehicleId">
-            <el-select v-model="form.vehicleId" placeholder="选择车辆" style="width: 100%" size="large" @change="onVehicleChange">
-              <el-option
-                v-for="v in activeVehicles"
-                :key="v.id"
-                :label="`${v.plateNumber}（${v.brand} ${v.model}）`"
-                :value="v.id"
+    <!-- ===== 新建/编辑：底部抽屉（对齐设计稿第二屏） ===== -->
+    <el-drawer v-model="dialogVisible" direction="btt" size="auto" :with-header="false" :append-to-body="false" class="fuel-sheet">
+      <div class="sheet">
+        <div class="sheet-grabber"></div>
+        <div class="sheet-head">
+          <span class="sheet-title">{{ form.id ? '编辑加油记录' : '新建加油记录' }}</span>
+          <button class="sheet-close" @click="dialogVisible = false">×</button>
+        </div>
+        <div class="sheet-body">
+          <div class="f-card">
+            <!-- 车辆 -->
+            <div class="f-row">
+              <span class="f-label">车辆</span>
+              <el-select v-model="form.vehicleId" class="f-select" placeholder="选择车辆" @change="onVehicleChange">
+                <el-option v-for="v in activeVehicles" :key="v.id" :label="`${v.brand} ${v.model} · ${v.plateNumber}`" :value="v.id" />
+              </el-select>
+            </div>
+            <div class="f-div"></div>
+            <!-- 加油时间 -->
+            <div class="f-row">
+              <span class="f-label">加油时间</span>
+              <el-date-picker
+                v-model="form.refuelTime"
+                type="datetime"
+                value-format="x"
+                format="YYYY/MM/DD HH:mm"
+                class="f-date"
+                placeholder="选择时间"
+                :clearable="false"
               />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="加油时间" prop="refuelTime">
-            <el-date-picker
-              v-model="form.refuelTime"
-              type="datetime"
-              value-format="x"
-              format="YYYY-MM-DD HH:mm"
-              placeholder="选择时间"
-              style="width: 100%"
-              size="large"
-            />
-          </el-form-item>
-        </div>
-
-        <div class="form-row">
-          <el-form-item label="能源类型" prop="energyType">
-            <el-select v-model="form.energyType" style="width: 100%" size="large" @change="onEnergyChange">
-              <el-option label="汽油" value="GASOLINE" />
-              <el-option label="柴油" value="DIESEL" />
-              <el-option label="电" value="ELECTRIC" />
-              <el-option label="混动" value="HYBRID" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="标号" prop="fuelGrade">
-            <el-select v-model="form.fuelGrade" placeholder="选择标号" style="width: 100%" size="large">
-              <el-option v-for="g in availableGrades" :key="g" :label="g" :value="g" />
-            </el-select>
-          </el-form-item>
-        </div>
-
-        <el-form-item label="当前里程 (km)" prop="mileage">
-          <el-input-number v-model="form.mileage" :min="0" :step="1" style="width: 100%" size="large" placeholder="0" />
-        </el-form-item>
-
-        <div class="form-row form-3">
-          <el-form-item label="数量 (L)" prop="volume">
-            <el-input-number
-              v-model="form.volume"
-              :min="0"
-              :precision="2"
-              :step="0.01"
-              style="width: 100%"
-              size="large"
-              placeholder="0.00"
-              @change="recalcTotal"
-            />
-          </el-form-item>
-          <el-form-item label="单价 (¥/L)" prop="unitPrice">
-            <el-input-number
-              v-model="form.unitPrice"
-              :min="0"
-              :precision="2"
-              :step="0.01"
-              style="width: 100%"
-              size="large"
-              placeholder="0.00"
-              @change="recalcTotal"
-            />
-          </el-form-item>
-          <el-form-item label="金额 (¥)" prop="totalAmount">
-            <el-input-number
-              v-model="form.totalAmount"
-              :min="0"
-              :precision="2"
-              :step="0.01"
-              style="width: 100%"
-              size="large"
-              placeholder="0.00"
-            />
-          </el-form-item>
-        </div>
-
-        <el-form-item label="是否满箱">
-          <div class="switch-row">
-            <el-switch v-model="form.isFullTankOn" />
-            <span class="switch-label">{{ form.isFullTankOn ? '满箱' : '未满' }}</span>
+            </div>
+            <div class="f-div"></div>
+            <!-- 里程表读数 -->
+            <div class="f-row">
+              <span class="f-label">里程表读数</span>
+              <div class="f-mile">
+                <el-input-number v-model="form.mileage" :controls="false" :min="0" :step="1" class="f-mile-input" placeholder="0" />
+                <span class="f-mile-unit">km</span>
+              </div>
+            </div>
+            <div class="f-div"></div>
+            <!-- 能源类型 segmented -->
+            <span class="f-sec-label">能源类型</span>
+            <div class="f-seg">
+              <button
+                v-for="e in ENERGY_TYPE_LIST"
+                :key="e"
+                type="button"
+                class="f-seg-item"
+                :class="{ on: form.energyType === e }"
+                @click="onEnergyChange(e)"
+              >
+                {{ energyLabel(e) }}
+              </button>
+            </div>
+            <!-- 油号 chips -->
+            <span class="f-sec-label">油号</span>
+            <div class="f-chips">
+              <button
+                v-for="g in availableGrades"
+                :key="g"
+                type="button"
+                class="f-chip"
+                :class="{ on: form.fuelGrade === g }"
+                @click="form.fuelGrade = g"
+              >
+                {{ g }}
+              </button>
+            </div>
+            <!-- 数量 / 单价 / 金额 -->
+            <div class="f-num-head">
+              <span class="f-sec-label">数量 / 单价 / 金额</span>
+              <span class="f-auto">已自动计算</span>
+            </div>
+            <div class="f-cols">
+              <div class="f-col">
+                <el-input-number v-model="form.volume" :controls="false" :precision="2" :min="0" class="f-num" placeholder="0.00" @change="recalcTotal" />
+                <span class="f-col-unit">L 升</span>
+              </div>
+              <div class="f-col">
+                <el-input-number v-model="form.unitPrice" :controls="false" :precision="2" :min="0" class="f-num" placeholder="0.00" @change="recalcTotal" />
+                <span class="f-col-unit">¥/L</span>
+              </div>
+              <div class="f-col hl">
+                <el-input-number v-model="form.totalAmount" :controls="false" :precision="2" :min="0" class="f-num hl" placeholder="0.00" />
+                <span class="f-col-unit hl">总额</span>
+              </div>
+            </div>
+            <!-- 加油状态：满箱 + 油灯 -->
+            <span class="f-sec-label">加油状态</span>
+            <div class="f-sw-row">
+              <button type="button" class="f-sw full" :class="{ on: form.isFullTankOn }" @click="form.isFullTankOn = !form.isFullTankOn">
+                <span class="f-sw-txt">满箱<span class="f-sw-sub">跳枪</span></span>
+                <span class="f-sw-dot" :class="{ on: form.isFullTankOn }"></span>
+              </button>
+              <button type="button" class="f-sw light" :class="{ on: form.isFuelLightOn }" @click="form.isFuelLightOn = !form.isFuelLightOn">
+                <span class="f-sw-txt">油灯亮<span class="f-sw-sub">用于油耗</span></span>
+                <span class="f-sw-dot" :class="{ on: form.isFuelLightOn }"></span>
+              </button>
+            </div>
+            <div class="f-div"></div>
+            <!-- 加油站 -->
+            <div class="f-field">
+              <span class="f-field-label">加油站</span>
+              <el-input v-model="form.station" class="f-input" placeholder="如：中石化五道口加油站" maxlength="50" />
+            </div>
+            <!-- 备注 -->
+            <div class="f-field">
+              <span class="f-field-label">备注</span>
+              <el-input v-model="form.remark" type="textarea" :rows="2" class="f-textarea" placeholder="选填，如：加满 95#，自动加油机" maxlength="100" />
+            </div>
           </div>
-        </el-form-item>
-
-        <el-form-item label="加油站">
-          <el-input v-model="form.station" placeholder="选填，如：中石化XX加油站" maxlength="50" />
-        </el-form-item>
-
-        <el-form-item label="备注">
-          <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="选填" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button round @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" round :loading="saving" @click="save">保存</el-button>
-      </template>
-    </el-dialog>
+          <el-button type="primary" round size="large" class="sheet-save" :loading="saving" @click="save">
+            <el-icon style="margin-right: 4px"><Check /></el-icon>{{ form.id ? '保存修改' : '保存记录' }}
+          </el-button>
+        </div>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import { Plus, Check } from '@element-plus/icons-vue';
-import type { FormInstance, FormRules } from 'element-plus';
+import { computed, onMounted, reactive, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { Plus, Delete, Edit, Van, CircleCheck, Check, Setting } from '@element-plus/icons-vue';
+import type { FormInstance } from 'element-plus';
 import { vehicleApi, fuelRecordApi } from '@/api';
 import { usePrefsStore } from '@/stores/prefs';
-import { useResponsive } from '@/composables/useResponsive';
 
-const { isMobile } = useResponsive();
 const prefs = usePrefsStore();
+const router = useRouter();
 
+function goVehicles() {
+  router.push('/vehicles');
+}
 const route = useRoute();
 
 const ENERGY_GRADES: Record<string, string[]> = {
@@ -244,7 +256,6 @@ const ENERGY_GRADES: Record<string, string[]> = {
   ELECTRIC: ['慢充', '快充'],
   HYBRID: ['92#', '95#'],
 };
-
 const ENERGY_TYPE_LIST = ['GASOLINE', 'DIESEL', 'ELECTRIC', 'HYBRID'];
 
 function energyLabel(t?: string) {
@@ -257,30 +268,77 @@ function energyLabel(t?: string) {
   }
 }
 
-const FILTER_KEY = 'fuelFilterVehicleId';
+function gradeText(r: any) {
+  if (r.energyType === 'DIESEL') return r.fuelGrade || '-';
+  return `${r.fuelGrade || '--'}`;
+}
 
+const FILTER_KEY = 'fuelFilterVehicleId';
 const loading = ref(false);
 const saving = ref(false);
 const records = ref<any[]>([]);
 const vehicles = ref<any[]>([]);
 const filterVehicleId = ref('');
 const dialogVisible = ref(false);
-const formRef = ref<FormInstance>();
 
 const activeVehicles = computed(() => vehicles.value.filter((v) => v.isActive));
 
+/** 按 refuelTime 降序（最新在前） */
 const filtered = computed(() => {
   const list = filterVehicleId.value ? records.value.filter((r) => r.vehicleId === filterVehicleId.value) : records.value;
   return [...list].sort((a, b) => (b.refuelTime || 0) - (a.refuelTime || 0));
 });
 
+/** 总费用 / 总油量 */
 const totalAmount = computed(() => filtered.value.reduce((s, r) => s + Number(r.totalAmount || 0), 0));
 const totalVolume = computed(() => filtered.value.reduce((s, r) => s + Number(r.volume || 0), 0));
 
-function vehicleName(id?: string) {
-  if (!id) return '-';
-  const v = vehicles.value.find((x) => x.id === id);
-  return v ? `${v.plateNumber}（${v.brand} ${v.model}）` : '-';
+/** 行驶总里程 = 相邻记录里程差之和 */
+const totalMileage = computed(() => {
+  let sum = 0;
+  for (let i = 0; i < filtered.value.length - 1; i++) {
+    const diff = (Number(filtered.value[i].mileage) || 0) - (Number(filtered.value[i + 1].mileage) || 0);
+    if (diff > 0) sum += diff;
+  }
+  return sum;
+});
+
+/** 平均油耗：满箱记录的油耗均值（L/100km） */
+const avgConsumption = computed(() => {
+  const cons = filtered.value.map((r, i) => fuelConsumption(r, i)).filter((v) => v > 0);
+  if (!cons.length) return '--';
+  return (cons.reduce((s, v) => s + v, 0) / cons.length).toFixed(1);
+});
+
+const avgCostPerKm = computed(() => {
+  if (totalMileage.value <= 0) return '0.00';
+  return (totalAmount.value / totalMileage.value).toFixed(2);
+});
+
+/** 里程差：当前记录与下一条更早记录的里程差 */
+function tripKm(r: any, i: number) {
+  const next = filtered.value[i + 1];
+  if (!next) return 0;
+  const diff = (Number(r.mileage) || 0) - (Number(next.mileage) || 0);
+  return diff > 0 ? diff : 0;
+}
+
+function costPerKm(r: any, i: number) {
+  const km = tripKm(r, i);
+  if (km <= 0 || !Number(r.totalAmount)) return '--';
+  return (Number(r.totalAmount) / km).toFixed(2);
+}
+
+function fuelConsumption(r: any, i: number) {
+  const km = tripKm(r, i);
+  if (km <= 0 || !Number(r.volume)) return 0;
+  return (Number(r.volume) / km) * 100;
+}
+
+function fuelConsumptionText(r: any, i: number) {
+  const v = fuelConsumption(r, i);
+  if (v <= 0) return '-- L/100km';
+  return `${v.toFixed(1)} L/100km`;
 }
 
 function formatTime(t?: number) {
@@ -288,32 +346,16 @@ function formatTime(t?: number) {
   const d = new Date(t);
   if (Number.isNaN(d.getTime())) return '-';
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 const form = reactive({
-  id: '',
-  vehicleId: '',
-  refuelTime: Date.now(),
-  mileage: 0,
-  energyType: 'GASOLINE',
-  fuelGrade: '92#',
-  volume: 0,
-  unitPrice: 0,
-  totalAmount: 0,
-  isFullTankOn: false,
-  station: '',
-  remark: '',
+  id: '', vehicleId: '', refuelTime: Date.now(), mileage: 0,
+  energyType: 'GASOLINE', fuelGrade: '92#', volume: 0, unitPrice: 0,
+  totalAmount: 0, isFullTankOn: false, isFuelLightOn: false, station: '', remark: '',
 });
 
 const availableGrades = computed(() => ENERGY_GRADES[form.energyType] || []);
-
-const rules: FormRules = {
-  vehicleId: [{ required: true, message: '请选择车辆', trigger: 'change' }],
-  refuelTime: [{ required: true, message: '请选择加油时间', trigger: 'change' }],
-  energyType: [{ required: true, message: '请选择能源类型', trigger: 'change' }],
-  fuelGrade: [{ required: true, message: '请选择标号', trigger: 'change' }],
-};
 
 async function loadVehicles() {
   try {
@@ -335,33 +377,19 @@ async function loadRecords() {
 function openDialog(row?: any) {
   if (row) {
     Object.assign(form, {
-      id: row.id,
-      vehicleId: row.vehicleId,
-      refuelTime: row.refuelTime || Date.now(),
-      mileage: Number(row.mileage || 0),
-      energyType: row.energyType || 'GASOLINE',
-      fuelGrade: row.fuelGrade || '92#',
-      volume: Number(row.volume || 0),
-      unitPrice: Number(row.unitPrice || 0),
-      totalAmount: Number(row.totalAmount || 0),
-      isFullTankOn: !!row.isFullTank,
-      station: row.station || '',
-      remark: row.remark || '',
+      id: row.id, vehicleId: row.vehicleId, refuelTime: row.refuelTime || Date.now(),
+      mileage: Number(row.mileage || 0), energyType: row.energyType || 'GASOLINE',
+      fuelGrade: row.fuelGrade || '92#', volume: Number(row.volume || 0),
+      unitPrice: Number(row.unitPrice || 0), totalAmount: Number(row.totalAmount || 0),
+      isFullTankOn: !!row.isFullTank, isFuelLightOn: !!row.isFuelLightOn,
+      station: row.station || '', remark: row.remark || '',
     });
   } else {
     Object.assign(form, {
-      id: '',
-      vehicleId: filterVehicleId.value || (activeVehicles.value[0]?.id ?? ''),
-      refuelTime: Date.now(),
-      mileage: 0,
-      energyType: 'GASOLINE',
-      fuelGrade: '92#',
-      volume: 0,
-      unitPrice: 0,
-      totalAmount: 0,
-      isFullTankOn: false,
-      station: '',
-      remark: '',
+      id: '', vehicleId: filterVehicleId.value || (activeVehicles.value[0]?.id ?? ''),
+      refuelTime: Date.now(), mileage: 0, energyType: 'GASOLINE', fuelGrade: '92#',
+      volume: 0, unitPrice: 0, totalAmount: 0, isFullTankOn: false, isFuelLightOn: false,
+      station: '', remark: '',
     });
   }
   dialogVisible.value = true;
@@ -374,41 +402,36 @@ function recalcTotal() {
 }
 
 function onVehicleChange(id: string) {
-  // 切换车辆时，如果新车辆有默认标号，且当前标号不在新车辆支持的能源里，则用默认
   const v = vehicles.value.find((x) => x.id === id);
-  if (v?.defaultFuelGrade) {
-    if (!availableGrades.value.includes(form.fuelGrade)) {
-      // 切到该能源时如果默认标号不属于当前能源，则仍按能源默认
-    }
-    if (availableGrades.value.includes(v.defaultFuelGrade)) {
-      form.fuelGrade = v.defaultFuelGrade;
-    }
+  if (v?.defaultFuelGrade && availableGrades.value.includes(v.defaultFuelGrade)) {
+    form.fuelGrade = v.defaultFuelGrade;
   }
 }
 
-function onEnergyChange() {
+function onEnergyChange(e: string) {
+  form.energyType = e;
   if (!availableGrades.value.includes(form.fuelGrade)) {
     form.fuelGrade = availableGrades.value[0] || '';
   }
 }
 
 async function save() {
-  const valid = await formRef.value?.validate().catch(() => false);
-  if (!valid) return;
+  if (!form.vehicleId) {
+    ElMessage.warning('请选择车辆');
+    return;
+  }
+  if (!form.refuelTime) {
+    ElMessage.warning('请选择加油时间');
+    return;
+  }
   saving.value = true;
   try {
     const data: any = {
-      vehicleId: form.vehicleId,
-      refuelTime: form.refuelTime,
-      mileage: Number(form.mileage || 0),
-      energyType: form.energyType,
-      fuelGrade: form.fuelGrade,
-      volume: Number(form.volume || 0),
-      unitPrice: Number(form.unitPrice || 0),
-      totalAmount: Number(form.totalAmount || 0),
-      isFullTank: form.isFullTankOn ? 1 : 0,
-      station: form.station || null,
-      remark: form.remark || null,
+      vehicleId: form.vehicleId, refuelTime: form.refuelTime, mileage: Number(form.mileage || 0),
+      energyType: form.energyType, fuelGrade: form.fuelGrade, volume: Number(form.volume || 0),
+      unitPrice: Number(form.unitPrice || 0), totalAmount: Number(form.totalAmount || 0),
+      isFullTank: form.isFullTankOn ? 1 : 0, isFuelLightOn: form.isFuelLightOn ? 1 : 0,
+      station: form.station || null, remark: form.remark || null,
     };
     if (form.id) await fuelRecordApi.update(form.id, data);
     else await fuelRecordApi.create(data);
@@ -440,10 +463,8 @@ function onFilterChange() {
 }
 
 onMounted(async () => {
-  // 确保偏好已加载（app bootstrap 之后才会走到这里，但页面直接进入也兜底）
   await prefs.load();
   await loadVehicles();
-  // URL ?vehicleId=xxx 优先级最高；否则用后端偏好
   const vid = route.query.vehicleId;
   if (vid && typeof vid === 'string') {
     filterVehicleId.value = vid;
@@ -456,277 +477,742 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.page-header {
+.fuel {
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 4px 24px;
+}
+
+.glass-card {
+  background: #ffffff;
+  border: 1px solid rgba(230, 233, 240, 0.9);
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(26, 29, 38, 0.05);
+}
+
+/* ===== 头部 ===== */
+.fuel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14px;
+  margin: 8px 12px 0;
   gap: 12px;
 }
 
-.page-header-title {
+.fuel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.fuel-title-row {
   display: flex;
   align-items: baseline;
   gap: 10px;
 }
 
-.page-header h2 {
+.fuel-head h2 {
   margin: 0;
   font-size: 18px;
-  color: var(--text-1);
+  font-weight: 600;
+  color: #1a1d26;
 }
 
-.count {
-  font-size: 13px;
-  color: var(--text-3);
+.fuel-count {
+  font-size: 12px;
+  color: #8a8f99;
 }
 
-.page-header :deep(.el-button--primary) {
-  background: var(--grad-brand);
+.fuel-head :deep(.el-button--primary) {
+  background: linear-gradient(135deg, #4a8cf7, #2e6be6);
   border: none;
-  box-shadow: var(--glow-primary);
+  border-radius: 18px;
 }
 
-.filter-bar.glass {
+/* ===== 车辆条 ===== */
+.veh-bar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  margin-bottom: 14px;
-  background: var(--surface-glass);
-  backdrop-filter: var(--blur-glass);
-  border: 1px solid var(--border-glass);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
-}
-
-.filter-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-2);
-}
-
-.filter-select {
-  width: 240px;
-}
-
-.filter-stats {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
-  color: var(--text-2);
-}
-
-.filter-stats b {
-  font-size: 15px;
-  color: var(--text-1);
-  font-weight: 700;
-}
-
-.dim {
-  color: var(--text-3);
-}
-
-/* ===== 表格 ===== */
-.mini-table :deep(th.el-table__cell) {
-  background: transparent;
-  color: var(--text-3);
-  font-weight: 600;
-}
-
-.mini-table :deep(.el-table__row) {
-  background: transparent;
-}
-
-.grade-chip {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  background: rgba(245, 158, 11, 0.14);
-  color: #b45309;
-  margin-right: 4px;
-}
-
-.energy-sub {
-  font-size: 11px;
-  color: var(--text-3);
-}
-
-.amount {
-  font-weight: 700;
-  color: var(--text-1);
-}
-
-.full-icon {
-  margin-left: 6px;
-  color: var(--color-success);
-}
-
-/* ===== 移动端卡片 ===== */
-.m-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.m-card.glass {
-  display: flex;
-  flex-direction: column;
   gap: 8px;
-  padding: 14px 16px;
-  background: var(--surface-glass);
-  backdrop-filter: var(--blur-glass);
-  border: 1px solid var(--border-glass);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
+  padding: 10px 14px;
+  margin: 0 12px;
 }
 
-.m-top {
+.veh-ic {
+  color: #8a8f99;
+  flex-shrink: 0;
+}
+
+.veh-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.veh-select :deep(.el-input__wrapper) {
+  box-shadow: none;
+  background: transparent;
+}
+
+.veh-stat {
+  font-size: 12px;
+  color: #9ca1ad;
+  flex-shrink: 0;
+}
+
+/* 管理按钮：与「加油」主按钮同尺寸风格（32px 圆角胶囊） */
+.veh-manage {
+  background: #f0f1f4 !important;
+  border: none !important;
+  color: #2e6be6 !important;
+}
+
+.veh-manage:hover {
+  background: #e4e6eb !important;
+  color: #2e6be6 !important;
+}
+
+/* ===== 统计卡 2×3 ===== */
+.fuel-stats {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 0;
+  margin: 0 12px;
 }
 
-.m-time {
-  font-size: 13px;
-  color: var(--text-2);
-  font-weight: 600;
+.stats-row {
+  display: flex;
+  align-items: center;
 }
 
-.m-amount {
+.stat-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.stat-v {
   font-size: 17px;
   font-weight: 700;
-  color: var(--brand-gold);
+  color: #1a1d26;
+  font-family: Inter, sans-serif;
 }
 
-.mid-m-top { margin-top: 0; }
+.stat-blue {
+  color: #2e6be6;
+}
 
-.m-mid {
+.stat-green {
+  color: #3ba55d;
+}
+
+.stat-l {
+  font-size: 11px;
+  color: #9ca1ad;
+}
+
+.stat-div {
+  width: 1px;
+  height: 34px;
+  background: #eceef2;
+}
+
+/* ===== 时间线 ===== */
+.tl {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0 12px;
+  min-height: 80px;
+}
+
+.tl-entry {
+  display: flex;
+  gap: 8px;
+}
+
+.tl-col {
+  width: 20px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.tl-dot {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #2e6be6;
+  border: 2.5px solid #fff;
+  box-shadow: 0 0 4px rgba(46, 107, 230, 0.3);
+  margin-top: 2px;
+}
+
+.tl-line {
+  width: 2px;
+  flex: 1;
+  min-height: 30px;
+  background: #e3e7ee;
+}
+
+.tl-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tl-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  padding-right: 4px;
 }
 
-.m-vehicle {
+.tl-time {
+  font-size: 12px;
+  font-weight: 500;
+  color: #9ca1ad;
+}
+
+.tl-km {
   font-size: 14px;
-  font-weight: 600;
-  color: var(--text-1);
+  font-weight: 700;
+  color: #1a1d26;
+  margin-left: auto;
 }
 
-.m-grade {
-  padding: 1px 7px;
-  border-radius: 6px;
+.tl-del {
+  border: none;
+  background: transparent;
+  color: #f2573e;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+}
+
+/* ===== FuelCard ===== */
+.fuel-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid rgba(230, 233, 240, 0.9);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.fuel-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(46, 107, 230, 0.35);
+}
+
+.fc-top {
+  display: flex;
+  align-items: center;
+}
+
+.fc-eco {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #3ba55d;
+  flex: 1;
+}
+
+.fc-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: #9ca1ad;
+}
+
+.fc-mid {
+  display: flex;
+  align-items: center;
+}
+
+.fc-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.fc-v {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1d26;
+  font-family: Inter, sans-serif;
+}
+
+.fc-l {
   font-size: 11px;
-  font-weight: 600;
-  background: rgba(245, 158, 11, 0.14);
-  color: #b45309;
+  color: #9ca1ad;
 }
 
-.m-full {
-  padding: 1px 7px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  background: rgba(16, 185, 129, 0.14);
-  color: #047857;
+.fc-div {
+  width: 1px;
+  height: 30px;
+  background: #eceef2;
 }
 
-.m-detail {
+.fc-sub {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.fc-sub-t {
+  font-size: 12px;
+  color: #9ca1ad;
+}
+
+.fc-sub-dot {
+  width: 1px;
+  height: 12px;
+  background: #eceef2;
+}
+
+.fc-badges {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.fc-badge {
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.fc-badge.full {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.fc-badge.light {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.fc-grade {
+  margin-left: auto;
   font-size: 12px;
-  color: var(--text-2);
-  flex-wrap: wrap;
+  font-weight: 600;
+  color: #9ca1ad;
 }
 
-.m-detail b {
-  font-weight: 700;
-  color: var(--text-1);
+/* ===== 抽屉 ===== */
+.sheet {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 12px 20px 24px;
 }
 
-.station {
-  color: var(--text-3);
+.sheet-grabber {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: #d8dbe0;
+  margin: 0 auto 10px;
 }
 
-.m-remark {
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--text-2);
-  padding: 6px 10px;
-  background: var(--surface-glass-strong);
-  border-radius: var(--radius-sm);
-  border-left: 2px solid var(--brand-gold);
-}
-
-.m-ops {
+.sheet-head {
   display: flex;
-  gap: 4px;
-  justify-content: flex-end;
-  padding-top: 4px;
-  border-top: 1px dashed var(--border-glass);
+  align-items: center;
+  margin-bottom: 14px;
 }
 
-.m-ops button {
+.sheet-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #1a1d26;
+  flex: 1;
+}
+
+.sheet-close {
+  width: 28px;
+  height: 28px;
   border: none;
-  background: transparent;
-  font-size: 13px;
-  padding: 4px 10px;
-  border-radius: var(--radius-sm);
+  border-radius: 50%;
+  background: #f0f1f4;
+  color: #8a8f99;
+  font-size: 16px;
   cursor: pointer;
 }
 
-.m-edit {
-  color: var(--brand-gold);
+.sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
-.m-del {
-  color: var(--brand-red);
+/* ===== 表单卡 ===== */
+.f-card {
+  background: #ffffff;
+  border: 1px solid rgba(230, 233, 240, 0.9);
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(26, 29, 38, 0.05);
+  padding: 4px 16px 16px;
 }
 
-/* ===== 表单 ===== */
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+/* 行 */
+.f-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
   gap: 12px;
 }
 
-.form-row.form-3 {
-  grid-template-columns: 1fr 1fr 1fr;
+.f-label {
+  font-size: 14px;
+  color: #8a8f99;
+  flex-shrink: 0;
 }
 
-.switch-row {
+.f-div {
+  height: 1px;
+  background: #f0f1f4;
+  margin: 2px 0;
+}
+
+/* 车辆 select 透明化 */
+.f-select {
+  flex: 1;
+  max-width: 240px;
+}
+
+.f-select :deep(.el-input__wrapper) {
+  box-shadow: none;
+  background: transparent;
+  padding-right: 0;
+}
+
+.f-select :deep(.el-input__inner) {
+  text-align: right;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1d26;
+}
+
+.f-select :deep(.el-select__caret) {
+  color: #8a8f99;
+}
+
+/* 时间 picker 透明化 */
+.f-date {
+  flex: 1;
+  max-width: 240px;
+}
+
+.f-date :deep(.el-input__wrapper) {
+  box-shadow: none;
+  background: transparent;
+  padding-right: 0;
+}
+
+.f-date :deep(.el-input__inner) {
+  text-align: right;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1a1d26;
+}
+
+.f-date :deep(.el-input__suffix) {
+  display: none;
+}
+
+/* 里程大数字 */
+.f-mile {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.f-mile-input {
+  width: 150px;
+}
+
+.f-mile-input :deep(.el-input__wrapper) {
+  box-shadow: none;
+  background: transparent;
+  padding-right: 0;
+}
+
+.f-mile-input :deep(.el-input__inner) {
+  text-align: right;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1d26;
+  font-family: Inter, sans-serif;
+}
+
+.f-mile-unit {
+  font-size: 13px;
+  color: #8a8f99;
+}
+
+/* 分段 / chips */
+.f-sec-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #8a8f99;
+  margin: 14px 0 8px;
+}
+
+.f-seg {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 18px;
+  background: #eaecf1;
+}
+
+.f-seg-item {
+  flex: 1;
+  height: 30px;
+  border: none;
+  border-radius: 15px;
+  background: transparent;
+  color: #8a8f99;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.f-seg-item.on {
+  background: #ffffff;
+  color: #1a1d26;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(26, 29, 38, 0.08);
+}
+
+.f-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.f-chip {
+  height: 36px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 18px;
+  background: #f0f1f4;
+  color: #8a8f99;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.f-chip.on {
+  background: #2e6be6;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* 三列 */
+.f-num-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
 }
 
-.switch-label {
+.f-num-head .f-sec-label {
+  margin-bottom: 8px;
+}
+
+.f-auto {
+  font-size: 11px;
+  color: #3ba55d;
+  margin-bottom: 8px;
+}
+
+.f-cols {
+  display: flex;
+  gap: 8px;
+}
+
+.f-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 6px 10px;
+  border-radius: 10px;
+  background: #f6f8fc;
+}
+
+.f-col.hl {
+  background: #e9f1fe;
+}
+
+.f-num {
+  width: 100%;
+}
+
+.f-num :deep(.el-input__wrapper) {
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
+}
+
+.f-num :deep(.el-input__inner) {
+  text-align: center;
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1d26;
+  font-family: Inter, sans-serif;
+}
+
+.f-num.hl :deep(.el-input__inner) {
+  color: #2e6be6;
+}
+
+.f-col-unit {
+  font-size: 11px;
+  color: #8a8f99;
+}
+
+.f-col-unit.hl {
+  color: #2e6be6;
+  font-weight: 500;
+}
+
+/* 满箱 / 油灯 开关 */
+.f-sw-row {
+  display: flex;
+  gap: 12px;
+}
+
+.f-sw {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 46px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: #f0f1f4;
+}
+
+.f-sw.full.on {
+  background: #e8f5e9;
+}
+
+.f-sw.light.on {
+  background: #fff3e0;
+}
+
+.f-sw-txt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #8a8f99;
+  transition: color 0.15s ease;
+}
+
+.f-sw.full.on .f-sw-txt {
+  color: #2e7d32;
+}
+
+.f-sw.light.on .f-sw-txt {
+  color: #e65100;
+}
+
+.f-sw-sub {
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+.f-sw-dot {
+  width: 38px;
+  height: 22px;
+  border-radius: 11px;
+  background: #cfd0d4;
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.2s ease;
+}
+
+.f-sw-dot::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  transition: left 0.2s ease;
+}
+
+.f-sw-dot.on {
+  background: #2e7d32;
+}
+
+.f-sw.light .f-sw-dot.on {
+  background: #e65100;
+}
+
+.f-sw-dot.on::after {
+  left: 18px;
+}
+
+/* 加油站 / 备注 */
+.f-field {
+  margin-top: 12px;
+}
+
+.f-field-label {
+  display: block;
   font-size: 13px;
-  color: var(--text-2);
+  font-weight: 500;
+  color: #8a8f99;
+  margin-bottom: 8px;
 }
 
-@media (max-width: 767px) {
-  .filter-bar {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .filter-select {
-    width: 100%;
-  }
-  .filter-stats {
-    width: 100%;
-    margin-left: 0;
-    justify-content: flex-end;
-  }
-  .form-row,
-  .form-row.form-3 {
-    grid-template-columns: 1fr;
-  }
+.f-input :deep(.el-input__wrapper) {
+  border-radius: 10px;
+}
+
+.f-textarea :deep(.el-textarea__inner) {
+  border-radius: 10px;
+  background: #f6f8fc;
+  box-shadow: none;
+  border: none;
+}
+
+/* 保存 */
+.sheet-save {
+  width: 100%;
 }
 </style>

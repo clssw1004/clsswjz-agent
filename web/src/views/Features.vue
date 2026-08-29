@@ -73,7 +73,7 @@ import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   Notebook, CollectionTag, Shop, PriceTag, Folder, Wallet, Document, Sunny,
-  Setting, RefreshRight, Connection, Calendar, Trophy, Van, Coin,
+  Setting, RefreshRight, Connection, Calendar, Trophy, Coin,
 } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { useAppStore } from '@/stores/app';
@@ -102,7 +102,6 @@ const lifeItems = [
   { label: '记事', icon: Document, grad: 'linear-gradient(135deg, #00a9c9, #22d3ee)', route: '/notes' },
   { label: '经期记录', icon: Calendar, grad: 'linear-gradient(135deg, #e8528c, #f472b6)', route: '/periods' },
   { label: '活动打卡', icon: Trophy, grad: 'linear-gradient(135deg, #a78bfa, #8b5cf6)', route: '/activities' },
-  { label: '车辆管理', icon: Van, grad: 'linear-gradient(135deg, #38bdf8, #0ea5e9)', route: '/vehicles' },
   { label: '加油记录', icon: Coin, grad: 'linear-gradient(135deg, #fbbf24, #f59e0b)', route: '/fuel-records' },
 ];
 

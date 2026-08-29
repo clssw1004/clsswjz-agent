@@ -101,6 +101,19 @@ export const attachmentApi = {
   remove: (id: string) => http.delete(`/attachments/${id}`),
 };
 
+/**
+ * 带鉴权加载附件为 objectURL（<img> 直接请求下载端点不会带 Authorization 头，
+ * 后端 JWT 守卫会返回 401；此函数用 fetch + Bearer token 拿 blob 转 objectURL）。
+ * 返回的 objectURL 用完需 URL.revokeObjectURL 释放（组件卸载时处理）。
+ */
+export async function loadAttachmentUrl(id: string): Promise<string> {
+  const res = await fetch(`/api/attachments/${id}`, {
+    headers: { Authorization: `Bearer ${localStorage.getItem('web_token') || ''}` },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return URL.createObjectURL(await res.blob());
+}
+
 export const syncApi = {
   push: () => http.post('/sync/push'),
   pull: (data?: any) => http.post('/sync/pull', data),

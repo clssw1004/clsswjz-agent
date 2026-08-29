@@ -31,6 +31,7 @@ const router = createRouter({
         { path: 'settings/share', component: () => import('../views/settings/ShareSettings.vue'), meta: { title: '数据共享' } },
         { path: 'periods', component: () => import('../views/Periods.vue'), meta: { title: '经期记录' } },
         { path: 'activities', component: () => import('../views/Activities.vue'), meta: { title: '活动打卡' } },
+        { path: 'activities/:id', component: () => import('../views/ActivityDetail.vue'), meta: { title: '活动详情' } },
         { path: 'vehicles', component: () => import('../views/Vehicles.vue'), meta: { title: '车辆管理' } },
         { path: 'fuel-records', component: () => import('../views/FuelRecords.vue'), meta: { title: '加油记录' } },
         { path: 'db-viewer', component: () => import('../views/DbViewer.vue'), meta: { title: '数据库' } },

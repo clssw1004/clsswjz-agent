@@ -283,6 +283,22 @@ html.dark {
   box-sizing: border-box;
 }
 
+/* ---------------------------------------------------------
+ * 5.1 弹层内边距统一（使用 Element Plus 官方 CSS 变量，
+ *     不依赖内部类名；本设计系统弹层内容自带 padding）
+ * --------------------------------------------------------- */
+:root {
+  /* dialog：本体 padding 由该变量控制（默认 16px → 微收 14px） */
+  --el-dialog-padding-primary: 14px;
+}
+
+/* 本项目的底部抽屉：内容区自带 padding，变量归零（具名限定，
+   不影响未来其他 drawer；变量由 drawer 根节点继承到 body） */
+.sheet-drawer,
+.fuel-sheet {
+  --el-drawer-padding-primary: 0;
+}
+
 html,
 body,
 #app {

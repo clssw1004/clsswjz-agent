@@ -11,61 +11,77 @@
       </el-button>
     </div>
 
-    <el-card v-for="group in groups" :key="group.type" class="glass group-card" shadow="never">
-      <template #header>
-        <div class="group-header">
-          <span class="group-title">
-            <span class="group-dot" :class="group.type === 'INCOME' ? 'dot-income' : 'dot-expense'"></span>
-            {{ group.label }}
-          </span>
-          <el-tag :type="group.type === 'INCOME' ? 'success' : 'danger'" size="small" effect="light" round>
-            {{ group.list.length }} 项
-          </el-tag>
-        </div>
-      </template>
+    <!-- 支出/收入 切换 -->
+    <div class="seg-wrap">
+      <div class="seg-control">
+        <button
+          v-for="g in segGroups"
+          :key="g.type"
+          class="seg-item"
+          :class="{ active: activeType === g.type }"
+          @click="activeType = g.type"
+        >
+          {{ g.label }}
+        </button>
+      </div>
+    </div>
 
-      <el-table v-if="!isMobile" :data="group.tree" v-loading="loading" empty-text="暂无数据" class="mini-table" row-key="id" default-expand-all>
-        <el-table-column prop="name" label="名称" min-width="200">
-          <template #default="{ row }">
-            <span :style="{ paddingLeft: (row._depth * 20) + 'px' }">
-              <span v-if="row._depth > 0" class="tree-line">└</span>
-              {{ row.name }}
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="categoryType" label="类型" width="100">
-          <template #default="{ row }">
-            <span class="type-chip" :class="row.categoryType === 'INCOME' ? 'chip-income' : 'chip-expense'">
-              {{ typeLabel(row.categoryType) }}
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="140" align="right">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="openDialog(row)">编辑</el-button>
-            <el-button link type="danger" @click="remove(row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+    <!-- 树形列表卡片 -->
+    <el-card class="glass tree-card" shadow="never">
+      <div v-loading="loading" class="tree-list">
+        <el-empty v-if="!loading && visibleTree.length === 0" description="暂无数据" />
 
-      <!-- 移动端：卡片列表 -->
-      <div v-else class="m-list" v-loading="loading">
-        <el-empty v-if="!loading && group.list.length === 0" description="暂无数据" />
-        <div v-for="row in group.tree" :key="row.id" class="m-item" :style="{ paddingLeft: (12 + row._depth * 18) + 'px' }">
-          <div class="m-main">
-            <span class="m-name">
-              <span v-if="row._depth > 0" class="tree-line">└</span>
-              {{ row.name }}
+        <template v-for="row in visibleTree" :key="row.id">
+          <div
+            class="t-row"
+            :class="{ 't-row-parent': row._children.length > 0 }"
+            :style="{ paddingLeft: 12 + row._depth * 28 + 'px' }"
+          >
+            <button
+              v-if="row._children.length > 0"
+              class="t-chevron"
+              :class="{ expanded: isExpanded(row.id) }"
+              @click="toggle(row.id)"
+            >
+              <el-icon :size="14">
+                <ArrowDown v-if="isExpanded(row.id)" />
+                <ArrowRight v-else />
+              </el-icon>
+            </button>
+            <span v-else class="t-chevron t-chevron-empty"></span>
+
+            <span
+              class="t-icon"
+              :class="row._children.length > 0 ? 'icon-folder' : 'icon-leaf'"
+            >
+              <el-icon :size="16">
+                <FolderOpened v-if="row._children.length > 0 && isExpanded(row.id)" />
+                <Folder v-else-if="row._children.length > 0" />
+                <Document v-else />
+              </el-icon>
+            </span>
+
+            <span class="t-name">{{ row.name }}</span>
+            <span v-if="row._children.length > 0" class="t-badge">{{ row._children.length }}</span>
+
+            <span class="t-ops">
+              <el-button link type="primary" @click="openDialog(row)">编辑</el-button>
+              <el-button link type="danger" @click="remove(row)">删除</el-button>
             </span>
           </div>
-          <span class="type-chip" :class="row.categoryType === 'INCOME' ? 'chip-income' : 'chip-expense'">
-            {{ typeLabel(row.categoryType) }}
-          </span>
-          <div class="m-ops">
-            <button class="m-edit" @click="openDialog(row)">编辑</button>
-            <button class="m-del" @click="remove(row)">删除</button>
+
+          <!-- 展开时：虚线添加子分类 -->
+          <div
+            v-if="row._children.length > 0 && isExpanded(row.id)"
+            class="t-add"
+            :style="{ marginLeft: 12 + (row._depth + 1) * 28 + 'px' }"
+          >
+            <button class="t-add-btn" @click="openDialog(undefined, row)">
+              <el-icon :size="13" style="margin-right: 4px"><CirclePlus /></el-icon>
+              添加子分类
+            </button>
           </div>
-        </div>
+        </template>
       </div>
     </el-card>
 
@@ -81,7 +97,7 @@
           <el-input v-model="form.name" placeholder="请输入名称" size="large" />
         </el-form-item>
         <el-form-item label="类型" prop="categoryType">
-          <el-select v-model="form.categoryType" style="width: 100%" size="large">
+          <el-select v-model="form.categoryType" style="width: 100%" size="large" :disabled="!!form.id">
             <el-option label="支出" value="EXPENSE" />
             <el-option label="收入" value="INCOME" />
           </el-select>
@@ -113,20 +129,22 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { Plus } from '@element-plus/icons-vue';
+import { Plus, CirclePlus, ArrowDown, ArrowRight, Folder, FolderOpened, Document } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import { categoryApi } from '@/api';
 import { useAppStore } from '@/stores/app';
-import { useResponsive } from '@/composables/useResponsive';
 
 const appStore = useAppStore();
-const { isMobile } = useResponsive();
 
 const loading = ref(false);
 const saving = ref(false);
 const items = ref<any[]>([]);
 const dialogVisible = ref(false);
 const formRef = ref<FormInstance>();
+
+const activeType = ref<'EXPENSE' | 'INCOME'>('EXPENSE');
+/** 折叠的父级 id 集合 */
+const collapsedIds = ref<Set<string>>(new Set());
 
 const form = reactive({ id: '', name: '', categoryType: 'EXPENSE', parentId: '', isBookkeepingSelectable: true });
 
@@ -135,36 +153,60 @@ const rules: FormRules = {
   categoryType: [{ required: true, message: '请选择类型', trigger: 'change' }],
 };
 
+const segGroups = [
+  { type: 'EXPENSE', label: '支出' },
+  { type: 'INCOME', label: '收入' },
+];
+
 function typeLabel(t?: string) {
   return t === 'INCOME' ? '收入' : t === 'EXPENSE' ? '支出' : (t || '-');
 }
 
-/** 构建树：为每个节点标记 _depth，按 sortOrder 排序后递归展开 */
-function buildTree(list: any[], parentId = ''): any[] {
+/** 构建树：标记 _depth 与 _children（直接子级），按 sortOrder 排序 */
+function buildTree(list: any[], parentId = '', depth = 0): any[] {
   return list
     .filter((i) => (i.parentId || '') === parentId)
     .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
-    .flatMap((node) => {
-      const children = list.filter((i) => i.parentId === node.id);
-      const depth = parentId === '' ? 0 : (list.find((i) => i.id === parentId)?._depth ?? 0) + 1;
-      const item = { ...node, _depth: depth };
-      if (children.length) {
-        return [item, ...buildTree(list, node.id).map((c) => ({ ...c, _depth: depth + 1 }))];
-      }
-      return [item];
-    });
+    .map((node) => ({
+      ...node,
+      _depth: depth,
+      _children: buildTree(list, node.id, depth + 1),
+    }));
 }
 
-const groups = computed(() => {
-  const expense = items.value.filter((i) => i.categoryType !== 'INCOME');
-  const income = items.value.filter((i) => i.categoryType === 'INCOME');
-  return [
-    { type: 'EXPENSE', label: '支出分类', list: expense, tree: buildTree(expense) },
-    { type: 'INCOME', label: '收入分类', list: income, tree: buildTree(income) },
-  ];
+/** 当前类型下的树 */
+const currentTree = computed(() => {
+  const list = items.value.filter((i) => (i.categoryType || 'EXPENSE') === activeType.value);
+  return buildTree(list);
 });
 
-/** 上级分类候选（排除自身及子分类，按类型过滤） */
+/** 按展开状态拍平（DFS），折叠的父级不展开其子级 */
+const visibleTree = computed(() => {
+  const result: any[] = [];
+  const walk = (nodes: any[]) => {
+    for (const n of nodes) {
+      result.push(n);
+      if (n._children.length > 0 && !collapsedIds.value.has(n.id)) {
+        walk(n._children);
+      }
+    }
+  };
+  walk(currentTree.value);
+  return result;
+});
+
+function isExpanded(id: string) {
+  return !collapsedIds.value.has(id);
+}
+
+function toggle(id: string) {
+  const s = new Set(collapsedIds.value);
+  if (s.has(id)) s.delete(id);
+  else s.add(id);
+  collapsedIds.value = s;
+}
+
+/** 上级分类候选（排除自身及子分类，按当前类型过滤） */
 const parentCandidates = computed(() => {
   const currentType = form.categoryType;
   const candidates = items.value.filter(
@@ -183,12 +225,12 @@ async function load() {
   }
 }
 
-function openDialog(row?: any) {
+function openDialog(row?: any, parent?: any) {
   Object.assign(form, {
     id: row?.id || '',
     name: row?.name || '',
-    categoryType: row?.categoryType || 'EXPENSE',
-    parentId: row?.parentId || '',
+    categoryType: row?.categoryType || (parent ? parent.categoryType : activeType.value) || 'EXPENSE',
+    parentId: row?.parentId || parent?.id || '',
     isBookkeepingSelectable: row?.isBookkeepingSelectable !== false,
   });
   dialogVisible.value = true;
@@ -267,8 +309,42 @@ watch(() => appStore.currentBookId, load);
   box-shadow: var(--glow-primary);
 }
 
-.group-card.glass {
+/* 支出/收入 segmented */
+.seg-wrap {
   margin-bottom: 16px;
+}
+
+.seg-control {
+  display: flex;
+  padding: 3px;
+  border-radius: 18px;
+  background: #eaecef;
+  max-width: 300px;
+  gap: 3px;
+}
+
+.seg-item {
+  flex: 1;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 15px;
+  font-size: 14px;
+  font-weight: 400;
+  color: #8a8f99;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.seg-item.active {
+  background: #ffffff;
+  font-weight: 600;
+  color: #1a1d26;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* 树形卡片 */
+.tree-card.glass {
   background: var(--surface-glass);
   backdrop-filter: var(--blur-glass);
   border: 1px solid var(--border-glass);
@@ -276,47 +352,138 @@ watch(() => appStore.currentBookId, load);
   box-shadow: var(--shadow-card);
 }
 
-.group-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.tree-card :deep(.el-card__body) {
+  padding: 8px 12px;
 }
 
-.group-title {
+.tree-list {
+  min-height: 120px;
+}
+
+/* 行 */
+.t-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-weight: 600;
-  color: var(--text-1);
+  padding: 0 8px;
+  height: 52px;
+  border-radius: 10px;
+  transition: background 0.15s;
 }
 
-.group-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+.t-row:hover {
+  background: rgba(0, 0, 0, 0.03);
 }
 
-.dot-expense {
-  background: var(--brand-red);
+.t-row-parent {
+  height: 58px;
 }
 
-.dot-income {
-  background: var(--color-success);
-}
-
-.type-chip {
-  display: inline-flex;
+.t-chevron {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  display: flex;
   align-items: center;
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: 12px;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: #8a8f99;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 0;
+}
+
+.t-chevron:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #1a1d26;
+}
+
+.t-chevron-empty {
+  cursor: default;
+}
+
+.t-icon {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+}
+
+.t-icon .el-icon {
+  color: inherit;
+}
+
+.icon-folder {
+  background: #fff6e0;
+  color: #f0a33c;
+}
+
+.icon-leaf {
+  background: #e9f9f0;
+  color: #3ba55d;
+}
+
+.t-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  color: #1a1d26;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.t-row-parent .t-name {
+  font-size: 16px;
   font-weight: 600;
 }
 
-.tree-line {
-  color: var(--text-3);
-  margin-right: 4px;
-  font-family: monospace;
+.t-badge {
+  flex-shrink: 0;
+  padding: 2px 9px;
+  border-radius: 10px;
+  background: #edf1fb;
+  color: #8a8f99;
+  font-size: 12px;
+}
+
+.t-ops {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.t-ops :deep(.el-button) {
+  font-size: 13px;
+}
+
+/* 虚线添加行 */
+.t-add {
+  padding: 2px 8px 6px 0;
+}
+
+.t-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 38px;
+  border: 1px dashed rgba(46, 107, 230, 0.5);
+  border-radius: 10px;
+  background: #f6f8fc;
+  color: #2e6be6;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.t-add-btn:hover {
+  background: #eef3ff;
 }
 
 .switch-row {
@@ -330,85 +497,6 @@ watch(() => appStore.currentBookId, load);
   color: var(--text-2);
 }
 
-.chip-expense {
-  color: var(--brand-red);
-  background: rgba(239, 68, 68, 0.1);
-}
-
-.chip-income {
-  color: var(--color-success);
-  background: rgba(16, 185, 129, 0.12);
-}
-
-.mini-table :deep(th.el-table__cell) {
-  background: transparent;
-  color: var(--text-3);
-  font-weight: 600;
-}
-
-.mini-table :deep(.el-table__row) {
-  background: transparent;
-}
-
-/* 移动端卡片列表 */
-.m-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.m-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 12px;
-  border-radius: var(--radius-md);
-  background: var(--surface-glass-strong);
-  border: 1px solid var(--border-glass);
-}
-
-.m-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.m-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-1);
-}
-
-.m-sub {
-  font-size: 11px;
-  color: var(--text-3);
-}
-
-.m-ops {
-  display: flex;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.m-ops button {
-  border: none;
-  background: transparent;
-  font-size: 13px;
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-.m-edit {
-  color: var(--brand-gold);
-}
-
-.m-del {
-  color: var(--brand-red);
-}
-
 @media (max-width: 767px) {
   .page-header {
     align-items: flex-start;
@@ -417,6 +505,19 @@ watch(() => appStore.currentBookId, load);
   .page-header :deep(.el-button) {
     padding: 8px 14px;
     font-size: 13px;
+  }
+
+  .seg-control {
+    max-width: 100%;
+  }
+
+  .t-row,
+  .t-row-parent {
+    height: 48px;
+  }
+
+  .t-ops :deep(.el-button) {
+    padding: 4px 6px;
   }
 }
 </style>

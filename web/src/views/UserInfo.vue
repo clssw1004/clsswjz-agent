@@ -68,7 +68,7 @@
 import { reactive, ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ArrowLeft, Camera, Document, CopyDocument, User } from '@element-plus/icons-vue';
-import { userApi, authApi } from '@/api';
+import { loadAttachmentUrl, userApi, authApi } from '@/api';
 import { useAuthStore } from '@/stores/auth';
 import Panel from '@/components/Panel.vue';
 
@@ -102,16 +102,12 @@ async function loadProfile() {
     form.phone = p.phone || '';
     form.inviteCode = p.inviteCode || '';
     if (p.avatar) {
-      // 懒加载：<img> 直接请求下载端点，后端缺失文件时自动从主端拉取
-      avatarUrl.value = `${attachmentUrl(p.avatar)}?t=${Date.now()}`;
+      // 带鉴权懒加载：<img> 直接请求下载端点不带 Authorization 头会 401
+      avatarUrl.value = await loadAttachmentUrl(p.avatar);
     }
   } finally {
     loading.value = false;
   }
-}
-
-function attachmentUrl(id: string) {
-  return `/api/attachments/${id}`;
 }
 
 function pickAvatar() {
