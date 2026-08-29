@@ -15,7 +15,7 @@
       <div class="toolbar">
         <el-input
           v-model="keyword"
-          placeholder="搜索名称或编码"
+          placeholder="搜索名称"
           clearable
           size="large"
           class="search-input"
@@ -25,17 +25,12 @@
       </div>
 
       <el-table v-if="!isMobile" :data="treeItems" v-loading="loading" empty-text="暂无数据" class="mini-table" row-key="id" default-expand-all>
-        <el-table-column prop="name" label="名称" min-width="180">
+        <el-table-column prop="name" label="名称" min-width="240">
           <template #default="{ row }">
             <span :style="{ paddingLeft: (row._depth * 20) + 'px' }">
               <span v-if="row._depth > 0" class="tree-line">└</span>
               {{ row.name }}
             </span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="code" label="编码" min-width="160">
-          <template #default="{ row }">
-            <span class="code-text">{{ row.code }}</span>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="140" align="right">
@@ -55,7 +50,6 @@
               <span v-if="row._depth > 0" class="tree-line">└</span>
               {{ row.name }}
             </span>
-            <span class="m-sub mono">{{ row.code }}</span>
           </div>
           <div class="m-ops">
             <button class="m-edit" @click="openDialog(row)">编辑</button>
@@ -74,9 +68,6 @@
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
         <el-form-item label="名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入名称" size="large" />
-        </el-form-item>
-        <el-form-item label="编码" prop="code">
-          <el-input v-model="form.code" placeholder="请输入编码" size="large" />
         </el-form-item>
         <el-form-item label="记账可选">
           <div class="switch-row">
@@ -121,20 +112,17 @@ const items = ref<any[]>([]);
 const dialogVisible = ref(false);
 const formRef = ref<FormInstance>();
 
-const form = reactive({ id: '', name: '', code: '', parentId: '', isBookkeepingSelectable: true });
+const form = reactive({ id: '', name: '', parentId: '', isBookkeepingSelectable: true });
 
 const rules: FormRules = {
   name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
-  code: [{ required: true, message: '请输入编码', trigger: 'blur' }],
 };
 
 const filtered = computed(() => {
   const k = keyword.value.trim().toLowerCase();
   if (!k) return items.value;
   return items.value.filter(
-    (i) =>
-      String(i.name || '').toLowerCase().includes(k) ||
-      String(i.code || '').toLowerCase().includes(k),
+    (i) => String(i.name || '').toLowerCase().includes(k),
   );
 });
 
@@ -176,7 +164,6 @@ function openDialog(row?: any) {
   Object.assign(form, {
     id: row?.id || '',
     name: row?.name || '',
-    code: row?.code || '',
     parentId: row?.parentId || '',
     isBookkeepingSelectable: row?.isBookkeepingSelectable !== false,
   });
@@ -191,7 +178,6 @@ async function save() {
   try {
     const data = {
       name: form.name,
-      code: form.code,
       parentId: form.parentId || null,
       isBookkeepingSelectable: form.isBookkeepingSelectable,
       accountBookId: appStore.currentBookId,
@@ -270,12 +256,6 @@ watch(() => appStore.currentBookId, load);
 
 .search-input {
   max-width: 300px;
-}
-
-.code-text {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--text-2);
 }
 
 .tree-line {

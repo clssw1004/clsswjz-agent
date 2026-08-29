@@ -25,7 +25,7 @@
       </template>
 
       <el-table v-if="!isMobile" :data="group.tree" v-loading="loading" empty-text="暂无数据" class="mini-table" row-key="id" default-expand-all>
-        <el-table-column prop="name" label="名称" min-width="160">
+        <el-table-column prop="name" label="名称" min-width="200">
           <template #default="{ row }">
             <span :style="{ paddingLeft: (row._depth * 20) + 'px' }">
               <span v-if="row._depth > 0" class="tree-line">└</span>
@@ -33,7 +33,6 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="code" label="编码" min-width="140" />
         <el-table-column prop="categoryType" label="类型" width="100">
           <template #default="{ row }">
             <span class="type-chip" :class="row.categoryType === 'INCOME' ? 'chip-income' : 'chip-expense'">
@@ -58,7 +57,6 @@
               <span v-if="row._depth > 0" class="tree-line">└</span>
               {{ row.name }}
             </span>
-            <span class="m-sub mono">{{ row.code }}</span>
           </div>
           <span class="type-chip" :class="row.categoryType === 'INCOME' ? 'chip-income' : 'chip-expense'">
             {{ typeLabel(row.categoryType) }}
@@ -81,9 +79,6 @@
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
         <el-form-item label="名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入名称" size="large" />
-        </el-form-item>
-        <el-form-item label="编码" prop="code">
-          <el-input v-model="form.code" placeholder="请输入编码" size="large" />
         </el-form-item>
         <el-form-item label="类型" prop="categoryType">
           <el-select v-model="form.categoryType" style="width: 100%" size="large">
@@ -133,11 +128,10 @@ const items = ref<any[]>([]);
 const dialogVisible = ref(false);
 const formRef = ref<FormInstance>();
 
-const form = reactive({ id: '', name: '', code: '', categoryType: 'EXPENSE', parentId: '', isBookkeepingSelectable: true });
+const form = reactive({ id: '', name: '', categoryType: 'EXPENSE', parentId: '', isBookkeepingSelectable: true });
 
 const rules: FormRules = {
   name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
-  code: [{ required: true, message: '请输入编码', trigger: 'blur' }],
   categoryType: [{ required: true, message: '请选择类型', trigger: 'change' }],
 };
 
@@ -193,7 +187,6 @@ function openDialog(row?: any) {
   Object.assign(form, {
     id: row?.id || '',
     name: row?.name || '',
-    code: row?.code || '',
     categoryType: row?.categoryType || 'EXPENSE',
     parentId: row?.parentId || '',
     isBookkeepingSelectable: row?.isBookkeepingSelectable !== false,
@@ -209,7 +202,6 @@ async function save() {
   try {
     const data = {
       name: form.name,
-      code: form.code,
       categoryType: form.categoryType,
       parentId: form.parentId || null,
       isBookkeepingSelectable: form.isBookkeepingSelectable,
