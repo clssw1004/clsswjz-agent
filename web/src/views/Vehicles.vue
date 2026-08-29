@@ -55,7 +55,7 @@
     <el-dialog
       v-model="dialogVisible"
       :title="form.id ? '编辑车辆' : '新建车辆'"
-      width="460px"
+      width="min(460px, 90vw)"
       destroy-on-close
       class="form-dialog"
     >

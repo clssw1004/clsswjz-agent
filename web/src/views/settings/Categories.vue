@@ -72,7 +72,7 @@
     <el-dialog
       v-model="dialogVisible"
       :title="form.id ? '编辑分类' : '新增分类'"
-      width="440px"
+      width="min(440px, 90vw)"
       destroy-on-close
       class="form-dialog"
     >

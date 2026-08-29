@@ -114,7 +114,7 @@
     <el-dialog
       v-model="dialogVisible"
       :title="form.id ? '编辑加油记录' : '新建加油记录'"
-      width="520px"
+      width="min(520px, 92vw)"
       destroy-on-close
       class="form-dialog"
     >

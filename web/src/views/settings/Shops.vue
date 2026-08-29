@@ -62,7 +62,7 @@
     <el-dialog
       v-model="dialogVisible"
       :title="form.id ? '编辑商家' : '新增商家'"
-      width="440px"
+      width="min(440px, 90vw)"
       destroy-on-close
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
