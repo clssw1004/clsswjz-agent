@@ -230,9 +230,11 @@ import { useRoute } from 'vue-router';
 import { Plus, Check } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import { vehicleApi, fuelRecordApi } from '@/api';
+import { usePrefsStore } from '@/stores/prefs';
 import { useResponsive } from '@/composables/useResponsive';
 
 const { isMobile } = useResponsive();
+const prefs = usePrefsStore();
 
 const route = useRoute();
 
@@ -255,13 +257,13 @@ function energyLabel(t?: string) {
   }
 }
 
-const FILTER_KEY = 'fuel_filter_vehicleId';
+const FILTER_KEY = 'fuelFilterVehicleId';
 
 const loading = ref(false);
 const saving = ref(false);
 const records = ref<any[]>([]);
 const vehicles = ref<any[]>([]);
-const filterVehicleId = ref(localStorage.getItem(FILTER_KEY) || '');
+const filterVehicleId = ref('');
 const dialogVisible = ref(false);
 const formRef = ref<FormInstance>();
 
@@ -431,21 +433,25 @@ async function remove(row: any) {
 
 function onFilterChange() {
   if (filterVehicleId.value) {
-    localStorage.setItem(FILTER_KEY, filterVehicleId.value);
+    prefs.set(FILTER_KEY, filterVehicleId.value).catch(() => {});
   } else {
-    localStorage.removeItem(FILTER_KEY);
+    prefs.remove(FILTER_KEY).catch(() => {});
   }
 }
 
 onMounted(async () => {
+  // 确保偏好已加载（app bootstrap 之后才会走到这里，但页面直接进入也兜底）
+  await prefs.load();
   await loadVehicles();
-  await loadRecords();
-  // URL ?vehicleId=xxx 优先级最高；否则用 localStorage 缓存
+  // URL ?vehicleId=xxx 优先级最高；否则用后端偏好
   const vid = route.query.vehicleId;
   if (vid && typeof vid === 'string') {
     filterVehicleId.value = vid;
-    localStorage.setItem(FILTER_KEY, vid);
+    prefs.set(FILTER_KEY, vid).catch(() => {});
+  } else {
+    filterVehicleId.value = prefs.get<string>(FILTER_KEY, '') || '';
   }
+  await loadRecords();
 });
 </script>
 

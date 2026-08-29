@@ -37,4 +37,16 @@ export class UserController {
     const saved = await this.attachmentService.upload(req.user.userId, file, 'user', req.user.userId);
     return this.userService.updateAvatar(req.user.userId, (saved as any).id);
   }
+
+  /** 读取用户偏好（agent-local，不参与同步） */
+  @Get('preferences')
+  getPreferences(@Req() req: any) {
+    return this.userService.getPreferences(req.user.userId);
+  }
+
+  /** 合并更新用户偏好；传 null 表示清除该键 */
+  @Put('preferences')
+  updatePreferences(@Req() req: any, @Body() body: Record<string, any>) {
+    return this.userService.updatePreferences(req.user.userId, body || {});
+  }
 }

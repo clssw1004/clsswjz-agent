@@ -176,7 +176,7 @@ const syncTitle = computed(() =>
 );
 
 onMounted(() => {
-  app.loadBooks();
+  app.bootstrap();
   sync.startPolling();
 });
 

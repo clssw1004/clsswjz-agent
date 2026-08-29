@@ -21,6 +21,11 @@ export const userApi = {
   },
 };
 
+export const userPrefApi = {
+  get: () => http.get('/user/preferences'),
+  update: (data: Record<string, any>) => http.put('/user/preferences', data),
+};
+
 export const itemApi = {
   list: (params: any) => http.get('/items', { params }),
   get: (id: string) => http.get(`/items/${id}`),
