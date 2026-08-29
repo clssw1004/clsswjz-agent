@@ -157,7 +157,10 @@ export class SyncService implements OnModuleInit, OnModuleDestroy {
   /** 主端请求错误统一处理：401 时标记鉴权失效，其余透传 */
   private handleMainError(userId: string, err: any): void {
     if (err?.response?.status === 401) {
+      this.logger.warn(`Main server 401 for user ${userId}: ${err.response?.data?.message || 'unauthorized'}`);
       this.markMainAuthExpired(userId);
+    } else {
+      this.logger.error(`Main server error for user ${userId}: ${err?.response?.status || err?.code} ${err?.message || ''}`);
     }
   }
 
@@ -196,6 +199,8 @@ export class SyncService implements OnModuleInit, OnModuleDestroy {
     const user = await this.userService.findById(userId);
     if (!user) throw new Error('User not found');
     const logRepo = await this.connMgr.getRepository(userId, LogSync);
+    const tokenPreview = user.mainToken ? user.mainToken.substring(0, 10) + '...' : '(empty)';
+    this.logger.debug(`Pull for ${userId}: server=${user.mainServerUrl}, token=${tokenPreview}`);
     // 游标优先级：显式指定 > 本地最新游标。显式游标用于两阶段同步（阶段1限类型/阶段2全量共用同一游标），
     // 防止"部分类型拉取把游标推到 P0 日志最新 syncTime、导致非优先类型早期日志永久漏拉"（对齐移动端不推进 lastSyncTime）。
     const syncTimeStamp = syncTimeStampOverride !== undefined

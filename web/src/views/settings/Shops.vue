@@ -78,6 +78,12 @@
         <el-form-item label="编码" prop="code">
           <el-input v-model="form.code" placeholder="请输入编码" size="large" />
         </el-form-item>
+        <el-form-item label="记账可选">
+          <div class="switch-row">
+            <el-switch v-model="form.isBookkeepingSelectable" />
+            <span class="switch-label">{{ form.isBookkeepingSelectable ? '记账时可选' : '隐藏' }}</span>
+          </div>
+        </el-form-item>
         <el-form-item label="上级商户">
           <el-select v-model="form.parentId" placeholder="无（顶级商户）" clearable style="width: 100%" size="large">
             <el-option
@@ -115,7 +121,7 @@ const items = ref<any[]>([]);
 const dialogVisible = ref(false);
 const formRef = ref<FormInstance>();
 
-const form = reactive({ id: '', name: '', code: '', parentId: '' });
+const form = reactive({ id: '', name: '', code: '', parentId: '', isBookkeepingSelectable: true });
 
 const rules: FormRules = {
   name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
@@ -172,6 +178,7 @@ function openDialog(row?: any) {
     name: row?.name || '',
     code: row?.code || '',
     parentId: row?.parentId || '',
+    isBookkeepingSelectable: row?.isBookkeepingSelectable !== false,
   });
   dialogVisible.value = true;
 }
@@ -186,6 +193,7 @@ async function save() {
       name: form.name,
       code: form.code,
       parentId: form.parentId || null,
+      isBookkeepingSelectable: form.isBookkeepingSelectable,
       accountBookId: appStore.currentBookId,
     };
     if (form.id) {
@@ -274,6 +282,17 @@ watch(() => appStore.currentBookId, load);
   color: var(--text-3);
   margin-right: 4px;
   font-family: monospace;
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.switch-label {
+  font-size: 13px;
+  color: var(--text-2);
 }
 
 .mini-table :deep(th.el-table__cell) {
