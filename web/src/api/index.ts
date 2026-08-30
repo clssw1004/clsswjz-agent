@@ -175,3 +175,12 @@ export const fuelRecordApi = {
   update: (id: string, data: any) => http.put(`/fuel-records/${id}`, data),
   delete: (id: string) => http.delete(`/fuel-records/${id}`),
 };
+
+export const debtApi = {
+  list: (params?: any) => http.get('/debts', { params }),
+  get: (id: string) => http.get(`/debts/${id}`),
+  create: (data: any) => http.post('/debts', data),
+  update: (id: string, data: any) => http.put(`/debts/${id}`, data),
+  delete: (id: string) => http.delete(`/debts/${id}`),
+  addPayment: (id: string, data: any) => http.post(`/debts/${id}/payments`, data),
+};

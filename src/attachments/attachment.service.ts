@@ -3,10 +3,14 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
+import { In } from 'typeorm';
 import { ConnectionManager } from '../core/connection-manager';
 import { UserService } from '../meta/user.service';
 import { AttachmentEntity } from '../entities/attachment.entity';
 import { LogSync } from '../entities/log-sync.entity';
+import { AccountItem } from '../entities/account-item.entity';
+import { AccountNote } from '../entities/account-note.entity';
+import { AccountCategory } from '../entities/account-category.entity';
 import { BusinessType } from '../enums/business-type.enum';
 import { OperateType } from '../enums/operate-type.enum';
 import { SyncState } from '../enums/sync-state.enum';
@@ -62,6 +66,55 @@ export class AttachmentService {
   async findByBusiness(userId: string, businessCode: string, businessId: string) {
     const repo = await this.connMgr.getRepository(userId, AttachmentEntity);
     return repo.find({ where: { businessCode, businessId } as any });
+  }
+
+  /**
+   * 全量分页列表（附件管理页，对齐 gui listAttachments + transferAttachments）：
+   * 按创建时间倒序，可选 businessCode / 文件名关键字筛选；
+   * 返回时组装 businessName 来源标题——账目 item = 分类名 + 描述、笔记 note = 标题。
+   */
+  async listByBook(
+    userId: string,
+    opts: { limit?: number; offset?: number; businessCode?: string; keyword?: string } = {},
+  ) {
+    const { limit = 50, offset = 0, businessCode, keyword } = opts;
+    const repo = await this.connMgr.getRepository(userId, AttachmentEntity);
+    const qb = repo.createQueryBuilder('a').orderBy('a.createdAt', 'DESC');
+    if (businessCode) qb.andWhere('a.businessCode = :code', { code: businessCode });
+    if (keyword) qb.andWhere('a.originName LIKE :kw', { kw: `%${keyword}%` });
+
+    const total = await qb.getCount();
+    const rows = await qb.skip(offset).take(limit).getMany();
+
+    // 组装来源标题（对齐 gui vo_transfer.transferAttachments）
+    const itemIds = rows.filter((a) => a.businessCode === 'item').map((a) => a.businessId);
+    const noteIds = rows.filter((a) => a.businessCode === 'note').map((a) => a.businessId);
+    const nameMap: Record<string, string> = {};
+
+    if (itemIds.length) {
+      const itemRepo = await this.connMgr.getRepository(userId, AccountItem);
+      const categoryRepo = await this.connMgr.getRepository(userId, AccountCategory);
+      const items = await itemRepo.find({ where: { id: In(itemIds) } as any });
+      const catCodes = [...new Set(items.map((i) => i.categoryCode).filter(Boolean))];
+      const catMap = catCodes.length
+        ? Object.fromEntries(
+            (await categoryRepo.find({ where: { code: In(catCodes) } as any })).map((c) => [c.code, c.name]),
+          )
+        : {};
+      for (const it of items) {
+        nameMap[it.id] = `${catMap[it.categoryCode] ?? ''}${it.description ?? ''}`;
+      }
+    }
+    if (noteIds.length) {
+      const noteRepo = await this.connMgr.getRepository(userId, AccountNote);
+      const notes = await noteRepo.find({ where: { id: In(noteIds) } as any });
+      for (const n of notes) nameMap[n.id] = n.title ?? '';
+    }
+
+    return {
+      total,
+      items: rows.map((a) => ({ ...a, businessName: nameMap[a.businessId] ?? '' })),
+    };
   }
 
   /**

@@ -26,6 +26,7 @@ import { UserModule } from './users/user.module';
 import { ActivityModule } from './activity/activity.module';
 import { VehicleModule } from './vehicle/vehicle.module';
 import { FuelModule } from './fuel/fuel.module';
+import { DebtModule } from './debts/debt.module';
 import { DbViewerModule } from './db-viewer/db-viewer.module';
 
 // 生产托管 web 构建产物（SPA 历史路由 fallback）；
@@ -64,6 +65,7 @@ const serveStaticModules = fs.existsSync(adminDist)
     ActivityModule,
     VehicleModule,
     FuelModule,
+    DebtModule,
     DbViewerModule,
   ],
   providers: [
