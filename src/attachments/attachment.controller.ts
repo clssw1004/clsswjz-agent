@@ -27,8 +27,21 @@ export class AttachmentController {
     @Req() req,
     @Query('businessCode') businessCode: string,
     @Query('businessId') businessId: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('keyword') keyword?: string,
   ) {
-    return this.attachmentService.findByBusiness(req.user.userId, businessCode, businessId);
+    // 兼容旧调用：按业务查询（ItemForm 等传 businessCode + businessId）
+    if (businessCode && businessId) {
+      return this.attachmentService.findByBusiness(req.user.userId, businessCode, businessId);
+    }
+    // 全量分页列表（附件管理页）
+    return this.attachmentService.listByBook(req.user.userId, {
+      limit: limit ? Math.max(1, Math.min(100, Number(limit))) : 50,
+      offset: offset ? Math.max(0, Number(offset)) : 0,
+      businessCode,
+      keyword,
+    });
   }
 
   @Get(':id')

@@ -22,7 +22,7 @@
     <section class="hub-group">
       <div class="hub-group-header">
         <el-icon :size="15"><Sunny /></el-icon>
-        <span>生活</span>
+        <span>生活扩展</span>
       </div>
       <Panel noPad>
         <div class="hub-grid">
@@ -44,6 +44,12 @@
       </div>
       <Panel noPad>
         <div class="hub-grid">
+          <div class="hub-item" @click="go('/attachments')">
+            <div class="hub-icon" style="background: linear-gradient(135deg, #8a90a6, #6b7280)">
+              <el-icon :size="20"><Paperclip /></el-icon>
+            </div>
+            <span class="hub-label">附件</span>
+          </div>
           <div class="hub-item" @click="go('/settings/sync')">
             <div class="hub-icon" style="background: linear-gradient(135deg, #00a9c9, #38bdf8)">
               <el-icon :size="20"><Connection /></el-icon>
@@ -66,7 +72,7 @@
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import {
-  Notebook, CollectionTag, Shop, PriceTag, Folder, Wallet, Document, Sunny,
+  Notebook, CollectionTag, Shop, PriceTag, Folder, Wallet, Document, Sunny, Paperclip, Tickets,
   Setting, RefreshRight, Connection, Calendar, Trophy, Coin,
 } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
@@ -80,7 +86,7 @@ const sync = useSyncStore();
 
 const bookTitle = computed(() => {
   const b = app.books.find((x: any) => x.id === app.currentBookId);
-  return b?.name ? `${b.name} · 账本数据` : '账本数据';
+  return b?.name ? b.name : '账本数据';
 });
 
 const bookItems = [
@@ -90,6 +96,7 @@ const bookItems = [
   { label: '项目', icon: Folder, grad: 'linear-gradient(135deg, #e0a11a, #fbbf24)', route: '/settings/projects' },
   { label: '账户', icon: Wallet, grad: 'linear-gradient(135deg, #2e86de, #60a5fa)', route: '/settings/funds' },
   { label: '账本', icon: Notebook, grad: 'linear-gradient(135deg, #5c6bc0, #818cf8)', route: '/books' },
+  { label: '债务', icon: Tickets, grad: 'linear-gradient(135deg, #f2573e, #fb7185)', route: '/debts' },
 ];
 
 const lifeItems = [
