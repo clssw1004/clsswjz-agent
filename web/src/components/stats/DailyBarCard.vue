@@ -13,14 +13,14 @@
         <i v-for="g in 4" :key="g" :style="{ top: (g * 20) + '%' }"></i>
       </div>
       <div class="bars">
-        <div v-for="d in days" :key="d.date" class="bar-col">
+        <div v-for="(d, idx) in days" :key="d.date" class="bar-col">
           <div
             class="bar"
             :class="mode"
-            :style="{ height: barHeight(d) }"
+            :style="{ height: barHeight(d), maxWidth: colMaxWidth }"
             :title="d.date.slice(5) + ' ' + (mode === 'income' ? '收入' : '支出') + ' ¥' + fmtValue(d)"
           ></div>
-          <span v-if="showXLabel(d)" class="x">{{ xLabel(d) }}</span>
+          <span v-if="showXLabel(d, idx)" class="x">{{ xLabel(d) }}</span>
         </div>
       </div>
     </div>
@@ -65,11 +65,26 @@ function fmtValue(d: { income: number; expense: number }) {
   return v.toLocaleString('zh-CN', { maximumFractionDigits: 0 });
 }
 
-const showXLabel = (d: { date: string }) => {
-  if (days.value.length <= 15) return true;
-  return Number(d.date.slice(8, 10)) % 2 === 0; // 数据多时隔天显示，避免重叠
-};
+const showXLabel = (_d: { date: string }, idx: number) => idx % xInterval.value === 0;
 const xLabel = (d: { date: string }) => String(Number(d.date.slice(8, 10)));
+
+/** X 轴标签间隔（对齐 gui _calculateXAxisInterval：按有账目的数据点数量动态） */
+const xInterval = computed(() => {
+  const n = days.value.length;
+  if (n <= 10) return 1; // 数据点少，全显
+  if (n <= 20) return 2;
+  if (n <= 30) return 3;
+  return 5;
+});
+
+/** 柱子宽度（对齐 gui _calculateColumnWidth：数据少时收窄避免月初柱过粗） */
+const colMaxWidth = computed(() => {
+  const n = days.value.length;
+  if (n <= 7) return '6px';
+  if (n <= 15) return '8px';
+  if (n <= 31) return '10px';
+  return '6px';
+});
 </script>
 
 <style scoped>
@@ -150,7 +165,6 @@ const xLabel = (d: { date: string }) => String(Number(d.date.slice(8, 10)));
 
 .bar {
   width: 100%;
-  max-width: 10px;
   min-height: 0;
   border-radius: 3px 3px 1px 1px;
   transition: height 0.3s ease, background 0.2s ease;

@@ -31,8 +31,11 @@
             <span class="debt-badge" :class="d.debtType === 'LEND' ? 'is-lend' : 'is-borrow'">
               {{ d.debtType === 'LEND' ? '借出' : '借入' }}
             </span>
-            <span class="debt-amount" :class="{ cleared: isCleared(d) }">
+            <span v-if="!isCleared(d)" class="debt-amount">
               ¥{{ fmt(d.amount) }}
+            </span>
+            <span v-else class="debt-cleared-main">
+              <el-icon :size="13"><CircleCheck /></el-icon>已结清
             </span>
           </div>
           <div class="debt-row2">
@@ -45,15 +48,11 @@
               </span>
               <span class="debt-total">/ ¥{{ fmt(d.amount) }}</span>
             </template>
-            <span v-else class="debt-cleared">
-              <el-icon :size="12"><CircleCheck /></el-icon>已结清
-            </span>
             <span class="debt-fund" v-if="d.fundName">· {{ d.fundName }}</span>
           </div>
           <div class="debt-progress">
             <div
               class="debt-progress-fill"
-              :class="{ cleared: isCleared(d) }"
               :style="{ width: progress(d) + '%' }"
             ></div>
           </div>
@@ -148,23 +147,24 @@ watch(() => app.currentBookId, load);
 }
 
 .debt-icon {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   flex-shrink: 0;
   margin-top: 2px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
 }
 
 .debt-icon.is-lend {
-  background: var(--amount-expense);
+  background: rgba(185, 91, 75, 0.12);
+  color: var(--amount-expense);
 }
 
 .debt-icon.is-borrow {
-  background: var(--amount-income);
+  background: rgba(67, 160, 71, 0.12);
+  color: var(--amount-income);
 }
 
 .debt-main {
@@ -194,7 +194,7 @@ watch(() => app.currentBookId, load);
 .debt-badge {
   flex-shrink: 0;
   padding: 1px 7px;
-  border-radius: 5px;
+  border-radius: 8px;
   font-size: 10px;
   font-weight: 600;
   line-height: 1.5;
@@ -214,15 +214,10 @@ watch(() => app.currentBookId, load);
   margin-left: auto;
   font-size: 17px;
   font-weight: 600;
-  color: var(--brand-gold-dark);
+  color: #2e6be5; /* 主色蓝（对齐原型 Amount / gui primary / 列表页 db-remain-num） */
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   flex-shrink: 0;
-}
-
-.debt-amount.cleared {
-  color: var(--text-3);
-  text-decoration: line-through;
 }
 
 .debt-row2 {
@@ -241,12 +236,20 @@ watch(() => app.currentBookId, load);
   opacity: 0.75;
 }
 
-.debt-cleared {
+/* 已结清绿胶囊（对齐列表页 db-cleared / gui cleared 色） */
+.debt-cleared-main {
+  margin-left: auto;
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  color: var(--amount-income);
-  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2ba370;
+  background: rgba(43, 163, 112, 0.1);
+  border: 1px solid rgba(43, 163, 112, 0.3);
 }
 
 .debt-fund {
@@ -265,11 +268,7 @@ watch(() => app.currentBookId, load);
 .debt-progress-fill {
   height: 100%;
   border-radius: 3px;
-  background: var(--grad-brand);
+  background: rgba(46, 107, 229, 0.6); /* 主色蓝（对齐列表页 db-progress-bar / gui primary alpha） */
   transition: width 0.4s ease;
-}
-
-.debt-progress-fill.cleared {
-  background: var(--amount-income);
 }
 </style>

@@ -147,7 +147,7 @@ function fmtNum(v: number) {
 .bar {
   width: 12px;
   max-width: 50%;
-  border-radius: 6px 6px 2px 2px;
+  border-radius: 6px; /* 全圆角（对齐 gui BorderRadius.all(6)） */
   transition: height 0.3s ease;
 }
 

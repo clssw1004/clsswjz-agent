@@ -16,8 +16,8 @@
           <template v-if="cell.day">
             <span class="cal-day">{{ cell.day }}</span>
             <div class="cal-amt">
-              <span v-if="showExpense && cell.expense" class="amt amt-expense">-{{ cell.expense }}</span>
-              <span v-if="showIncome && cell.income" class="amt amt-income">+{{ cell.income }}</span>
+              <span v-if="showExpense && cell.expense" class="amt amt-expense">-{{ fmtAmt(cell.expense) }}</span>
+              <span v-if="showIncome && cell.income" class="amt amt-income">+{{ fmtAmt(cell.income) }}</span>
             </div>
           </template>
         </div>
@@ -44,6 +44,11 @@ const props = defineProps<{
 
 const showExpense = ref(true);
 const showIncome = ref(true);
+
+/** cell 金额取整显示（对齐 gui toStringAsFixed(0)：-120 / +80，无小数） */
+function fmtAmt(n: number) {
+  return String(Math.round(Number(n) || 0));
+}
 
 const map = computed(() => {
   const m: Record<string, { income: number; expense: number }> = {};

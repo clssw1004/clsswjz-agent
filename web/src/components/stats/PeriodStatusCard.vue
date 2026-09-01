@@ -13,11 +13,10 @@
           <span class="p-tag tag-period">经期中</span>
           <span class="p-bignum"><b>{{ periodDay }}</b><i>第 {{ periodDay }} 天</i></span>
         </div>
-        <div class="p-sub">开始于 {{ activeCycle?.startDate || '-' }}</div>
+        <div class="p-sub">预计 {{ periodEndText }} 结束</div>
         <div class="p-progress">
           <div class="p-progress-fill" :style="{ width: periodProgress + '%' }"></div>
         </div>
-        <div class="p-progress-caption">第 {{ periodDay }} 天 / 平均 {{ avgPeriod }} 天</div>
         <div v-if="overAvg" class="p-warn">
           <el-icon :size="13"><WarningFilled /></el-icon>
           <span>已超过平均经期 {{ avgPeriod }} 天，记得及时结束记录</span>
@@ -194,6 +193,13 @@ const periodDay = computed(() =>
 const avgPeriod = computed(() => stats.value.avgPeriodLength || DEFAULT_PERIOD_DAYS);
 const periodProgress = computed(() => Math.min(100, Math.round((periodDay.value / avgPeriod.value) * 100)));
 const overAvg = computed(() => periodDay.value > avgPeriod.value);
+/** 预计结束日（对齐原型 SubLabel「预计 9月1日 结束」：开始日 + 平均经期） */
+const periodEndText = computed(() => {
+  if (!activeCycle.value?.startDate) return '-';
+  const end = addDays(activeCycle.value.startDate, avgPeriod.value - 1);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(end);
+  return m ? `${Number(m[2])}月${Number(m[3])}日` : end;
+});
 const daysUntilNext = computed(() => {
   if (!stats.value.canPredict || !stats.value.nextPeriodDate) return null;
   const diff = daysBetween(todayStr, stats.value.nextPeriodDate);
@@ -378,22 +384,15 @@ onMounted(load);
 .p-progress {
   height: 3px;
   border-radius: 3px;
-  background: rgba(226, 112, 138, 0.16);
+  background: rgba(46, 107, 229, 0.12); /* 主色蓝轨道（对齐原型 ProgressBg 灰底上的蓝填充） */
   overflow: hidden;
 }
 
 .p-progress-fill {
   height: 100%;
   border-radius: 3px;
-  background: #E2708A;
+  background: #2e6be6; /* 主色蓝（对齐原型 ProgressFill / gui primary） */
   transition: width 0.4s ease;
-}
-
-.p-progress-caption {
-  font-size: 10px;
-  color: var(--text-3);
-  text-align: right;
-  line-height: 1.2;
 }
 
 .p-warn {
@@ -430,6 +429,6 @@ onMounted(load);
 }
 
 .btn-end {
-  background: #1877E0; /* 对齐原型「经期结束」蓝色胶囊 */
+  background: #2e6be6; /* 主色蓝（对齐原型 EndBtn #2E6BE6 实底白字胶囊） */
 }
 </style>
