@@ -82,6 +82,16 @@
       </div>
     </Panel>
 
+    <!-- 统计组件（按 itemTabComponentOrder 配置化渲染，对齐 gui ItemsTab._buildOrderedComponents） -->
+    <template v-for="key in componentOrder" :key="key">
+      <DailyBarCard v-if="key === 'daily_bar'" :stats="dailyStats" />
+      <DailyCalendarCard v-else-if="key === 'daily_calendar'" :stats="dailyStats" :month="monthValue" />
+      <UserMonthlyCard v-else-if="key === 'user_monthly'" :users="userStats" />
+      <ActivityRecentCard v-else-if="key === 'activity_recent'" />
+      <DebtsCard v-else-if="key === 'debt'" />
+      <PeriodStatusCard v-else-if="key === 'period_status'" />
+    </template>
+
     <button class="fab" aria-label="新增记账" @click="router.push('/items/new')">+</button>
 
     <!-- 月份选择弹层 -->
@@ -113,10 +123,20 @@ import { useRouter } from 'vue-router';
 import { Wallet, ArrowDown, ArrowUp, ArrowRight, Clock, Shop, Document } from '@element-plus/icons-vue';
 import { itemApi, categoryApi, shopApi, tagApi } from '@/api';
 import { useAppStore } from '@/stores/app';
+import { usePrefsStore } from '@/stores/prefs';
+import { useAuthStore } from '@/stores/auth';
 import Panel from '@/components/Panel.vue';
+import DailyBarCard from '@/components/stats/DailyBarCard.vue';
+import DailyCalendarCard from '@/components/stats/DailyCalendarCard.vue';
+import UserMonthlyCard from '@/components/stats/UserMonthlyCard.vue';
+import ActivityRecentCard from '@/components/stats/ActivityRecentCard.vue';
+import DebtsCard from '@/components/stats/DebtsCard.vue';
+import PeriodStatusCard from '@/components/stats/PeriodStatusCard.vue';
 
 const router = useRouter();
 const app = useAppStore();
+const prefs = usePrefsStore();
+const auth = useAuthStore();
 
 const now = new Date();
 const monthValue = ref(
@@ -202,6 +222,85 @@ const range = computed(() => {
   };
 });
 
+// ========== 统计组件编排（对齐 gui UiConfigDTO.itemTabComponentOrder） ==========
+/** gui 默认顺序：daily_bar → period_status → daily_calendar → user_monthly → activity_recent → debt */
+const DEFAULT_ORDER = ['daily_bar', 'period_status', 'daily_calendar', 'user_monthly', 'activity_recent', 'debt'];
+const componentOrder = computed(() => {
+  const raw = prefs.get<string[]>('itemTabComponentOrder');
+  if (Array.isArray(raw)) {
+    const valid = raw.filter((k) =>
+      ['daily_bar', 'daily_calendar', 'user_monthly', 'activity_recent', 'debt', 'period_status'].includes(k)
+    );
+    if (valid.length) return valid;
+  }
+  return DEFAULT_ORDER;
+});
+
+// ========== 当月账目（驱动柱状图/日历/成员统计；后端无按日/按用户聚合，前端内存聚合对齐 gui） ==========
+const monthItems = ref<any[]>([]);
+const monthLoading = ref(false);
+
+/** 每日收支（对齐 gui DailyStatisticVO：仅当月有账目的日期，升序） */
+const dailyStats = computed(() => {
+  const map = new Map<string, { date: string; income: number; expense: number }>();
+  for (const i of monthItems.value) {
+    const d = String(i.accountDate || '').slice(0, 10);
+    if (!d) continue;
+    if (!map.has(d)) map.set(d, { date: d, income: 0, expense: 0 });
+    const row = map.get(d)!;
+    const amt = Number(i.amount || 0);
+    if (i.type === 'INCOME') row.income += amt;
+    else if (i.type === 'EXPENSE') row.expense += amt;
+  }
+  return [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
+});
+
+/** 当月成员统计（对齐 gui getCurrentMonthUserStatistic：按 createdBy 分组，昵称映射当前用户） */
+const userStats = computed(() => {
+  const map = new Map<string, { userId: string; userName: string; income: number; expense: number; count: number }>();
+  for (const i of monthItems.value) {
+    const uid = String(i.createdBy || '');
+    const key = uid || 'unknown';
+    if (!map.has(key)) {
+      const name =
+        uid === auth.userId
+          ? auth.nickname || '我'
+          : uid
+            ? `用户${uid.slice(-4)}`
+            : '未知';
+      map.set(key, { userId: uid, userName: name, income: 0, expense: 0, count: 0 });
+    }
+    const row = map.get(key)!;
+    const amt = Number(i.amount || 0);
+    if (i.type === 'INCOME') row.income += amt;
+    else if (i.type === 'EXPENSE') row.expense += amt;
+    row.count += 1;
+  }
+  return [...map.values()];
+});
+
+async function loadMonthItems() {
+  if (!app.currentBookId) {
+    monthItems.value = [];
+    return;
+  }
+  monthLoading.value = true;
+  try {
+    const res: any = await itemApi.list({
+      accountBookId: app.currentBookId,
+      page: 1,
+      pageSize: 1000,
+      startDate: range.value.startDate,
+      endDate: range.value.endDate,
+    });
+    monthItems.value = res.items || [];
+  } catch {
+    monthItems.value = [];
+  } finally {
+    monthLoading.value = false;
+  }
+}
+
 /** 千位分隔 */
 function fmt(n: number) {
   const v = Math.abs(Number(n) || 0);
@@ -276,7 +375,7 @@ async function loadRecent() {
 }
 
 async function reload() {
-  await Promise.all([loadRecent(), loadSummary(), loadMaps()]);
+  await Promise.all([loadRecent(), loadSummary(), loadMaps(), loadMonthItems()]);
 }
 
 function goList() {
@@ -288,10 +387,17 @@ function goDetail(item: any) {
   router.push(`/items/${item.id}`);
 }
 
-onMounted(reload);
+onMounted(async () => {
+  // 预载偏好（组件顺序），随后拉取首页数据
+  if (!prefs.loaded) await prefs.load().catch(() => {});
+  await reload();
+});
 
 // 月份切换只影响统计卡（列表始终为最近账目）
-watch(monthValue, loadSummary);
+watch(monthValue, () => {
+  loadSummary();
+  loadMonthItems();
+});
 
 watch(
   () => app.currentBookId,
