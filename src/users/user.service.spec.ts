@@ -80,6 +80,32 @@ describe('UserService preferences', () => {
     expect(logRepo.create).not.toHaveBeenCalled();
     expect(logRepo.save).not.toHaveBeenCalled();
   });
+
+  it('getNicknames resolves id → nickname (nickname 优先，空昵称回退 username)，并去重', async () => {
+    const repo = {
+      findByIds: jest.fn(async (ids: string[]) =>
+        ids.map((id) => ({
+          id,
+          nickname: id === 'u2' ? '张三' : id === 'u3' ? '' : 'clssw',
+          username: id === 'u3' ? 'lisi' : id === 'u2' ? 'zhangsan' : 'cuiwei',
+        })),
+      ),
+    };
+    const connMgr = { getRepository: jest.fn(async () => repo) } as any;
+    const svc = new UserService(connMgr);
+    const out = await svc.getNicknames('u1', ['u2', 'u2', 'u3', 'u1', '']);
+    expect(out).toEqual({ u2: '张三', u3: 'lisi', u1: 'clssw' });
+    expect(repo.findByIds).toHaveBeenCalledWith(['u2', 'u3', 'u1']);
+  });
+
+  it('getNicknames returns {} for empty/blank ids', async () => {
+    const repo = { findByIds: jest.fn() };
+    const connMgr = { getRepository: jest.fn(async () => repo) } as any;
+    const svc = new UserService(connMgr);
+    expect(await svc.getNicknames('u1', [])).toEqual({});
+    expect(await svc.getNicknames('u1', ['', '  '] as any)).toEqual({});
+    expect(repo.findByIds).not.toHaveBeenCalled();
+  });
 });
 
 // Keep SyncState import used (silence unused warning on some configs)

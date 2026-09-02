@@ -121,7 +121,7 @@
 import { ref, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { Wallet, ArrowDown, ArrowUp, ArrowRight, Clock, Shop, Document } from '@element-plus/icons-vue';
-import { itemApi, categoryApi, shopApi, tagApi } from '@/api';
+import { itemApi, categoryApi, shopApi, tagApi, userApi } from '@/api';
 import { useAppStore } from '@/stores/app';
 import { usePrefsStore } from '@/stores/prefs';
 import { useAuthStore } from '@/stores/auth';
@@ -239,6 +239,8 @@ const componentOrder = computed(() => {
 // ========== 当月账目（驱动柱状图/日历/成员统计；后端无按日/按用户聚合，前端内存聚合对齐 gui） ==========
 const monthItems = ref<any[]>([]);
 const monthLoading = ref(false);
+/** 他人 userId → 昵称（对齐 gui id2name：查本地 userTable；失败回退「用户{id后4位}」） */
+const userNameMap = ref<Record<string, string>>({});
 
 /** 每日收支（对齐 gui DailyStatisticVO：仅当月有账目的日期，升序） */
 const dailyStats = computed(() => {
@@ -266,7 +268,7 @@ const userStats = computed(() => {
         uid === auth.userId
           ? auth.nickname || '我'
           : uid
-            ? `用户${uid.slice(-4)}`
+            ? userNameMap.value[uid] || `用户${uid.slice(-4)}`
             : '未知';
       map.set(key, { userId: uid, userName: name, income: 0, expense: 0, count: 0 });
     }
@@ -294,10 +296,25 @@ async function loadMonthItems() {
       endDate: range.value.endDate,
     });
     monthItems.value = res.items || [];
+    await resolveUserNames();
   } catch {
     monthItems.value = [];
   } finally {
     monthLoading.value = false;
+  }
+}
+
+/** 解析当月账目中他人的昵称（对齐 gui id2name：查本地 userTable；失败不阻断统计展示） */
+async function resolveUserNames() {
+  const ids = [...new Set(
+    monthItems.value.map((i) => String(i.createdBy || '')).filter((id) => id && id !== auth.userId)
+  )];
+  if (!ids.length) return;
+  try {
+    const res: any = await userApi.nicknames(ids);
+    if (res && typeof res === 'object') userNameMap.value = { ...userNameMap.value, ...res };
+  } catch {
+    // 解析失败则回退「用户{id后4位}」
   }
 }
 

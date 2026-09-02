@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Put, Post, Body, Param, Req,
+  Controller, Get, Put, Post, Body, Param, Query, Req,
   UploadedFile, UseInterceptors, UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -19,6 +19,16 @@ export class UserController {
   @Get('profile')
   getProfile(@Req() req: any) {
     return this.userService.getProfile(req.user.userId);
+  }
+
+  /** 批量解析昵称（统计卡/共享列表按 id 翻译展示名）；ids 逗号分隔 */
+  @Get('nicknames')
+  getNicknames(@Req() req: any, @Query('ids') ids: string) {
+    const list = String(ids || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return this.userService.getNicknames(req.user.userId, list);
   }
 
   /** 更新个人资料（昵称/邮箱/手机号），写 USER UPDATE 日志 */

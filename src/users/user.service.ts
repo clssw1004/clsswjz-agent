@@ -30,6 +30,22 @@ export class UserService {
   }
 
   /**
+   * 批量解析 userId → 展示名（nickname || username）。
+   * 对齐 gui statistic_service.getCurrentMonthUserStatistic 的 id2name 映射
+   * 与 UserShareService.listEligibleUsers 的脱敏范式：只回昵称/用户名，绝不泄 password。
+   * 数据源为 per-user 的 AppUser 表（跨用户同步 + desensitize 已把共享账本成员昵称落库）。
+   */
+  async getNicknames(userId: string, ids: string[]): Promise<Record<string, string>> {
+    const unique = [...new Set((ids || []).filter((s) => typeof s === 'string' && s))];
+    if (!unique.length) return {};
+    const repo = await this.connMgr.getRepository(userId, AppUser);
+    const users = await repo.findByIds(unique);
+    const map: Record<string, string> = {};
+    for (const u of users) map[u.id] = u.nickname || u.username;
+    return map;
+  }
+
+  /**
    * 更新个人资料（昵称/邮箱/手机号/时区），写 USER UPDATE 日志同步到主端。
    * 对齐 gui UserCULog.update：operateData 只携带变更字段。
    */

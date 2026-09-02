@@ -10,6 +10,7 @@ export const authApi = {
 
 export const userApi = {
   profile: () => http.get('/user/profile'),
+  nicknames: (ids: string[]) => http.get('/user/nicknames', { params: { ids: ids.join(',') } }),
   updateProfile: (data: { nickname?: string; email?: string; phone?: string; timezone?: string; language?: string }) =>
     http.put('/user/profile', data),
   uploadAvatar: (file: File) => {
