@@ -428,11 +428,11 @@ function hexToRgba(hex: string, a: number): string {
   return `rgba(${r},${g},${b},${a})`;
 }
 
-/** 对齐 gui ColorUtil.getAmountColor：支出红 / 收入绿 / 转账蓝 */
+/** 对齐 web 设计系统 amount token（收入绿 --amount-income / 支出红 --amount-expense），方向与 gui ColorUtil 一致 */
 function relColor(item: any): string {
-  if (item?.type === 'INCOME') return '#43A047';
+  if (item?.type === 'INCOME') return '#2BA370';
   if (item?.type === 'TRANSFER') return '#1B72C1';
-  return '#B95B4B';
+  return '#F2573D';
 }
 
 function relBarBg(item: any): string {
