@@ -214,7 +214,7 @@ watch(() => app.currentBookId, load);
   margin-left: auto;
   font-size: 17px;
   font-weight: 600;
-  color: #2e6be5; /* 主色蓝（对齐原型 Amount / gui primary / 列表页 db-remain-num） */
+  color: var(--brand-gold); /* 主色蓝（对齐原型 Amount / gui primary / 列表页 db-remain-num） */
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   flex-shrink: 0;

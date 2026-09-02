@@ -16,6 +16,7 @@ export type ThemeMode = 'dark' | 'light';
 const DARK_TEXT = '#1c1204';
 
 export const THEMES: AppTheme[] = [
+  { id: 'clsswjz', name: '记账蓝', primary: '#2E6BE5', accent: '#66BB6A', onPrimary: '#ffffff' },
   { id: 'red', name: '红', primary: '#E53935', accent: '#FF7043', onPrimary: '#ffffff' },
   { id: 'pink', name: '粉', primary: '#D81B60', accent: '#7E57C2', onPrimary: '#ffffff' },
   { id: 'purple', name: '紫', primary: '#8E24AA', accent: '#EC407A', onPrimary: '#ffffff' },
@@ -37,7 +38,7 @@ export const THEMES: AppTheme[] = [
   { id: 'grey', name: '灰', primary: '#757575', accent: '#B0BEC5', onPrimary: '#ffffff' },
 ];
 
-const DEFAULT_ID = 'teal';
+const DEFAULT_ID = 'clsswjz';
 const STORAGE_KEY = 'app_theme';
 const MODE_KEY = 'app_theme_mode';
 

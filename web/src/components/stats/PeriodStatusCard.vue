@@ -391,7 +391,7 @@ onMounted(load);
 .p-progress-fill {
   height: 100%;
   border-radius: 3px;
-  background: #2e6be6; /* 主色蓝（对齐原型 ProgressFill / gui primary） */
+  background: var(--brand-gold); /* 主色蓝（对齐原型 ProgressFill / gui primary） */
   transition: width 0.4s ease;
 }
 
@@ -429,6 +429,6 @@ onMounted(load);
 }
 
 .btn-end {
-  background: #2e6be6; /* 主色蓝（对齐原型 EndBtn #2E6BE6 实底白字胶囊） */
+  background: var(--brand-gold); /* 主色蓝（对齐原型 EndBtn #2E6BE5 实底白字胶囊） */
 }
 </style>
