@@ -89,6 +89,12 @@ export const noteApi = {
   groups: () => http.get('/notes/groups'),
 };
 
+export const itemRelationApi = {
+  list: (params?: any) => http.get('/item-relations', { params }),
+  create: (data: any) => http.post('/item-relations', data),
+  delete: (id: string) => http.delete(`/item-relations/${id}`),
+};
+
 export const attachmentApi = {
   list: (params?: any) => http.get('/attachments', { params }),
   upload: (file: File, businessCode: string, businessId: string) => {

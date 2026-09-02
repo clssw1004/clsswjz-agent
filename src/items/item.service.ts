@@ -1,10 +1,16 @@
 import { Injectable } from '@nestjs/common';
+import { In, Like } from 'typeorm';
 import { ConnectionManager } from '../core/connection-manager';
 import { AccountItem } from '../entities/account-item.entity';
+import { AccountCategory } from '../entities/account-category.entity';
+import { AccountShop } from '../entities/account-shop.entity';
+import { AccountFund } from '../entities/account-fund.entity';
+import { AccountSymbol } from '../entities/account-symbol.entity';
 import { ItemRelField } from '../entities/item-rel-field.entity';
 import { LogSync } from '../entities/log-sync.entity';
 import { BusinessType } from '../enums/business-type.enum';
 import { OperateType } from '../enums/operate-type.enum';
+import { SymbolType } from '../enums/symbol-type.enum';
 import { SyncState } from '../enums/sync-state.enum';
 
 /** 标签关联字段 code（对齐移动端 book_item.builder.dart fieldCode: 'TAG'） */
@@ -16,19 +22,27 @@ export class ItemService {
 
   async findAll(userId: string, query: {
     accountBookId?: string; type?: string; page?: number; pageSize?: number;
-    startDate?: string; endDate?: string;
+    startDate?: string; endDate?: string; keyword?: string;
   }) {
     const repo = await this.connMgr.getRepository(userId, AccountItem);
-    const { accountBookId, type, page = 1, pageSize = 20, startDate, endDate } = query;
+    const { accountBookId, type, page = 1, pageSize = 20, startDate, endDate, keyword } = query;
     const qb = repo.createQueryBuilder('item');
     if (accountBookId) qb.andWhere('item.accountBookId = :accountBookId', { accountBookId });
     if (type) qb.andWhere('item.type = :type', { type });
     if (startDate) qb.andWhere('item.accountDate >= :startDate', { startDate });
     if (endDate) qb.andWhere('item.accountDate <= :endDate', { endDate });
+
+    const kw = (keyword || '').trim();
+    if (kw) {
+      const cond = await this.buildKeywordCondition(userId, kw, accountBookId);
+      if (cond) qb.andWhere(cond.sql, cond.params);
+    }
+
     const total = await qb.getCount();
     const items = await qb.orderBy('item.accountDate', 'DESC')
       .skip((page - 1) * pageSize).take(pageSize).getMany();
     await this.attachTags(userId, items);
+    await this.attachCategoryNames(userId, items);
     return { items, total, page, pageSize };
   }
 
@@ -255,5 +269,90 @@ export class ItemService {
     for (const it of items) {
       (it as any).tags = byItem.get(it.id) || [];
     }
+  }
+
+  /** 给账目附加 categoryName（分类 code → name，按账本隔离） */
+  private async attachCategoryNames(userId: string, items: AccountItem[]) {
+    if (!items.length) return;
+    const codes = [...new Set(items.map((i) => i.categoryCode).filter(Boolean))] as string[];
+    if (!codes.length) return;
+    const bookIds = [...new Set(items.map((i) => i.accountBookId))];
+    const catRepo = await this.connMgr.getRepository(userId, AccountCategory);
+    const cats = await catRepo.find({ where: { code: In(codes), accountBookId: In(bookIds) } });
+    const map = new Map(cats.map((c) => [`${c.accountBookId}:${c.code}`, c.name]));
+    for (const it of items) {
+      if (it.categoryCode) {
+        (it as any).categoryName = map.get(`${it.accountBookId}:${it.categoryCode}`) || null;
+      }
+    }
+  }
+
+  /**
+   * 关键字搜索条件（对齐 gui item_dao.listByBook 的 keyword 语义）：
+   * 描述 LIKE / 纯数字金额双向匹配 / 日期前缀匹配 / 分类·商户·账户·项目·标签名称反查。
+   */
+  private async buildKeywordCondition(
+    userId: string,
+    kw: string,
+    accountBookId?: string,
+  ): Promise<{ sql: string; params: any } | null> {
+    const conds: string[] = ['item.description LIKE :kw'];
+    const params: any = { kw: `%${kw}%` };
+
+    const isNum = /^-?\d+(\.\d+)?$/.test(kw);
+    if (isNum) {
+      const val = Number(kw);
+      conds.push('item.amount IN (:...kwAmounts)');
+      params.kwAmounts = [val, -val];
+    }
+
+    const isDate = /^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(kw);
+    if (isDate) {
+      conds.push('item.accountDate LIKE :kwDate');
+      params.kwDate = `${kw.replace(/\//g, '-')}%`;
+    }
+
+    const bookWhere = accountBookId ? { accountBookId } : {};
+    const catRepo = await this.connMgr.getRepository(userId, AccountCategory);
+    const shopRepo = await this.connMgr.getRepository(userId, AccountShop);
+    const fundRepo = await this.connMgr.getRepository(userId, AccountFund);
+    const symRepo = await this.connMgr.getRepository(userId, AccountSymbol);
+    const relRepo = await this.connMgr.getRepository(userId, ItemRelField);
+
+    const [cats, shops, funds, projects, tagSymbols] = await Promise.all([
+      catRepo.find({ where: { ...bookWhere, name: Like(`%${kw}%`) } }),
+      shopRepo.find({ where: { ...bookWhere, name: Like(`%${kw}%`) } }),
+      fundRepo.find({ where: { ...bookWhere, name: Like(`%${kw}%`) } }),
+      symRepo.find({ where: { ...bookWhere, symbolType: SymbolType.PROJECT, name: Like(`%${kw}%`) } }),
+      symRepo.find({ where: { ...bookWhere, symbolType: SymbolType.TAG, name: Like(`%${kw}%`) } }),
+    ]);
+
+    if (cats.length) {
+      conds.push('item.categoryCode IN (:...kwCatCodes)');
+      params.kwCatCodes = cats.map((c) => c.code);
+    }
+    if (shops.length) {
+      conds.push('item.shopCode IN (:...kwShopCodes)');
+      params.kwShopCodes = shops.map((s) => s.code);
+    }
+    if (funds.length) {
+      conds.push('item.fundId IN (:...kwFundIds)');
+      params.kwFundIds = funds.map((f) => f.id);
+    }
+    if (projects.length) {
+      conds.push('item.projectCode IN (:...kwProjectCodes)');
+      params.kwProjectCodes = projects.map((p) => p.code);
+    }
+    if (tagSymbols.length) {
+      const tagCodes = tagSymbols.map((t) => t.code);
+      const rels = await relRepo.find({ where: { fieldCode: TAG_FIELD, fieldValue: In(tagCodes) } });
+      const itemIds = [...new Set(rels.map((r) => r.itemId))];
+      if (itemIds.length) {
+        conds.push('item.id IN (:...kwTagItemIds)');
+        params.kwTagItemIds = itemIds;
+      }
+    }
+
+    return { sql: `(${conds.join(' OR ')})`, params };
   }
 }

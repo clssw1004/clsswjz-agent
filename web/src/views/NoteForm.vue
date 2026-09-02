@@ -91,25 +91,97 @@
           </div>
         </div>
 
-        <!-- 关联面板（后续版本支持） -->
+        <!-- 关联账目面板（对齐 gui ItemRelationPanel：3.5px 渐变色条 + 分类/描述 + 金额 + 删除） -->
         <div v-else class="panel-body">
-          <div class="panel-empty">关联账目功能后续版本支持</div>
+          <div class="rel-header">
+            <span class="panel-label">关联账目</span>
+            <button class="rel-add-btn" @click="openRelationDialog">
+              <el-icon :size="13"><Plus /></el-icon> 关联
+            </button>
+          </div>
+
+          <div v-if="displayRelations.length" class="rel-list">
+            <div v-for="r in displayRelations" :key="r._key" class="rel-card">
+              <div class="rel-bar" :style="{ background: relBarBg(r.item) }"></div>
+              <div class="rel-main">
+                <span class="rel-cat">{{ r.item?.categoryName || '未分类' }}</span>
+                <span v-if="r.item?.description" class="rel-desc">{{ r.item.description }}</span>
+              </div>
+              <span class="rel-amount" :style="{ color: relColor(r.item) }">{{ relAmount(r.item) }}</span>
+              <button class="rel-remove" aria-label="移除关联" @click="removeRelation(r)">
+                <el-icon :size="14"><Close /></el-icon>
+              </button>
+            </div>
+          </div>
+          <div v-else class="panel-empty">暂无关联账目，点击「关联」添加</div>
         </div>
       </div>
     </div>
+
+    <!-- 关联账目选择弹层（对齐 gui _ItemMultiSearchDialog：账本切换 + 关键字搜索 + 多选） -->
+    <el-dialog
+      v-model="relationDialog"
+      title="关联账目"
+      width="92%"
+      class="rel-dialog"
+      :append-to-body="true"
+    >
+      <div class="rel-dialog-top">
+        <el-select v-model="relationBookId" class="rel-book-select" @change="searchRelations">
+          <el-option v-for="b in app.books" :key="b.id" :label="b.name" :value="b.id" />
+        </el-select>
+      </div>
+      <el-input
+        v-model="relationKeyword"
+        class="rel-search"
+        placeholder="搜索账目"
+        clearable
+        @input="searchRelations"
+        @clear="searchRelations"
+      >
+        <template #prefix><el-icon :size="14"><Search /></el-icon></template>
+      </el-input>
+
+      <div v-loading="relationSearching" class="rel-result-list">
+        <div v-if="!relationSearching && relationResults.length === 0" class="panel-empty">无匹配账目</div>
+        <div
+          v-for="it in relationResults"
+          :key="it.id"
+          class="rel-result"
+          :class="{ sel: relationSelected.has(it.id) }"
+          @click="toggleRelationSelect(it)"
+        >
+          <el-checkbox :model-value="relationSelected.has(it.id)" @click.stop="toggleRelationSelect(it)" />
+          <div class="rel-result-main">
+            <span class="rel-cat">{{ it.categoryName || '未分类' }}</span>
+            <span v-if="it.description" class="rel-desc">{{ it.description }}</span>
+          </div>
+          <span class="rel-amount" :style="{ color: relColor(it) }">{{ relAmount(it) }}</span>
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button @click="relationDialog = false">取消</el-button>
+        <el-button type="primary" :disabled="relationSelected.size === 0" @click="confirmAddRelations">
+          添加{{ relationSelected.size ? `（${relationSelected.size}）` : '' }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ArrowLeft, Close, Document, Plus } from '@element-plus/icons-vue';
+import { ArrowLeft, Close, Document, Plus, Search } from '@element-plus/icons-vue';
 import { QuillEditor } from '@vueup/vue-quill';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
-import { noteApi, attachmentApi } from '@/api';
+import { noteApi, attachmentApi, itemApi, itemRelationApi } from '@/api';
+import { useAppStore } from '@/stores/app';
 
 const route = useRoute();
 const router = useRouter();
+const app = useAppStore();
 
 const isEdit = computed(() => !!route.params.id);
 const loading = ref(false);
@@ -273,6 +345,7 @@ async function load() {
     form.groupCode = res?.groupCode ?? 'none';
     rawContent = res?.content ?? '';
     await loadAttachments(String(route.params.id));
+    await loadRelations(String(route.params.id));
   } finally {
     loading.value = false;
   }
@@ -305,6 +378,8 @@ async function save() {
     }
     // 附件：新建先落 note 拿 id 再上传；删除已标记移除的（对齐 gui createNote/updateNote 的 diff 流程）
     await syncAttachments(noteId);
+    // 关联账目：新建先落 note 拿 id 再逐条 create；删除已标记移除的
+    await syncRelations(noteId);
     ElMessage.success(isEdit.value ? '保存成功' : '创建成功');
     router.back();
   } catch {
@@ -320,6 +395,144 @@ async function syncAttachments(noteId: string) {
   const tasks: Promise<any>[] = [];
   for (const f of newFiles.value) tasks.push(attachmentApi.upload(f.file, 'note', noteId));
   for (const id of removedIds.value) tasks.push(attachmentApi.remove(id));
+  if (tasks.length) await Promise.allSettled(tasks);
+}
+
+/* ────────────── 关联账目（对齐 gui ItemRelationPanel，relationCode='note'） ────────────── */
+
+/** 已落库关联（编辑模式加载）：{ id, itemId, accountBookId, item: {…} } */
+const existingRelations = ref<any[]>([]);
+/** 待创建的关联（保存时随 note id 一起落库） */
+const pendingAdded = ref<any[]>([]);
+/** 已标记删除的关联 id（保存时删除） */
+const removedRelationIds = ref<string[]>([]);
+
+const displayRelations = computed(() => [
+  ...existingRelations.value
+    .filter((r) => !removedRelationIds.value.includes(r.id))
+    .map((r) => ({ ...r, _key: 'e-' + r.id, _pending: false })),
+  ...pendingAdded.value.map((p) => ({ id: '', itemId: p.itemId, item: p.item, _key: 'p-' + p.itemId, _pending: true })),
+]);
+
+const relationDialog = ref(false);
+const relationBookId = ref('');
+const relationKeyword = ref('');
+const relationResults = ref<any[]>([]);
+const relationSearching = ref(false);
+const relationSelected = ref<Set<string>>(new Set());
+
+function hexToRgba(hex: string, a: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+/** 对齐 gui ColorUtil.getAmountColor：支出红 / 收入绿 / 转账蓝 */
+function relColor(item: any): string {
+  if (item?.type === 'INCOME') return '#43A047';
+  if (item?.type === 'TRANSFER') return '#1B72C1';
+  return '#B95B4B';
+}
+
+function relBarBg(item: any): string {
+  const c = relColor(item);
+  return `linear-gradient(180deg, ${c} 0%, ${hexToRgba(c, 0.2)} 100%)`;
+}
+
+/** 对齐 gui _buildAccountCard：INCOME 显示 +，其余 -；取绝对值 */
+function relAmount(item: any): string {
+  if (!item) return '';
+  const sign = item.type === 'INCOME' ? '+' : '-';
+  const v = Number(item.amount || 0);
+  return `${sign}${Math.abs(v).toFixed(2)}`;
+}
+
+async function loadRelations(noteId: string) {
+  try {
+    const res: any = await itemRelationApi.list({ relationCode: 'note', relationId: noteId });
+    existingRelations.value = Array.isArray(res) ? res : res?.items || [];
+  } catch {
+    /* 关联加载失败不阻断编辑 */
+  }
+}
+
+async function openRelationDialog() {
+  if (!app.books.length) await app.loadBooks().catch(() => {});
+  relationBookId.value = app.currentBookId || app.books[0]?.id || '';
+  relationKeyword.value = '';
+  relationSelected.value = new Set();
+  relationDialog.value = true;
+  await searchRelations();
+}
+
+async function searchRelations() {
+  if (!relationBookId.value) {
+    relationResults.value = [];
+    return;
+  }
+  relationSearching.value = true;
+  try {
+    const params: any = { accountBookId: relationBookId.value, pageSize: 50 };
+    const kw = relationKeyword.value.trim();
+    if (kw) params.keyword = kw;
+    const res: any = await itemApi.list(params);
+    relationResults.value = res?.items || [];
+  } finally {
+    relationSearching.value = false;
+  }
+}
+
+function toggleRelationSelect(it: any) {
+  const s = new Set(relationSelected.value);
+  if (s.has(it.id)) s.delete(it.id);
+  else s.add(it.id);
+  relationSelected.value = s;
+}
+
+function confirmAddRelations() {
+  for (const it of relationResults.value) {
+    if (!relationSelected.value.has(it.id)) continue;
+    const already =
+      existingRelations.value.some((r) => r.itemId === it.id && !removedRelationIds.value.includes(r.id)) ||
+      pendingAdded.value.some((p) => p.itemId === it.id);
+    if (already) continue;
+    pendingAdded.value.push({
+      itemId: it.id,
+      accountBookId: it.accountBookId,
+      item: {
+        id: it.id,
+        type: it.type,
+        amount: it.amount,
+        description: it.description || '',
+        categoryName: it.categoryName || null,
+      },
+    });
+  }
+  relationDialog.value = false;
+}
+
+function removeRelation(r: any) {
+  if (r._pending) {
+    pendingAdded.value = pendingAdded.value.filter((p) => p.itemId !== r.itemId);
+  } else {
+    removedRelationIds.value.push(r.id);
+  }
+}
+
+/** 保存时同步关联：新建 note 先拿 id 再逐条 create；删除已标记移除的（对齐 gui createRelation/deleteRelation） */
+async function syncRelations(noteId: string) {
+  if (!noteId) return;
+  const tasks: Promise<any>[] = [];
+  for (const p of pendingAdded.value) {
+    tasks.push(itemRelationApi.create({
+      itemId: p.itemId,
+      accountBookId: p.accountBookId,
+      relationCode: 'note',
+      relationId: noteId,
+    }));
+  }
+  for (const id of removedRelationIds.value) tasks.push(itemRelationApi.delete(id));
   if (tasks.length) await Promise.allSettled(tasks);
 }
 
@@ -624,6 +837,150 @@ onUnmounted(() => {
   color: var(--brand-gold);
 }
 
+/* 关联账目（对齐 gui _buildAccountCard：3.5px 渐变色条 + 分类/描述 + 金额 + 删除） */
+.rel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rel-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--brand-gold);
+  color: var(--brand-gold);
+  background: var(--brand-gold-soft);
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.rel-add-btn:active { opacity: 0.8; }
+
+.rel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rel-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-active);
+  border: 1px solid var(--border-glass);
+  border-radius: 10px;
+  overflow: hidden;
+  padding-right: 8px;
+}
+
+.rel-bar {
+  width: 3.5px;
+  align-self: stretch;
+  flex-shrink: 0;
+}
+
+.rel-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 9px 0;
+}
+
+.rel-cat {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rel-desc {
+  font-size: 12px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rel-amount {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  flex-shrink: 0;
+}
+
+.rel-remove {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s ease;
+}
+
+.rel-remove:hover {
+  background: var(--surface-hover);
+  color: var(--text-1);
+}
+
+/* 关联弹层 */
+.rel-dialog-top {
+  margin-bottom: 10px;
+}
+
+.rel-book-select {
+  width: 100%;
+}
+
+.rel-search {
+  margin-bottom: 10px;
+}
+
+.rel-result-list {
+  max-height: 46vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rel-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-glass);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.rel-result.sel {
+  border-color: var(--brand-gold);
+  background: var(--brand-gold-soft);
+}
+
+.rel-result-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 @media (max-width: 767px) {
   .note-form-page {
     max-width: 100%;
@@ -635,5 +992,12 @@ onUnmounted(() => {
     border-left: none;
     border-right: none;
   }
+}
+</style>
+
+<!-- 弹层 teleport 到 body，需全局样式限制桌面端最大宽度 -->
+<style>
+.rel-dialog.el-dialog {
+  max-width: 560px;
 }
 </style>

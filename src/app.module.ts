@@ -19,6 +19,7 @@ import { ShopModule } from './shops/shop.module';
 import { TagModule } from './tags/tag.module';
 import { ProjectModule } from './projects/project.module';
 import { NoteModule } from './notes/note.module';
+import { ItemRelationModule } from './item-relations/item-relation.module';
 import { AttachmentModule } from './attachments/attachment.module';
 import { PeriodModule } from './periods/period.module';
 import { UserShareModule } from './user-shares/user-share.module';
@@ -58,6 +59,7 @@ const serveStaticModules = fs.existsSync(adminDist)
     TagModule,
     ProjectModule,
     NoteModule,
+    ItemRelationModule,
     AttachmentModule,
     PeriodModule,
     UserShareModule,
