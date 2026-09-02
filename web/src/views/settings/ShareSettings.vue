@@ -78,7 +78,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ArrowLeft, Plus, Delete, Search } from '@element-plus/icons-vue';
 import { ElMessageBox } from 'element-plus';
-import { userShareApi } from '@/api';
+import { userShareApi, userApi } from '@/api';
 import Panel from '@/components/Panel.vue';
 
 const router = useRouter();
@@ -122,14 +122,21 @@ async function loadData() {
     myShares.value = Array.isArray(data.myShares) ? data.myShares : [];
     candidates.value = Array.isArray(eligRes) ? eligRes : eligRes?.items || [];
 
-    // 从共享配置聚合目标用户（去重）
+    // 从共享配置聚合目标用户（去重），昵称优先用通用接口解析（含非当前账本成员的历史共享对象）
+    const targetIds = [...new Set(myShares.value.map((s) => s.targetUserId))];
+    let nameMap: Record<string, string> = {};
+    if (targetIds.length) {
+      try {
+        const res: any = await userApi.nicknames(targetIds);
+        if (res && typeof res === 'object') nameMap = res;
+      } catch { /* 回退 candidates/占位 */ }
+    }
     const byId = new Map<string, string>();
-    for (const s of myShares.value) {
-      if (!byId.has(s.targetUserId)) {
-        const c = candidates.value.find((x) => x.id === s.targetUserId);
-        if (c) byId.set(s.targetUserId, c.nickname);
-        else byId.set(s.targetUserId, `用户 ${s.targetUserId.slice(-4)}`);
-      }
+    for (const id of targetIds) {
+      byId.set(
+        id,
+        nameMap[id] || candidates.value.find((x) => x.id === id)?.nickname || `用户 ${id.slice(-4)}`,
+      );
     }
     users.value = [...byId.entries()].map(([userId, nickname]) => ({ userId, nickname }));
   } finally {

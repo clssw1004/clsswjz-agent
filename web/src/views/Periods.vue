@@ -287,7 +287,7 @@ import {
   Delete, DeleteFilled, WarningFilled, DataAnalysis, Watermelon,
   Refresh, Sunny, StarFilled,
 } from '@element-plus/icons-vue';
-import { periodApi, userShareApi } from '@/api';
+import { periodApi, userShareApi, userApi } from '@/api';
 import Panel from '@/components/Panel.vue';
 
 // ========== 常量（对齐 GUI PeriodConstants / PeriodCalcUtil） ==========
@@ -358,6 +358,17 @@ async function loadSharedUsers() {
         .map((s: any) => s.ownerUserId),
     )];
     sharedUsers.value = ownerIds.map((id) => ({ userId: id, nickname: `用户 ${String(id).slice(-4)}` }));
+    // 解析共享者昵称（对齐 gui：查本地 userTable；失败/缺失回退「用户{id后4位}」）
+    if (ownerIds.length) {
+      try {
+        const names: any = await userApi.nicknames(ownerIds);
+        if (names && typeof names === 'object') {
+          for (const u of sharedUsers.value) {
+            if (names[u.userId]) u.nickname = names[u.userId];
+          }
+        }
+      } catch { /* 回退占位 */ }
+    }
     // 恢复上次查看的共享用户
     try {
       const saved = JSON.parse(localStorage.getItem('web_period_view_user') || 'null');
