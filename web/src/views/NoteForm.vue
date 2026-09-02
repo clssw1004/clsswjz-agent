@@ -28,6 +28,8 @@
         <QuillEditor
           ref="quillEditor"
           class="quill-editor"
+          :content="editorContent"
+          content-type="delta"
           :toolbar="toolbar"
           :placeholder="placeholder"
           theme="snow"
@@ -212,18 +214,23 @@ const activePanel = ref<'group' | 'attachment' | 'relation'>('group');
 
 const quillEditor = ref();
 let quill: any = null;
-let rawContent = '';
+
+/** 编辑器内容（Delta 裸操作数组），绑定到 QuillEditor :content，由组件 watch 自动 setContents */
+const editorContent = ref<any[]>([]);
+
+/** gui 存的是裸 Delta 操作数组 JSON（[{"insert":"..."}]）；旧纯文本数据兜底为单段 Delta */
+function parseDelta(content?: string | null): any[] {
+  if (!content) return [];
+  try {
+    const parsed = JSON.parse(content);
+    return Array.isArray(parsed) ? parsed : [{ insert: content }];
+  } catch {
+    return [{ insert: content }];
+  }
+}
 
 function onEditorReady(q: any) {
   quill = q;
-  if (rawContent) {
-    try {
-      // gui 存的是裸 Delta 操作数组（[...]），直接喂给 setContents 即可
-      quill.setContents(JSON.parse(rawContent));
-    } catch {
-      quill.setText(rawContent || '');
-    }
-  }
 }
 
 const groupOptions = ref<{ code: string; name: string }[]>([{ code: 'none', name: '无分组' }]);
@@ -343,7 +350,9 @@ async function load() {
     form.title = res?.title ?? '';
     form.noteType = res?.noteType ?? 'NOTE';
     form.groupCode = res?.groupCode ?? 'none';
-    rawContent = res?.content ?? '';
+    // 绑定 :content，QuillEditor 内部 watch 会在内容变化时自动 setContents，
+    // 规避「ready 早于异步加载完成」导致正文不渲染的竞态
+    editorContent.value = parseDelta(res?.content);
     await loadAttachments(String(route.params.id));
     await loadRelations(String(route.params.id));
   } finally {
