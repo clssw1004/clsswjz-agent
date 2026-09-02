@@ -234,9 +234,9 @@
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Close, Delete, Document, Edit, Folder, FolderAdd, Plus, Search, Setting } from '@element-plus/icons-vue';
-import { Delta, QuillEditor } from '@vueup/vue-quill';
+import { Delta, loadQuill, QuillEditor } from '@vueup/vue-quill';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
-import { noteApi, attachmentApi, itemApi, itemRelationApi } from '@/api';
+import { noteApi, attachmentApi, itemApi, itemRelationApi, loadAttachmentUrl } from '@/api';
 import { useAppStore } from '@/stores/app';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
@@ -295,6 +295,112 @@ function parseDelta(content?: string | null): any {
 
 function onEditorReady(q: any) {
   quill = q;
+}
+
+/**
+ * 注册放宽协议白名单的 Image blot。
+ * 根因：Quill 2 默认 Image blot 的 sanitize 只放行 http/https/data，blob: URL（本地图片
+ * 预览 / 带鉴权 fetch 的 objectURL）会被替换成占位符 "//:0"，正文图片全部裂图。
+ * 注意：@vueup/vue-quill 的 Quill 导出是 SSR 懒代理，模块顶层访问会抛错（"Quill is not
+ * loaded yet"），必须用 loadQuill() 在浏览器生命周期内取真实构造器；且 Quill 实例共享
+ * 默认 registry（DEFAULTS.registry），register 覆盖后对已创建实例实时生效。
+ */
+let blobImageBlotReady = false;
+async function ensureBlobImageBlot() {
+  if (blobImageBlotReady) return;
+  blobImageBlotReady = true;
+  try {
+    const Q: any = await loadQuill();
+    const ImageBlot: any = Q.import('formats/image');
+    class BlobFriendlyImageBlot extends ImageBlot {
+      static sanitize(url: string) {
+        return typeof url === 'string' && /^(blob:|https?:|data:)/.test(url) ? url : super.sanitize(url);
+      }
+    }
+    Q.register('formats/image', BlobFriendlyImageBlot, true);
+  } catch {
+    /* 注册失败回退默认 blot：blob 图片显示为裂图，但不阻断编辑 */
+  }
+}
+
+/* ────────────── 图片嵌入正文（对齐 gui：Delta 存 {'image': attachmentId}） ──────────────
+   gui 在选中图片附件时把 {'image': attachment.id} 写进 Quill 正文；web 端对齐该格式：
+   - 编辑时 embed 值用 blob: URL 显示（<img> 无法带 Authorization 头直接访问下载端点）；
+   - 新建模式尚无 note id，选图时先插 blob URL，保存上传拿到真实 id 后二次回写 content；
+   - 加载时把存储的 attachment id 换成带鉴权 fetch 的 objectURL，保存时反向还原。 */
+const imgUrlToId = new Map<string, string>();
+
+/** 提取 ops 中所有 image embed 的值 */
+function imageValuesOf(ops: any[]): string[] {
+  return (ops || [])
+    .filter((o) => o?.insert && typeof o.insert === 'object' && o.insert.image)
+    .map((o) => o.insert.image as string);
+}
+
+/** 加载侧：把存储的 attachment id 替换为可显示的 objectURL（带鉴权 fetch blob） */
+async function hydrateImageEmbeds(delta: any): Promise<any> {
+  const ids = [...new Set(imageValuesOf(delta?.ops).filter((v) => typeof v === 'string' && !v.startsWith('blob:')))];
+  if (!ids.length) return delta;
+  await Promise.all(ids.map(async (id) => {
+    try {
+      const url = await loadAttachmentUrl(id);
+      imgUrlToId.set(url, id);
+    } catch {
+      /* 单张加载失败不阻断：embed 保留原 id 值，保存时原样写回 */
+    }
+  }));
+  const urlById = new Map<string, string>();
+  for (const [url, id] of imgUrlToId) urlById.set(id, url);
+  const ops = (delta.ops || []).map((o: any) => {
+    if (o?.insert && typeof o.insert === 'object' && o.insert.image && urlById.has(o.insert.image)) {
+      return { ...o, insert: { image: urlById.get(o.insert.image) } };
+    }
+    return o;
+  });
+  return new Delta(ops);
+}
+
+/** 保存侧：embed 显示 URL 还原为真实 attachment id；上传失败的本地图片丢弃，已是 id / 外链的保留 */
+function toStorageOps(): any[] {
+  const ops = quill ? quill.getContents().ops : [];
+  const out: any[] = [];
+  for (const o of ops) {
+    const img = o?.insert && typeof o.insert === 'object' && o.insert.image;
+    if (!img) {
+      out.push(o);
+      continue;
+    }
+    const v = o.insert.image as string;
+    if (typeof v === 'string' && v.startsWith('blob:')) {
+      const id = imgUrlToId.get(v);
+      if (id) out.push({ ...o, insert: { image: id } });
+      // 无 id：上传失败或已从附件面板移除 → 丢弃该 embed
+    } else {
+      out.push(o);
+    }
+  }
+  return out;
+}
+
+/** 往正文末尾追加图片 embed（对齐 gui：\n + image + \n，带 align: 'left'） */
+function appendImageEmbed(url: string) {
+  if (!quill) return;
+  const idx = Math.max(0, quill.getLength() - 1);
+  quill.updateContents(
+    new Delta().retain(idx).insert('\n').insert({ image: url }, { align: 'left' }).insert('\n'),
+  );
+}
+
+/** 从正文中移除指定 URL 的图片 embed（附件面板移除时联动） */
+function stripImageEmbeds(urls: string[]) {
+  if (!quill || !urls.length) return;
+  const set = new Set(urls);
+  const ops = quill.getContents().ops.filter((o: any) => {
+    const img = o?.insert && typeof o.insert === 'object' && o.insert.image;
+    return !(img && set.has(o.insert.image));
+  });
+  quill.setContents(new Delta(ops));
+  for (const u of urls) imgUrlToId.delete(u);
 }
 
 /* goBack 已移除——导航交由 Layout AppBar 处理（路由 meta.title + isDetailPage 同时控制显示） */
@@ -451,11 +557,14 @@ function pickAttachments(e: Event) {
   const input = e.target as HTMLInputElement;
   const files = input.files ? Array.from(input.files) : [];
   for (const file of files) {
-    newFiles.value.push({
+    const entry = {
       key: `f-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       file,
       url: URL.createObjectURL(file),
-    });
+    };
+    newFiles.value.push(entry);
+    // 图片附件同时嵌入正文（对齐 gui _handleAddAttachment），保存时替换为真实 attachment id
+    if (isImage(file.name)) appendImageEmbed(entry.url);
   }
   input.value = '';
 }
@@ -464,11 +573,15 @@ function removeAttachment(a: any) {
   if (a._type === 'new') {
     const idx = newFiles.value.findIndex((f) => f.key === a._key);
     if (idx >= 0) {
-      URL.revokeObjectURL(newFiles.value[idx].url);
-      newFiles.value.splice(idx, 1);
+      const [f] = newFiles.value.splice(idx, 1);
+      URL.revokeObjectURL(f.url);
+      stripImageEmbeds([f.url]);
     }
   } else {
     removedIds.value.push(a.id);
+    // 已落库图片：编辑器里显示的是 objectURL，找到对应映射一并从正文移除
+    const urls = [...imgUrlToId.entries()].filter(([, id]) => id === a.id).map(([u]) => u);
+    stripImageEmbeds(urls);
   }
 }
 
@@ -500,8 +613,9 @@ async function load() {
     form.noteType = res?.noteType ?? 'NOTE';
     form.groupCode = res?.groupCode ?? 'none';
     // 绑定 :content，QuillEditor 内部 watch 会在内容变化时自动 setContents，
-    // 规避「ready 早于异步加载完成」导致正文不渲染的竞态
-    editorContent.value = parseDelta(res?.content);
+    // 规避「ready 早于异步加载完成」导致正文不渲染的竞态；
+    // 图片 embed 的 attachment id 先换成 objectURL 才能在 <img> 中显示
+    editorContent.value = await hydrateImageEmbeds(parseDelta(res?.content));
     await loadAttachments(String(route.params.id));
     await loadRelations(String(route.params.id));
   } finally {
@@ -517,12 +631,14 @@ async function save() {
   saving.value = true;
   try {
     // 关键：取裸 Delta 操作数组（.ops），对齐 gui 存储格式；同时写 plainContent 供列表预览
-    const ops = quill ? quill.getContents().ops : [];
+    // 图片 embed 的 blob URL 此时还未上传（新建模式没有 note id），第一次写入先丢弃，
+    // 上传拿到真实 attachment id 后二次回写（见下方 finalOps 比对）
     const plain = quill ? (quill.getText() as string) : '';
+    const firstOps = toStorageOps();
     const data: any = {
       title: form.title.trim(),
       noteType: form.noteType || 'NOTE',
-      content: JSON.stringify(ops),
+      content: JSON.stringify(firstOps),
       plainContent: plain,
       groupCode: form.groupCode || 'none',
     };
@@ -535,7 +651,13 @@ async function save() {
       noteId = created?.id || '';
     }
     // 附件：新建先落 note 拿 id 再上传；删除已标记移除的（对齐 gui createNote/updateNote 的 diff 流程）
+    // 上传成功后 imgUrlToId 会补齐 blob URL → 真实 attachment id 的映射
     await syncAttachments(noteId);
+    // 新增了图片附件时，正文 embed 需要 blob URL → attachment id 的二次回写
+    const finalOps = toStorageOps();
+    if (JSON.stringify(finalOps) !== JSON.stringify(firstOps)) {
+      await noteApi.update(noteId, { ...data, content: JSON.stringify(finalOps) });
+    }
     // 关联账目：新建先落 note 拿 id 再逐条 create；删除已标记移除的
     await syncRelations(noteId);
     ElMessage.success(isEdit.value ? '保存成功' : '创建成功');
@@ -547,12 +669,22 @@ async function save() {
   }
 }
 
-/** 上传新增附件（businessId=noteId）+ 删除已标记移除附件；任一失败不阻断保存（http 拦截器已提示） */
+/** 上传新增附件（businessId=noteId）+ 删除已标记移除附件；任一失败不阻断保存（http 拦截器已提示）。
+    图片附件上传成功后记录 blob URL → attachment id 映射，供 save() 二次回写正文。 */
 async function syncAttachments(noteId: string) {
   if (!noteId) return;
   const tasks: Promise<any>[] = [];
-  for (const f of newFiles.value) tasks.push(attachmentApi.upload(f.file, 'note', noteId));
-  for (const id of removedIds.value) tasks.push(attachmentApi.remove(id));
+  for (const f of newFiles.value) {
+    tasks.push(
+      attachmentApi
+        .upload(f.file, 'note', noteId)
+        .then((saved: any) => {
+          if (saved?.id && isImage(f.file.name)) imgUrlToId.set(f.url, saved.id);
+        })
+        .catch(() => {}),
+    );
+  }
+  for (const id of removedIds.value) tasks.push(attachmentApi.remove(id).catch(() => {}));
   if (tasks.length) await Promise.allSettled(tasks);
 }
 
@@ -694,13 +826,17 @@ async function syncRelations(noteId: string) {
   if (tasks.length) await Promise.allSettled(tasks);
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // 先注册 blob 友好的 Image blot 再加载正文，避免编辑模式下图片被 sanitize 成 "//:0"
+  await ensureBlobImageBlot();
   load();
   loadGroups();
 });
 
 onUnmounted(() => {
   for (const f of newFiles.value) URL.revokeObjectURL(f.url);
+  for (const url of imgUrlToId.keys()) URL.revokeObjectURL(url);
+  imgUrlToId.clear();
 });
 </script>
 
@@ -820,6 +956,14 @@ onUnmounted(() => {
 .editor-wrap :deep(.ql-editor.ql-blank::before) {
   color: var(--text-3);
   font-style: normal;
+}
+
+/* 正文内嵌图片（对齐 gui QuillEditorImageEmbedConfig 的展示效果） */
+.editor-wrap :deep(.ql-editor img) {
+  max-width: 100%;
+  border-radius: 8px;
+  display: block;
+  margin: 6px 0;
 }
 
 /* 底部面板 */
