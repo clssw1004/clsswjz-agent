@@ -1,16 +1,10 @@
 <template>
   <div class="note-form-page">
     <div class="form-card">
-      <!-- 顶部导航：返回 + 标题 + 保存胶囊 -->
-      <div class="form-nav">
-        <button class="nav-back" aria-label="返回" @click="goBack">
-          <el-icon :size="22"><ArrowLeft /></el-icon>
-        </button>
-        <span class="nav-title">{{ isEdit ? '编辑记事' : '新建记事' }}</span>
-        <button class="nav-save" :disabled="saving" @click="save">
-          {{ saving ? '保存中…' : '保存' }}
-        </button>
-      </div>
+      <!-- 右上角保存胶囊（页面级导航与「返回/标题」交给 Layout AppBar 全权处理，避免重复） -->
+      <button class="form-save-fab" :disabled="saving" @click="save">
+        {{ saving ? '保存中…' : '保存' }}
+      </button>
 
       <!-- 标题输入 -->
       <div class="title-field">
@@ -175,7 +169,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ArrowLeft, Close, Document, Plus, Search } from '@element-plus/icons-vue';
+import { Close, Document, Plus, Search } from '@element-plus/icons-vue';
 import { Delta, QuillEditor } from '@vueup/vue-quill';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
 import { noteApi, attachmentApi, itemApi, itemRelationApi } from '@/api';
@@ -238,11 +232,7 @@ function onEditorReady(q: any) {
   quill = q;
 }
 
-/** 返回上一页；无历史记录（直链进入）时回记事列表兜底 */
-function goBack() {
-  if (window.history.length > 1) router.back();
-  else router.replace('/notes');
-}
+/* goBack 已移除——导航交由 Layout AppBar 处理（路由 meta.title + isDetailPage 同时控制显示） */
 
 const groupOptions = ref<{ code: string; name: string }[]>([{ code: 'none', name: '无分组' }]);
 
@@ -570,9 +560,12 @@ onUnmounted(() => {
 .note-form-page {
   max-width: 720px;
   margin: 0 auto;
+  display: flex;
 }
 
 .form-card {
+  position: relative;
+  flex: 1;
   display: flex;
   flex-direction: column;
   background: var(--surface-glass);
@@ -581,61 +574,31 @@ onUnmounted(() => {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
   overflow: hidden;
-  min-height: calc(100vh - 32px);
 }
 
-/* 顶部导航 */
-.form-nav {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border-glass);
-}
-
-.nav-back {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--text-1);
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.nav-back:hover {
-  background: var(--surface-hover);
-}
-
-.nav-title {
-  flex: 1;
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--text-1);
-}
-
-.nav-save {
+/* 页面右上角浮动「保存」胶囊（导航交给 Layout AppBar 全权处理） */
+.form-save-fab {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 5;
   border: none;
   padding: 7px 18px;
   border-radius: 999px;
   background: var(--grad-brand);
   color: var(--on-primary);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   box-shadow: var(--glow-primary);
   transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
-.nav-save:active {
+.form-save-fab:active {
   transform: scale(0.97);
 }
 
-.nav-save:disabled {
+.form-save-fab:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
@@ -663,40 +626,50 @@ onUnmounted(() => {
   font-weight: 400;
 }
 
-/* 编辑器 */
+/* 富文本编辑器（Quill）：
+   关键点：@vueup/vue-quill 的 render 返回 Vue Fragment，class="quill-editor" 在 DOM 里不是
+   真实节点（Vue 仅用 start/end 锚点占位），以它作为祖先的 :deep() 规则会全部失效。
+   所以 flex 链路必须以真实 DOM 节点（ql-container / ql-editor）为选择器起点。
+
+   高度策略：form-card 不强制撑满视口，editor-wrap 随内容自然扩张，长文时给 max-height 让
+   ql-editor 内部滚动而不是无限撑开页面。短内容时给 min-height 避免编辑区太矮。 */
 .editor-wrap {
-  flex: 1;
   display: flex;
   flex-direction: column;
+  position: relative;
+  min-height: 240px;
+  max-height: calc(100vh - 280px);
 }
 
-.quill-editor {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-/* 去掉 snow 主题默认边框，融入卡片 */
-.quill-editor :deep(.ql-toolbar) {
+/* 跳过失效的 .quill-editor 祖先，直接选 ql-container；
+   用 :deep() 穿透本组件 scoped 限制 */
+.editor-wrap :deep(.ql-toolbar) {
   border: none;
   border-bottom: 1px solid var(--border-glass);
   padding: 8px 12px;
+  flex-shrink: 0;
 }
 
-.quill-editor :deep(.ql-container) {
+.editor-wrap :deep(.ql-container) {
   border: none;
   font-size: 15px;
   color: var(--text-1);
   font-family: var(--font-ui);
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.quill-editor :deep(.ql-editor) {
-  min-height: 320px;
+.editor-wrap :deep(.ql-editor) {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
   line-height: 1.7;
   padding: 16px;
 }
 
-.quill-editor :deep(.ql-editor.ql-blank::before) {
+.editor-wrap :deep(.ql-editor.ql-blank::before) {
   color: var(--text-3);
   font-style: normal;
 }
@@ -708,6 +681,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  flex-shrink: 0;
 }
 
 .segmented {
@@ -1007,10 +981,15 @@ onUnmounted(() => {
   }
 
   .form-card {
-    min-height: calc(100vh - 16px);
     border-radius: 0;
     border-left: none;
     border-right: none;
+  }
+
+  /* 移动端因底部面板更高，max-height 调大点 */
+  .editor-wrap {
+    min-height: 200px;
+    max-height: calc(100vh - 320px);
   }
 }
 </style>
