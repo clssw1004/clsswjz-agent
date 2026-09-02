@@ -10,10 +10,12 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
+    "@vueup/vue-quill": "^1.5.5",
     "axios": "^1.7.9",
     "echarts": "^6.1.0",
     "element-plus": "^2.14.5",
     "pinia": "^2.2.0",
+    "quill": "^2.0.3",
     "vue": "^3.5.0",
     "vue-echarts": "^8.1.0",
     "vue-router": "^4.4.0"
