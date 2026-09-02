@@ -3,7 +3,7 @@
     <div class="form-card">
       <!-- 顶部导航：返回 + 标题 + 保存胶囊 -->
       <div class="form-nav">
-        <button class="nav-back" aria-label="返回" @click="router.back()">
+        <button class="nav-back" aria-label="返回" @click="goBack">
           <el-icon :size="22"><ArrowLeft /></el-icon>
         </button>
         <span class="nav-title">{{ isEdit ? '编辑记事' : '新建记事' }}</span>
@@ -176,7 +176,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ArrowLeft, Close, Document, Plus, Search } from '@element-plus/icons-vue';
-import { QuillEditor } from '@vueup/vue-quill';
+import { Delta, QuillEditor } from '@vueup/vue-quill';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
 import { noteApi, attachmentApi, itemApi, itemRelationApi } from '@/api';
 import { useAppStore } from '@/stores/app';
@@ -215,22 +215,33 @@ const activePanel = ref<'group' | 'attachment' | 'relation'>('group');
 const quillEditor = ref();
 let quill: any = null;
 
-/** 编辑器内容（Delta 裸操作数组），绑定到 QuillEditor :content，由组件 watch 自动 setContents */
-const editorContent = ref<any[]>([]);
+/**
+ * 编辑器内容，绑定到 QuillEditor :content，由组件 watch 自动 setContents。
+ * 注意：content-type="delta" 时必须传 quill-delta 的 Delta 实例——裸数组会让组件
+ * 初始化时 internalModel 变成普通数组（丢失 .diff 方法），异步加载赋值时 watcher
+ * 抛 TypeError，组件更新崩溃并卡死路由过渡（表现为「返回不生效」）。
+ */
+const editorContent = ref<any>(new Delta());
 
 /** gui 存的是裸 Delta 操作数组 JSON（[{"insert":"..."}]）；旧纯文本数据兜底为单段 Delta */
-function parseDelta(content?: string | null): any[] {
-  if (!content) return [];
+function parseDelta(content?: string | null): any {
+  if (!content) return new Delta();
   try {
     const parsed = JSON.parse(content);
-    return Array.isArray(parsed) ? parsed : [{ insert: content }];
+    return Array.isArray(parsed) ? new Delta(parsed) : new Delta([{ insert: content }]);
   } catch {
-    return [{ insert: content }];
+    return new Delta([{ insert: content }]);
   }
 }
 
 function onEditorReady(q: any) {
   quill = q;
+}
+
+/** 返回上一页；无历史记录（直链进入）时回记事列表兜底 */
+function goBack() {
+  if (window.history.length > 1) router.back();
+  else router.replace('/notes');
 }
 
 const groupOptions = ref<{ code: string; name: string }[]>([{ code: 'none', name: '无分组' }]);
