@@ -10,9 +10,25 @@ export class NoteController {
     return this.noteService.findAll(req.user.userId, query);
   }
 
+  /** noteGroup 分组 CRUD：定义在 :id 通配之前，避免 Post(':id') 拦截 */
   @Get('groups')
   findGroups(@Req() req) {
     return this.noteService.findGroups(req.user.userId);
+  }
+
+  @Post('groups')
+  createGroup(@Req() req, @Body() body: { name: string; accountBookId?: string }) {
+    return this.noteService.createGroup(req.user.userId, body);
+  }
+
+  @Put('groups/:id')
+  updateGroup(@Req() req, @Param('id') id: string, @Body() body: { name: string }) {
+    return this.noteService.updateGroup(req.user.userId, id, body);
+  }
+
+  @Delete('groups/:id')
+  removeGroup(@Req() req, @Param('id') id: string) {
+    return this.noteService.removeGroup(req.user.userId, id);
   }
 
   @Get(':id')

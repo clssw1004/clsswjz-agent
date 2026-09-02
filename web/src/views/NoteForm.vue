@@ -45,7 +45,12 @@
 
         <!-- 分组面板 -->
         <div v-if="activePanel === 'group'" class="panel-body">
-          <span class="panel-label">选择分组</span>
+          <div class="panel-label-row">
+            <span class="panel-label">选择分组</span>
+            <button class="panel-manage-btn" @click="openGroupManager">
+              <el-icon :size="13"><Setting /></el-icon> 管理
+            </button>
+          </div>
           <div class="chips">
             <button
               v-for="g in groupOptions"
@@ -163,17 +168,77 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 记事分组管理弹层（新建 / 重命名 / 删除，对齐 gui SymbolCULog.create/update/delete） -->
+    <el-dialog
+      v-model="groupMgrDialog"
+      title="分组管理"
+      width="92%"
+      class="rel-dialog"
+      :append-to-body="true"
+    >
+      <div class="group-mgr-new">
+        <el-input
+          v-model="newGroupName"
+          class="group-mgr-input"
+          placeholder="新建分组名称"
+          maxlength="20"
+          clearable
+          @keydown.enter="submitGroupCreate"
+        >
+          <template #prefix><el-icon :size="14"><FolderAdd /></el-icon></template>
+        </el-input>
+        <el-button
+          type="primary"
+          :disabled="!newGroupName.trim() || groupMgrCreating"
+          @click="submitGroupCreate"
+        >新建</el-button>
+      </div>
+
+      <div v-loading="groupMgrLoading" class="group-mgr-list">
+        <div v-if="!groupMgrLoading && groupMgrList.length === 0" class="panel-empty">暂无分组</div>
+        <div v-for="g in groupMgrList" :key="g.id" class="group-mgr-row">
+          <template v-if="editingGroupId === g.id">
+            <el-input
+              v-model="editingGroupName"
+              class="group-mgr-input"
+              maxlength="20"
+              @keydown.enter="submitGroupRename(g)"
+              @keydown.esc="cancelGroupEdit"
+            />
+            <el-button type="primary" link :disabled="groupMgrRenaming" @click="submitGroupRename(g)">保存</el-button>
+            <el-button link :disabled="groupMgrRenaming" @click="cancelGroupEdit">取消</el-button>
+          </template>
+          <template v-else>
+            <el-icon :size="14" class="group-mgr-icon"><Folder /></el-icon>
+            <span class="group-mgr-name">{{ g.name }}</span>
+            <span class="group-mgr-code">{{ g.code }}</span>
+            <button class="group-mgr-action" aria-label="重命名" @click="startGroupEdit(g)">
+              <el-icon :size="14"><Edit /></el-icon>
+            </button>
+            <button class="group-mgr-action danger" aria-label="删除" @click="removeGroup(g)">
+              <el-icon :size="14"><Delete /></el-icon>
+            </button>
+          </template>
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button @click="groupMgrDialog = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Close, Document, Plus, Search } from '@element-plus/icons-vue';
+import { Close, Delete, Document, Edit, Folder, FolderAdd, Plus, Search, Setting } from '@element-plus/icons-vue';
 import { Delta, QuillEditor } from '@vueup/vue-quill';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
 import { noteApi, attachmentApi, itemApi, itemRelationApi } from '@/api';
 import { useAppStore } from '@/stores/app';
+import { ElMessage, ElMessageBox } from 'element-plus';
 
 const route = useRoute();
 const router = useRouter();
@@ -245,8 +310,91 @@ async function loadGroups() {
       { code: 'none', name: '无分组' },
       ...list.map((g: any) => ({ code: g.code, name: g.name })),
     ];
+    groupMgrList.value = list.map((g: any) => ({ id: g.id, code: g.code, name: g.name }));
   } catch {
     /* 分组加载失败不阻断编辑 */
+  }
+}
+
+/* ────────────── 分组管理（新建 / 重命名 / 删除） ────────────── */
+
+const groupMgrDialog = ref(false);
+const groupMgrList = ref<{ id: string; code: string; name: string }[]>([]);
+const groupMgrLoading = ref(false);
+const newGroupName = ref('');
+const groupMgrCreating = ref(false);
+
+const editingGroupId = ref<string>('');
+const editingGroupName = ref('');
+const groupMgrRenaming = ref(false);
+
+async function openGroupManager() {
+  newGroupName.value = '';
+  cancelGroupEdit();
+  groupMgrDialog.value = true;
+  await loadGroups();
+}
+
+async function submitGroupCreate() {
+  const name = newGroupName.value.trim();
+  if (!name) return;
+  groupMgrCreating.value = true;
+  try {
+    await noteApi.groupCreate({ name });
+    ElMessage.success('已创建分组');
+    newGroupName.value = '';
+    await loadGroups();
+    // 同步刷新 Notes.vue 列表（通过事件总线，简单用 location.reload 也行；这里以 loadGroups() 局部刷新）
+  } finally {
+    groupMgrCreating.value = false;
+  }
+}
+
+function startGroupEdit(g: any) {
+  editingGroupId.value = g.id;
+  editingGroupName.value = g.name;
+}
+
+function cancelGroupEdit() {
+  editingGroupId.value = '';
+  editingGroupName.value = '';
+}
+
+async function submitGroupRename(g: any) {
+  const name = editingGroupName.value.trim();
+  if (!name || name === g.name) {
+    cancelGroupEdit();
+    return;
+  }
+  groupMgrRenaming.value = true;
+  try {
+    await noteApi.groupUpdate(g.id, { name });
+    ElMessage.success('已重命名');
+    cancelGroupEdit();
+    await loadGroups();
+  } finally {
+    groupMgrRenaming.value = false;
+  }
+}
+
+async function removeGroup(g: any) {
+  try {
+    await ElMessageBox.confirm(`删除分组「${g.name}」？使用此分组的记事会保留原 groupCode，显示时找不到名称会回退 code。`, '删除确认', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    });
+  } catch {
+    return;
+  }
+  try {
+    await noteApi.groupDelete(g.id);
+    ElMessage.success('已删除');
+    // 如果当前选中的就是这个分组，自动切回「无分组」
+    if (form.groupCode === g.code) form.groupCode = 'none';
+    await loadGroups();
+  } catch {
+    ElMessage.error('删除失败');
   }
 }
 
@@ -722,6 +870,33 @@ onUnmounted(() => {
   color: var(--text-3);
 }
 
+/* 分组面板 label 行：左标题 + 右「管理」按钮 */
+.panel-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panel-manage-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--border-glass);
+  background: var(--surface-active);
+  color: var(--text-2);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.panel-manage-btn:hover {
+  border-color: var(--brand-gold);
+  color: var(--brand-gold);
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -973,6 +1148,89 @@ onUnmounted(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* ── 分组管理弹层 ── */
+.group-mgr-new {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.group-mgr-input {
+  flex: 1;
+}
+
+.group-mgr-list {
+  max-height: 50vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.group-mgr-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--surface-active);
+  border: 1px solid var(--border-glass);
+  min-height: 42px;
+}
+
+.group-mgr-icon {
+  color: var(--brand-gold);
+  flex-shrink: 0;
+}
+
+.group-mgr-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.group-mgr-code {
+  font-size: 10px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  background: var(--bg-deep);
+  padding: 1px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.group-mgr-action {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.group-mgr-action:hover {
+  background: var(--surface-hover);
+  color: var(--text-1);
+}
+
+.group-mgr-action.danger:hover {
+  background: rgba(242, 87, 61, 0.12);
+  color: var(--amount-expense);
 }
 
 @media (max-width: 767px) {

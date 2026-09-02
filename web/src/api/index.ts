@@ -87,6 +87,12 @@ export const noteApi = {
   delete: (id: string) => http.delete(`/notes/${id}`),
   /** 记事分组列表（noteGroup symbol） */
   groups: () => http.get('/notes/groups'),
+  /** 记事分组 CRUD（noteGroup symbol 的新建/重命名/删除） */
+  groupCreate: (data: { name: string; accountBookId?: string }) =>
+    http.post('/notes/groups', data),
+  groupUpdate: (id: string, data: { name: string }) =>
+    http.put(`/notes/groups/${id}`, data),
+  groupDelete: (id: string) => http.delete(`/notes/groups/${id}`),
 };
 
 export const itemRelationApi = {
