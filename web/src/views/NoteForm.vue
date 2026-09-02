@@ -61,9 +61,34 @@
           </div>
         </div>
 
-        <!-- 附件面板（后续版本支持） -->
+        <!-- 附件面板（对齐 gui _buildAttachmentSection：56 缩略图网格 + 添加 tile） -->
         <div v-else-if="activePanel === 'attachment'" class="panel-body">
-          <div class="panel-empty">附件功能后续版本支持</div>
+          <span class="panel-label">附件</span>
+          <div class="attach-grid">
+            <div
+              v-for="a in displayAttachments"
+              :key="a._key"
+              class="attach-tile"
+              :title="a.originName"
+              @click="a._type === 'existing' && openAttachment(a)"
+            >
+              <div class="attach-thumb">
+                <img v-if="a._type === 'new' && a._isImage" :src="a._url" alt="" />
+                <el-icon v-else :size="22"><Document /></el-icon>
+                <button class="attach-remove" aria-label="移除附件" @click.stop="removeAttachment(a)">
+                  <el-icon :size="12"><Close /></el-icon>
+                </button>
+              </div>
+              <span class="attach-name">{{ a.originName }}</span>
+            </div>
+            <label class="attach-tile attach-add">
+              <div class="attach-thumb">
+                <el-icon :size="20"><Plus /></el-icon>
+              </div>
+              <span class="attach-name">添加</span>
+              <input type="file" multiple hidden @change="pickAttachments($event)" />
+            </label>
+          </div>
         </div>
 
         <!-- 关联面板（后续版本支持） -->
@@ -76,12 +101,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ArrowLeft } from '@element-plus/icons-vue';
+import { ArrowLeft, Close, Document, Plus } from '@element-plus/icons-vue';
 import { QuillEditor } from '@vueup/vue-quill';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
-import { noteApi } from '@/api';
+import { noteApi, attachmentApi } from '@/api';
 
 const route = useRoute();
 const router = useRouter();
@@ -145,6 +170,99 @@ async function loadGroups() {
   }
 }
 
+/* ────────────── 附件（对齐 gui 附件流程：先存 note 拿 id 再传附件） ────────────── */
+
+/** 已落库附件（编辑模式加载） */
+const existingAttachments = ref<any[]>([]);
+/** 待上传本地文件（新建模式暂存，保存时随 note id 一起上传） */
+const newFiles = ref<{ key: string; file: File; url: string }[]>([]);
+/** 已标记删除的已落库附件 id（保存时删除） */
+const removedIds = ref<string[]>([]);
+/** 懒加载下载中的附件 id */
+const downloadingIds = reactive(new Set<string>());
+
+const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'heic', 'heif'];
+
+function extOf(name: string): string {
+  const i = name.lastIndexOf('.');
+  return i >= 0 ? name.slice(i + 1).toLowerCase() : '';
+}
+
+function isImage(name: string): boolean {
+  return IMAGE_EXTS.includes(extOf(name));
+}
+
+/** 合并展示列表：已落库（排除待删除）+ 待上传本地文件 */
+const displayAttachments = computed(() => [
+  ...existingAttachments.value
+    .filter((a) => !removedIds.value.includes(a.id))
+    .map((a) => ({ ...a, _key: 'e-' + a.id, _type: 'existing', _isImage: isImage(a.originName), _url: '' })),
+  ...newFiles.value.map((f) => ({
+    id: '',
+    originName: f.file.name,
+    fileLength: f.file.size,
+    extension: extOf(f.file.name),
+    contentType: f.file.type,
+    _key: f.key,
+    _type: 'new',
+    _isImage: isImage(f.file.name),
+    _url: f.url,
+  })),
+]);
+
+async function loadAttachments(noteId: string) {
+  try {
+    const res: any = await attachmentApi.list({ businessCode: 'note', businessId: noteId });
+    existingAttachments.value = Array.isArray(res) ? res : res?.items || [];
+  } catch {
+    /* 附件加载失败不阻断编辑 */
+  }
+}
+
+function pickAttachments(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const files = input.files ? Array.from(input.files) : [];
+  for (const file of files) {
+    newFiles.value.push({
+      key: `f-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      file,
+      url: URL.createObjectURL(file),
+    });
+  }
+  input.value = '';
+}
+
+function removeAttachment(a: any) {
+  if (a._type === 'new') {
+    const idx = newFiles.value.findIndex((f) => f.key === a._key);
+    if (idx >= 0) {
+      URL.revokeObjectURL(newFiles.value[idx].url);
+      newFiles.value.splice(idx, 1);
+    }
+  } else {
+    removedIds.value.push(a.id);
+  }
+}
+
+/** 打开已落库附件（懒加载，对齐 gui downloadAttachment） */
+async function openAttachment(a: any) {
+  if (downloadingIds.has(a.id)) return;
+  downloadingIds.add(a.id);
+  try {
+    const res = await fetch(`/api/attachments/${a.id}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('web_token') || ''}` },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const url = URL.createObjectURL(await res.blob());
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch {
+    ElMessage.error('附件加载失败');
+  } finally {
+    downloadingIds.delete(a.id);
+  }
+}
+
 async function load() {
   if (!route.params.id) return;
   loading.value = true;
@@ -154,6 +272,7 @@ async function load() {
     form.noteType = res?.noteType ?? 'NOTE';
     form.groupCode = res?.groupCode ?? 'none';
     rawContent = res?.content ?? '';
+    await loadAttachments(String(route.params.id));
   } finally {
     loading.value = false;
   }
@@ -176,13 +295,17 @@ async function save() {
       plainContent: plain,
       groupCode: form.groupCode || 'none',
     };
+    let noteId = '';
     if (isEdit.value) {
-      await noteApi.update(String(route.params.id), data);
-      ElMessage.success('保存成功');
+      noteId = String(route.params.id);
+      await noteApi.update(noteId, data);
     } else {
-      await noteApi.create(data);
-      ElMessage.success('创建成功');
+      const created: any = await noteApi.create(data);
+      noteId = created?.id || '';
     }
+    // 附件：新建先落 note 拿 id 再上传；删除已标记移除的（对齐 gui createNote/updateNote 的 diff 流程）
+    await syncAttachments(noteId);
+    ElMessage.success(isEdit.value ? '保存成功' : '创建成功');
     router.back();
   } catch {
     ElMessage.error('保存失败');
@@ -191,9 +314,22 @@ async function save() {
   }
 }
 
+/** 上传新增附件（businessId=noteId）+ 删除已标记移除附件；任一失败不阻断保存（http 拦截器已提示） */
+async function syncAttachments(noteId: string) {
+  if (!noteId) return;
+  const tasks: Promise<any>[] = [];
+  for (const f of newFiles.value) tasks.push(attachmentApi.upload(f.file, 'note', noteId));
+  for (const id of removedIds.value) tasks.push(attachmentApi.remove(id));
+  if (tasks.length) await Promise.allSettled(tasks);
+}
+
 onMounted(() => {
   load();
   loadGroups();
+});
+
+onUnmounted(() => {
+  for (const f of newFiles.value) URL.revokeObjectURL(f.url);
 });
 </script>
 
@@ -408,6 +544,84 @@ onMounted(() => {
   text-align: center;
   font-size: 13px;
   color: var(--text-3);
+}
+
+/* 附件网格（对齐 gui 56px 缩略图 + 名称 + 添加 tile） */
+.attach-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.attach-tile {
+  width: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.attach-thumb {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  background: var(--bg-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+  overflow: hidden;
+}
+
+.attach-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.attach-remove {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s ease;
+}
+
+.attach-remove:hover {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+.attach-name {
+  width: 64px;
+  font-size: 10px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+
+.attach-add .attach-thumb {
+  border: 1px dashed var(--border-glass);
+  background: transparent;
+  color: var(--text-3);
+}
+
+.attach-add:hover .attach-thumb {
+  border-color: var(--brand-gold);
+  color: var(--brand-gold);
 }
 
 @media (max-width: 767px) {
