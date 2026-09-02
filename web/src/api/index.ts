@@ -85,6 +85,8 @@ export const noteApi = {
   create: (data: any) => http.post('/notes', data),
   update: (id: string, data: any) => http.put(`/notes/${id}`, data),
   delete: (id: string) => http.delete(`/notes/${id}`),
+  /** 记事分组列表（noteGroup symbol） */
+  groups: () => http.get('/notes/groups'),
 };
 
 export const attachmentApi = {

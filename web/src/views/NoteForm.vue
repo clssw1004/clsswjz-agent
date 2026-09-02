@@ -53,11 +53,11 @@
           <div class="chips">
             <button
               v-for="g in groupOptions"
-              :key="g.value"
+              :key="g.code"
               class="chip"
-              :class="{ on: form.groupCode === g.value }"
-              @click="form.groupCode = g.value"
-            >{{ g.label }}</button>
+              :class="{ on: form.groupCode === g.code }"
+              @click="form.groupCode = g.code"
+            >{{ g.name }}</button>
           </div>
         </div>
 
@@ -94,7 +94,7 @@ const form = reactive({
   title: '',
   noteType: 'NOTE',
   content: '',
-  groupCode: '' as string,
+  groupCode: 'none' as string,
 });
 
 /** 富文本工具栏：仅加粗 / 斜体 / 下划线 / 勾选列表 / 无序列表，对齐 gui QuillSimpleToolbar */
@@ -129,20 +129,16 @@ function onEditorReady(q: any) {
   }
 }
 
-const groupOptions = ref<{ value: string; label: string }[]>([{ value: '', label: '无分组' }]);
+const groupOptions = ref<{ code: string; name: string }[]>([{ code: 'none', name: '无分组' }]);
 
-/** 分组数据源过渡方案：从已有记事提取 groupCode（后端 noteGroup symbol 后续扩展） */
+/** 分组数据源：后端 noteGroup symbol（对齐 gui SymbolType.noteGroup） */
 async function loadGroups() {
   try {
-    const res: any = await noteApi.list();
+    const res: any = await noteApi.groups();
     const list = Array.isArray(res) ? res : res?.items || [];
-    const set = new Set<string>();
-    for (const n of list) {
-      if (n.groupCode) set.add(n.groupCode);
-    }
     groupOptions.value = [
-      { value: '', label: '无分组' },
-      ...Array.from(set).sort().map((c) => ({ value: c, label: c })),
+      { code: 'none', name: '无分组' },
+      ...list.map((g: any) => ({ code: g.code, name: g.name })),
     ];
   } catch {
     /* 分组加载失败不阻断编辑 */
@@ -156,7 +152,7 @@ async function load() {
     const res: any = await noteApi.get(String(route.params.id));
     form.title = res?.title ?? '';
     form.noteType = res?.noteType ?? 'NOTE';
-    form.groupCode = res?.groupCode ?? '';
+    form.groupCode = res?.groupCode ?? 'none';
     rawContent = res?.content ?? '';
   } finally {
     loading.value = false;
@@ -178,7 +174,7 @@ async function save() {
       noteType: form.noteType || 'NOTE',
       content: JSON.stringify(ops),
       plainContent: plain,
-      groupCode: form.groupCode || null,
+      groupCode: form.groupCode || 'none',
     };
     if (isEdit.value) {
       await noteApi.update(String(route.params.id), data);

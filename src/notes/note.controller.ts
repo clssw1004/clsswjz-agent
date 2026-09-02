@@ -10,6 +10,11 @@ export class NoteController {
     return this.noteService.findAll(req.user.userId, query);
   }
 
+  @Get('groups')
+  findGroups(@Req() req) {
+    return this.noteService.findGroups(req.user.userId);
+  }
+
   @Get(':id')
   findOne(@Req() req, @Param('id') id: string) {
     return this.noteService.findOne(req.user.userId, id);

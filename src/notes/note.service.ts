@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { ConnectionManager } from '../core/connection-manager';
 import { AccountNote } from '../entities/account-note.entity';
+import { AccountSymbol } from '../entities/account-symbol.entity';
 import { LogSync } from '../entities/log-sync.entity';
 import { BusinessType } from '../enums/business-type.enum';
 import { OperateType } from '../enums/operate-type.enum';
+import { SymbolType } from '../enums/symbol-type.enum';
 import { SyncState } from '../enums/sync-state.enum';
 
 @Injectable()
@@ -17,6 +19,12 @@ export class NoteService {
     if (query.noteType) where.noteType = query.noteType;
     if (query.groupCode) where.groupCode = query.groupCode;
     return repo.find({ where });
+  }
+
+  /** 记事分组列表（noteGroup symbol，对齐 gui listSymbolsByBook symbolType=noteGroup） */
+  async findGroups(userId: string) {
+    const repo = await this.connMgr.getRepository(userId, AccountSymbol);
+    return repo.find({ where: { symbolType: SymbolType.NOTE_GROUP } });
   }
 
   async findOne(userId: string, id: string) {

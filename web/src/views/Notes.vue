@@ -12,16 +12,17 @@
         />
       </div>
 
-      <!-- 分组筛选（对齐 GUI NoteGroupFilter） -->
-      <div v-if="groups.length" class="group-filter">
+      <!-- 分组筛选（对齐 GUI NoteGroupFilter：全部 / 无分组 / 各 noteGroup symbol） -->
+      <div class="group-filter">
         <button class="group-chip" :class="{ on: activeGroup === '' }" @click="activeGroup = ''">全部</button>
+        <button class="group-chip" :class="{ on: activeGroup === 'none' }" @click="activeGroup = 'none'">无分组</button>
         <button
-          v-for="g in groups"
-          :key="g"
+          v-for="g in groupList"
+          :key="g.code"
           class="group-chip"
-          :class="{ on: activeGroup === g }"
-          @click="activeGroup = g"
-        >{{ g }}</button>
+          :class="{ on: activeGroup === g.code }"
+          @click="activeGroup = g.code"
+        >{{ g.name }}</button>
       </div>
 
       <!-- 列表 -->
@@ -46,10 +47,10 @@
               <el-icon :size="18" class="subject-icon" :style="{ color: accentOf(note) }"><Memo /></el-icon>
               <span class="note-title">{{ note.title || '无标题' }}</span>
               <span
-                v-if="note.groupCode"
+                v-if="groupName(note.groupCode)"
                 class="group-tag"
                 :style="{ color: accentOf(note), background: hexToRgba(accentOf(note), 0.12) }"
-              >{{ note.groupCode }}</span>
+              >{{ groupName(note.groupCode) }}</span>
               <el-dropdown trigger="click" @command="(cmd: string) => handleCommand(cmd, note)" @click.stop>
                 <el-icon class="note-more" :size="18"><MoreFilled /></el-icon>
                 <template #dropdown>
@@ -136,17 +137,31 @@ function accentOf(note: any): string {
   return NOTE_PALETTE[hashString(key) % NOTE_PALETTE.length];
 }
 
-const groups = computed(() => {
-  const set = new Set<string>();
-  for (const n of notes.value) {
-    if (n.groupCode) set.add(n.groupCode);
+/** 分组数据源（noteGroup symbol，对齐 gui SymbolType.noteGroup），code→name 映射 */
+const groupList = ref<{ code: string; name: string }[]>([]);
+
+async function loadGroups() {
+  try {
+    const res: any = await noteApi.groups();
+    const list = Array.isArray(res) ? res : res?.items || [];
+    groupList.value = list.map((g: any) => ({ code: g.code, name: g.name }));
+  } catch {
+    /* 分组加载失败不阻断列表 */
   }
-  return Array.from(set).sort();
-});
+}
+
+/** 解析分组展示名：无分组（none）不显示；查不到映射时回退显示 code */
+function groupName(code?: string | null): string {
+  if (!code || code === 'none') return '';
+  const g = groupList.value.find((x) => x.code === code);
+  return g?.name || code;
+}
 
 const filtered = computed(() => {
   let list = notes.value;
-  if (activeGroup.value) {
+  if (activeGroup.value === 'none') {
+    list = list.filter((n) => !n.groupCode || n.groupCode === 'none');
+  } else if (activeGroup.value) {
     list = list.filter((n) => n.groupCode === activeGroup.value);
   }
   if (searchText.value.trim()) {
@@ -237,7 +252,10 @@ function goDetail(note: any) {
   router.push(`/notes/${note.id}`);
 }
 
-onMounted(load);
+onMounted(() => {
+  load();
+  loadGroups();
+});
 </script>
 
 <style scoped>
