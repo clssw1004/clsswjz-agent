@@ -1558,13 +1558,39 @@ onUnmounted(() => {
     padding-top: 6px;
   }
 
+  /* 移动端收紧工具栏间距，确保 390 视口下 5 格式 + 3 元信息 + 保存胶囊单行不溢出
+     （实测未收紧时 scrollWidth=407 > clientWidth=390，17px 横向溢出） */
+  .note-toolbar {
+    gap: 4px;
+    padding: 10px 8px calc(10px + env(safe-area-inset-bottom));
+  }
+
+  .tool-group {
+    gap: 3px;
+  }
+
+  .tool-btn {
+    min-width: 30px;
+    height: 32px;
+    padding: 0 6px;
+  }
+
   /* 移动端收起 meta 文字，仅图标 + 角标，保证工具栏单行不溢出 */
   .tool-btn.meta {
-    padding: 0 10px;
+    padding: 0 8px;
   }
 
   .tool-btn.meta .meta-label {
     display: none;
+  }
+
+  .tool-save {
+    padding: 0 12px;
+    height: 32px;
+  }
+
+  .tool-divider {
+    margin: 0 1px;
   }
 }
 </style>
