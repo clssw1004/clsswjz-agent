@@ -100,7 +100,7 @@
       </header>
 
       <!-- Content -->
-      <main class="content">
+      <main class="content" :class="{ 'is-editor': isNoteEditor }">
         <router-view v-slot="{ Component }">
           <transition name="page" mode="out-in">
             <component :is="Component" />
@@ -202,6 +202,9 @@ const showBookSelect = computed(() => route.path === '/items');
 // 子页面（新增/编辑详情/列表/账本/经期/设置）在顶栏显示返回（对齐移动端 AppBar leading 返回）
 const isDetailPage = computed(() => /^\/(items\/(new|list|[^/]+)|notes\/(new|[^/]+)|books|periods|activities|vehicles|attachments|debts|fuel-records|db-viewer|settings\/)/.test(route.path));
 
+// 记事编辑页：内容区改为沉浸式通栏（无外边距、无外部滚动，页面内部管理高度）
+const isNoteEditor = computed(() => /^\/notes\/(new|[^/]+)$/.test(route.path));
+
 function goBack() {
   if (window.history.length > 1) router.back();
   else router.push('/items');
@@ -217,7 +220,9 @@ function handleSync() {
 <style scoped>
 .app-layout {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   position: relative;
 }
 
@@ -365,6 +370,7 @@ function handleSync() {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
   position: relative;
   z-index: 1;
 }
@@ -542,6 +548,15 @@ function handleSync() {
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* 沉浸式编辑页（记事编辑）：关闭内容区自身滚动，交由页面内部管理高度，去外边距实现通栏 */
+.content.is-editor {
+  padding: 0;
+  max-width: none;
+  overflow: hidden;
 }
 
 /* ========== 页面过渡 ========== */

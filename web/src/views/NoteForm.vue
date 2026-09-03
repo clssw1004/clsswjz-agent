@@ -1,11 +1,6 @@
 <template>
   <div class="note-form-page">
     <div class="form-card">
-      <!-- 右上角保存胶囊（页面级导航与「返回/标题」交给 Layout AppBar 全权处理，避免重复） -->
-      <button class="form-save-fab" :disabled="saving" @click="save">
-        {{ saving ? '保存中…' : '保存' }}
-      </button>
-
       <!-- 标题输入 -->
       <div class="title-field">
         <input
@@ -17,106 +12,152 @@
         />
       </div>
 
-      <!-- 富文本编辑器（Quill，对齐 gui flutter_quill 的 Delta 格式） -->
+      <!-- 富文本正文（Quill，对齐 gui flutter_quill 的 Delta 格式；工具栏下沉到底部，正文占满剩余空间） -->
       <div class="editor-wrap" v-loading="loading">
         <QuillEditor
           ref="quillEditor"
           class="quill-editor"
           :content="editorContent"
           content-type="delta"
-          :toolbar="toolbar"
+          :toolbar="false"
           :placeholder="placeholder"
           theme="snow"
           @ready="onEditorReady"
         />
       </div>
 
-      <!-- 底部面板：分组 / 附件 / 关联（已按需求去掉「作用域」） -->
-      <div class="bottom-panel">
-        <div class="segmented">
+      <!-- 底部工具栏（iPhone 备忘录式胶囊：格式 + 分组/附件/关联 + 保存） -->
+      <div class="note-toolbar">
+        <div class="tool-group">
+          <button class="tool-btn" :class="{ on: fmt.bold }" aria-label="加粗" @click="toggleBold"><b>B</b></button>
+          <button class="tool-btn" :class="{ on: fmt.italic }" aria-label="斜体" @click="toggleItalic"><i>I</i></button>
+          <button class="tool-btn" :class="{ on: fmt.underline }" aria-label="下划线" @click="toggleUnderline"><u>U</u></button>
+          <button class="tool-btn" :class="{ on: fmt.list === 'check' }" aria-label="待办清单" @click="toggleCheck">
+            <el-icon :size="16"><Select /></el-icon>
+          </button>
+          <button class="tool-btn" :class="{ on: fmt.list === 'bullet' }" aria-label="无序列表" @click="toggleBullet">
+            <el-icon :size="16"><List /></el-icon>
+          </button>
+        </div>
+
+        <div class="tool-divider"></div>
+
+        <div class="tool-group">
           <button
-            v-for="seg in segments"
-            :key="seg.key"
-            class="seg"
-            :class="{ on: activePanel === seg.key }"
-            @click="activePanel = seg.key"
-          >{{ seg.label }}</button>
+            class="tool-btn meta"
+            :class="{ on: metaSheetOpen && metaSheet === 'group' }"
+            aria-label="分组"
+            @click="openMeta('group')"
+          >
+            <el-icon :size="16"><Folder /></el-icon><span class="meta-label">分组</span>
+          </button>
+          <button
+            class="tool-btn meta"
+            :class="{ on: metaSheetOpen && metaSheet === 'attachment' }"
+            aria-label="附件"
+            @click="openMeta('attachment')"
+          >
+            <el-icon :size="16"><Paperclip /></el-icon><span class="meta-label">附件</span>
+            <span v-if="displayAttachments.length" class="tool-badge">{{ displayAttachments.length }}</span>
+          </button>
+          <button
+            class="tool-btn meta"
+            :class="{ on: metaSheetOpen && metaSheet === 'relation' }"
+            aria-label="关联"
+            @click="openMeta('relation')"
+          >
+            <el-icon :size="16"><Link /></el-icon><span class="meta-label">关联</span>
+            <span v-if="displayRelations.length" class="tool-badge">{{ displayRelations.length }}</span>
+          </button>
         </div>
 
-        <!-- 分组面板 -->
-        <div v-if="activePanel === 'group'" class="panel-body">
-          <div class="panel-label-row">
-            <span class="panel-label">选择分组</span>
-            <button class="panel-manage-btn" @click="openGroupManager">
-              <el-icon :size="13"><Setting /></el-icon> 管理
-            </button>
-          </div>
-          <div class="chips">
-            <button
-              v-for="g in groupOptions"
-              :key="g.code"
-              class="chip"
-              :class="{ on: form.groupCode === g.code }"
-              @click="form.groupCode = g.code"
-            >{{ g.name }}</button>
-          </div>
-        </div>
+        <button class="tool-save" :disabled="saving" @click="save">{{ saving ? '保存中…' : '保存' }}</button>
+      </div>
 
-        <!-- 附件面板（对齐 gui _buildAttachmentSection：56 缩略图网格 + 添加 tile） -->
-        <div v-else-if="activePanel === 'attachment'" class="panel-body">
-          <span class="panel-label">附件</span>
-          <div class="attach-grid">
-            <div
-              v-for="a in displayAttachments"
-              :key="a._key"
-              class="attach-tile"
-              :title="a.originName"
-              @click="a._type === 'existing' && openAttachment(a)"
-            >
-              <div class="attach-thumb">
-                <img v-if="a._type === 'new' && a._isImage" :src="a._url" alt="" />
-                <el-icon v-else :size="22"><Document /></el-icon>
-                <button class="attach-remove" aria-label="移除附件" @click.stop="removeAttachment(a)">
-                  <el-icon :size="12"><Close /></el-icon>
+      <!-- 元信息上滑面板（分组 / 附件 / 关联） -->
+      <transition name="sheet">
+        <div v-if="metaSheetOpen" class="meta-overlay" @click.self="closeMeta">
+          <div class="meta-sheet">
+            <div class="sheet-grabber"></div>
+            <div class="meta-sheet-head">
+              <span class="meta-sheet-title">{{ metaSheetTitle }}</span>
+              <button class="sheet-close" aria-label="关闭" @click="closeMeta">×</button>
+            </div>
+
+            <!-- 分组 -->
+            <div v-if="metaSheet === 'group'" class="meta-sheet-body">
+              <div class="panel-label-row">
+                <span class="panel-label">选择分组</span>
+                <button class="panel-manage-btn" @click="openGroupManager">
+                  <el-icon :size="13"><Setting /></el-icon> 管理
                 </button>
               </div>
-              <span class="attach-name">{{ a.originName }}</span>
-            </div>
-            <label class="attach-tile attach-add">
-              <div class="attach-thumb">
-                <el-icon :size="20"><Plus /></el-icon>
+              <div class="chips">
+                <button
+                  v-for="g in groupOptions"
+                  :key="g.code"
+                  class="chip"
+                  :class="{ on: form.groupCode === g.code }"
+                  @click="pickGroup(g.code)"
+                >{{ g.name }}</button>
               </div>
-              <span class="attach-name">添加</span>
-              <input type="file" multiple hidden @change="pickAttachments($event)" />
-            </label>
+            </div>
+
+            <!-- 附件 -->
+            <div v-else-if="metaSheet === 'attachment'" class="meta-sheet-body">
+              <div class="attach-grid">
+                <div
+                  v-for="a in displayAttachments"
+                  :key="a._key"
+                  class="attach-tile"
+                  :title="a.originName"
+                  @click="a._type === 'existing' && openAttachment(a)"
+                >
+                  <div class="attach-thumb">
+                    <img v-if="a._type === 'new' && a._isImage" :src="a._url" alt="" />
+                    <el-icon v-else :size="22"><Document /></el-icon>
+                    <button class="attach-remove" aria-label="移除附件" @click.stop="removeAttachment(a)">
+                      <el-icon :size="12"><Close /></el-icon>
+                    </button>
+                  </div>
+                  <span class="attach-name">{{ a.originName }}</span>
+                </div>
+                <label class="attach-tile attach-add">
+                  <div class="attach-thumb">
+                    <el-icon :size="20"><Plus /></el-icon>
+                  </div>
+                  <span class="attach-name">添加</span>
+                  <input type="file" multiple hidden @change="pickAttachments($event)" />
+                </label>
+              </div>
+            </div>
+
+            <!-- 关联 -->
+            <div v-else class="meta-sheet-body">
+              <div class="rel-header">
+                <span class="panel-label">关联账目</span>
+                <button class="rel-add-btn" @click="openRelationDialog">
+                  <el-icon :size="13"><Plus /></el-icon> 关联
+                </button>
+              </div>
+              <div v-if="displayRelations.length" class="rel-list">
+                <div v-for="r in displayRelations" :key="r._key" class="rel-card">
+                  <div class="rel-bar" :style="{ background: relBarBg(r.item) }"></div>
+                  <div class="rel-main">
+                    <span class="rel-cat">{{ r.item?.categoryName || '未分类' }}</span>
+                    <span v-if="r.item?.description" class="rel-desc">{{ r.item.description }}</span>
+                  </div>
+                  <span class="rel-amount" :style="{ color: relColor(r.item) }">{{ relAmount(r.item) }}</span>
+                  <button class="rel-remove" aria-label="移除关联" @click="removeRelation(r)">
+                    <el-icon :size="14"><Close /></el-icon>
+                  </button>
+                </div>
+              </div>
+              <div v-else class="panel-empty">暂无关联账目，点击「关联」添加</div>
+            </div>
           </div>
         </div>
-
-        <!-- 关联账目面板（对齐 gui ItemRelationPanel：3.5px 渐变色条 + 分类/描述 + 金额 + 删除） -->
-        <div v-else class="panel-body">
-          <div class="rel-header">
-            <span class="panel-label">关联账目</span>
-            <button class="rel-add-btn" @click="openRelationDialog">
-              <el-icon :size="13"><Plus /></el-icon> 关联
-            </button>
-          </div>
-
-          <div v-if="displayRelations.length" class="rel-list">
-            <div v-for="r in displayRelations" :key="r._key" class="rel-card">
-              <div class="rel-bar" :style="{ background: relBarBg(r.item) }"></div>
-              <div class="rel-main">
-                <span class="rel-cat">{{ r.item?.categoryName || '未分类' }}</span>
-                <span v-if="r.item?.description" class="rel-desc">{{ r.item.description }}</span>
-              </div>
-              <span class="rel-amount" :style="{ color: relColor(r.item) }">{{ relAmount(r.item) }}</span>
-              <button class="rel-remove" aria-label="移除关联" @click="removeRelation(r)">
-                <el-icon :size="14"><Close /></el-icon>
-              </button>
-            </div>
-          </div>
-          <div v-else class="panel-empty">暂无关联账目，点击「关联」添加</div>
-        </div>
-      </div>
+      </transition>
     </div>
 
     <!-- 关联账目选择弹层（对齐 gui _ItemMultiSearchDialog：账本切换 + 关键字搜索 + 多选） -->
@@ -233,7 +274,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Close, Delete, Document, Edit, Folder, FolderAdd, Plus, Search, Setting } from '@element-plus/icons-vue';
+import { Close, Delete, Document, Edit, Folder, FolderAdd, Link, List, Paperclip, Plus, Search, Select, Setting } from '@element-plus/icons-vue';
 import { Delta, loadQuill, QuillEditor } from '@vueup/vue-quill';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
 import { noteApi, attachmentApi, itemApi, itemRelationApi, loadAttachmentUrl } from '@/api';
@@ -255,24 +296,64 @@ const form = reactive({
   groupCode: 'none' as string,
 });
 
-/** 富文本工具栏：仅加粗 / 斜体 / 下划线 / 勾选列表 / 无序列表，对齐 gui QuillSimpleToolbar */
-const toolbar = [
-  ['bold', 'italic', 'underline'],
-  [{ list: 'check' }, { list: 'bullet' }],
-];
-
 const placeholder = '写点什么…';
-
-const segments = [
-  { key: 'group', label: '分组' },
-  { key: 'attachment', label: '附件' },
-  { key: 'relation', label: '关联' },
-];
-
-const activePanel = ref<'group' | 'attachment' | 'relation'>('group');
 
 const quillEditor = ref();
 let quill: any = null;
+
+/** 底部工具栏格式态（跟随光标 / 文本变化实时刷新） */
+const fmt = reactive({ bold: false, italic: false, underline: false, list: '' as string });
+
+function refreshFormat() {
+  if (!quill) return;
+  try {
+    const f = quill.getFormat() || {};
+    fmt.bold = !!f.bold;
+    fmt.italic = !!f.italic;
+    fmt.underline = !!f.underline;
+    fmt.list = f.list || '';
+  } catch {
+    /* 无选区时忽略 */
+  }
+}
+
+function onEditorReady(q: any) {
+  quill = q;
+  q.on('selection-change', refreshFormat);
+  q.on('text-change', refreshFormat);
+}
+
+function toggleBold() { quill?.format('bold', !fmt.bold); }
+function toggleItalic() { quill?.format('italic', !fmt.italic); }
+function toggleUnderline() { quill?.format('underline', !fmt.underline); }
+function toggleCheck() { quill?.format('list', fmt.list === 'check' ? false : 'check'); }
+function toggleBullet() { quill?.format('list', fmt.list === 'bullet' ? false : 'bullet'); }
+
+/* ────────────── 元信息上滑面板（分组 / 附件 / 关联） ────────────── */
+const metaSheet = ref<'group' | 'attachment' | 'relation'>('group');
+const metaSheetOpen = ref(false);
+
+const metaSheetTitle = computed(() =>
+  metaSheet.value === 'group' ? '选择分组' : metaSheet.value === 'attachment' ? '附件' : '关联账目',
+);
+
+function openMeta(kind: 'group' | 'attachment' | 'relation') {
+  if (metaSheetOpen.value && metaSheet.value === kind) {
+    metaSheetOpen.value = false;
+    return;
+  }
+  metaSheet.value = kind;
+  metaSheetOpen.value = true;
+}
+
+function closeMeta() {
+  metaSheetOpen.value = false;
+}
+
+function pickGroup(code: string) {
+  form.groupCode = code;
+  metaSheetOpen.value = false;
+}
 
 /**
  * 编辑器内容，绑定到 QuillEditor :content，由组件 watch 自动 setContents。
@@ -291,10 +372,6 @@ function parseDelta(content?: string | null): any {
   } catch {
     return new Delta([{ insert: content }]);
   }
-}
-
-function onEditorReady(q: any) {
-  quill = q;
 }
 
 /**
@@ -403,8 +480,6 @@ function stripImageEmbeds(urls: string[]) {
   for (const u of urls) imgUrlToId.delete(u);
 }
 
-/* goBack 已移除——导航交由 Layout AppBar 处理（路由 meta.title + isDetailPage 同时控制显示） */
-
 const groupOptions = ref<{ code: string; name: string }[]>([{ code: 'none', name: '无分组' }]);
 
 /** 分组数据源：后端 noteGroup symbol（对齐 gui SymbolType.noteGroup） */
@@ -450,7 +525,6 @@ async function submitGroupCreate() {
     ElMessage.success('已创建分组');
     newGroupName.value = '';
     await loadGroups();
-    // 同步刷新 Notes.vue 列表（通过事件总线，简单用 location.reload 也行；这里以 loadGroups() 局部刷新）
   } finally {
     groupMgrCreating.value = false;
   }
@@ -496,7 +570,6 @@ async function removeGroup(g: any) {
   try {
     await noteApi.groupDelete(g.id);
     ElMessage.success('已删除');
-    // 如果当前选中的就是这个分组，自动切回「无分组」
     if (form.groupCode === g.code) form.groupCode = 'none';
     await loadGroups();
   } catch {
@@ -506,13 +579,9 @@ async function removeGroup(g: any) {
 
 /* ────────────── 附件（对齐 gui 附件流程：先存 note 拿 id 再传附件） ────────────── */
 
-/** 已落库附件（编辑模式加载） */
 const existingAttachments = ref<any[]>([]);
-/** 待上传本地文件（新建模式暂存，保存时随 note id 一起上传） */
 const newFiles = ref<{ key: string; file: File; url: string }[]>([]);
-/** 已标记删除的已落库附件 id（保存时删除） */
 const removedIds = ref<string[]>([]);
-/** 懒加载下载中的附件 id */
 const downloadingIds = reactive(new Set<string>());
 
 const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'heic', 'heif'];
@@ -612,9 +681,6 @@ async function load() {
     form.title = res?.title ?? '';
     form.noteType = res?.noteType ?? 'NOTE';
     form.groupCode = res?.groupCode ?? 'none';
-    // 绑定 :content，QuillEditor 内部 watch 会在内容变化时自动 setContents，
-    // 规避「ready 早于异步加载完成」导致正文不渲染的竞态；
-    // 图片 embed 的 attachment id 先换成 objectURL 才能在 <img> 中显示
     editorContent.value = await hydrateImageEmbeds(parseDelta(res?.content));
     await loadAttachments(String(route.params.id));
     await loadRelations(String(route.params.id));
@@ -630,9 +696,6 @@ async function save() {
   }
   saving.value = true;
   try {
-    // 关键：取裸 Delta 操作数组（.ops），对齐 gui 存储格式；同时写 plainContent 供列表预览
-    // 图片 embed 的 blob URL 此时还未上传（新建模式没有 note id），第一次写入先丢弃，
-    // 上传拿到真实 attachment id 后二次回写（见下方 finalOps 比对）
     const plain = quill ? (quill.getText() as string) : '';
     const firstOps = toStorageOps();
     const data: any = {
@@ -650,15 +713,11 @@ async function save() {
       const created: any = await noteApi.create(data);
       noteId = created?.id || '';
     }
-    // 附件：新建先落 note 拿 id 再上传；删除已标记移除的（对齐 gui createNote/updateNote 的 diff 流程）
-    // 上传成功后 imgUrlToId 会补齐 blob URL → 真实 attachment id 的映射
     await syncAttachments(noteId);
-    // 新增了图片附件时，正文 embed 需要 blob URL → attachment id 的二次回写
     const finalOps = toStorageOps();
     if (JSON.stringify(finalOps) !== JSON.stringify(firstOps)) {
       await noteApi.update(noteId, { ...data, content: JSON.stringify(finalOps) });
     }
-    // 关联账目：新建先落 note 拿 id 再逐条 create；删除已标记移除的
     await syncRelations(noteId);
     ElMessage.success(isEdit.value ? '保存成功' : '创建成功');
     router.back();
@@ -690,11 +749,8 @@ async function syncAttachments(noteId: string) {
 
 /* ────────────── 关联账目（对齐 gui ItemRelationPanel，relationCode='note'） ────────────── */
 
-/** 已落库关联（编辑模式加载）：{ id, itemId, accountBookId, item: {…} } */
 const existingRelations = ref<any[]>([]);
-/** 待创建的关联（保存时随 note id 一起落库） */
 const pendingAdded = ref<any[]>([]);
-/** 已标记删除的关联 id（保存时删除） */
 const removedRelationIds = ref<string[]>([]);
 
 const displayRelations = computed(() => [
@@ -827,7 +883,6 @@ async function syncRelations(noteId: string) {
 }
 
 onMounted(async () => {
-  // 先注册 blob 友好的 Image blot 再加载正文，避免编辑模式下图片被 sanitize 成 "//:0"
   await ensureBlobImageBlot();
   load();
   loadGroups();
@@ -842,6 +897,7 @@ onUnmounted(() => {
 
 <style scoped>
 .note-form-page {
+  height: 100%;
   max-width: 720px;
   margin: 0 auto;
   display: flex;
@@ -850,6 +906,7 @@ onUnmounted(() => {
 .form-card {
   position: relative;
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   background: var(--surface-glass);
@@ -860,37 +917,10 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-/* 页面右上角浮动「保存」胶囊（导航交给 Layout AppBar 全权处理） */
-.form-save-fab {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  z-index: 5;
-  border: none;
-  padding: 7px 18px;
-  border-radius: 999px;
-  background: var(--grad-brand);
-  color: var(--on-primary);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: var(--glow-primary);
-  transition: opacity 0.15s ease, transform 0.15s ease;
-}
-
-.form-save-fab:active {
-  transform: scale(0.97);
-}
-
-.form-save-fab:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
 /* 标题输入 */
 .title-field {
-  padding: 4px 16px;
-  border-bottom: 1px solid var(--border-glass);
+  padding: 12px 16px 6px;
+  flex-shrink: 0;
 }
 
 .title-input {
@@ -898,10 +928,10 @@ onUnmounted(() => {
   border: none;
   outline: none;
   background: transparent;
-  font-size: 17px;
+  font-size: 19px;
   font-weight: 600;
   color: var(--text-1);
-  padding: 14px 0;
+  padding: 8px 0;
   font-family: var(--font-ui);
 }
 
@@ -910,28 +940,15 @@ onUnmounted(() => {
   font-weight: 400;
 }
 
-/* 富文本编辑器（Quill）：
+/* 富文本正文：占满剩余空间、内部滚动（工具栏已下沉到底部）。
    关键点：@vueup/vue-quill 的 render 返回 Vue Fragment，class="quill-editor" 在 DOM 里不是
-   真实节点（Vue 仅用 start/end 锚点占位），以它作为祖先的 :deep() 规则会全部失效。
-   所以 flex 链路必须以真实 DOM 节点（ql-container / ql-editor）为选择器起点。
-
-   高度策略：form-card 不强制撑满视口，editor-wrap 随内容自然扩张，长文时给 max-height 让
-   ql-editor 内部滚动而不是无限撑开页面。短内容时给 min-height 避免编辑区太矮。 */
+   真实节点，以它作为祖先的 :deep() 规则会全部失效，须以 ql-container / ql-editor 为起点。 */
 .editor-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  position: relative;
-  min-height: 240px;
-  max-height: calc(100vh - 280px);
-}
-
-/* 跳过失效的 .quill-editor 祖先，直接选 ql-container；
-   用 :deep() 穿透本组件 scoped 限制 */
-.editor-wrap :deep(.ql-toolbar) {
-  border: none;
-  border-bottom: 1px solid var(--border-glass);
-  padding: 8px 12px;
-  flex-shrink: 0;
 }
 
 .editor-wrap :deep(.ql-container) {
@@ -966,55 +983,204 @@ onUnmounted(() => {
   margin: 6px 0;
 }
 
-/* 底部面板 */
-.bottom-panel {
-  border-top: 1px solid var(--border-glass);
-  padding: 12px 16px 16px;
+/* 底部工具栏（胶囊式，超宽时可横向滚动，保存按钮吸右侧） */
+.note-toolbar {
+  flex-shrink: 0;
   display: flex;
-  flex-direction: column;
-  gap: 14px;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border-glass);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.note-toolbar::-webkit-scrollbar {
+  display: none;
+}
+
+.tool-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   flex-shrink: 0;
 }
 
-.segmented {
-  display: flex;
-  gap: 4px;
-  padding: 4px;
-  border-radius: 22px;
-  background: var(--bg-deep);
-}
-
-.seg {
-  flex: 1;
+.tool-btn {
+  height: 34px;
+  min-width: 34px;
+  padding: 0 8px;
   border: none;
-  padding: 9px 0;
-  border-radius: 18px;
+  border-radius: 999px;
   background: transparent;
-  color: var(--text-3);
-  font-size: 13px;
+  color: var(--text-2);
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.seg.on {
-  background: var(--surface-active);
-  color: var(--text-1);
+.tool-btn b { font-weight: 700; }
+.tool-btn i { font-style: italic; }
+.tool-btn u { text-decoration: underline; }
+
+.tool-btn.on {
+  background: var(--brand-gold-soft);
+  color: var(--brand-gold);
+}
+
+.tool-btn.meta {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--bg-deep);
+  color: var(--text-2);
+}
+
+.tool-btn.meta.on {
+  background: var(--brand-gold-soft);
+  color: var(--brand-gold);
+}
+
+.tool-badge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--brand-gold);
+  color: var(--on-primary);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tool-divider {
+  width: 1px;
+  height: 22px;
+  background: var(--border-glass-strong);
+  flex-shrink: 0;
+  margin: 0 2px;
+}
+
+.tool-save {
+  margin-left: auto;
+  position: sticky;
+  right: 0;
+  height: 34px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--grad-brand);
+  color: var(--on-primary);
+  font-size: 13px;
   font-weight: 600;
-  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  box-shadow: var(--glow-primary);
+  flex-shrink: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
-.panel-body {
+.tool-save:active { transform: scale(0.97); }
+.tool-save:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* 元信息上滑面板 */
+.meta-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(15, 23, 42, 0.3);
+  backdrop-filter: blur(2px);
+}
+
+.meta-sheet {
+  width: 100%;
+  max-height: 72%;
+  overflow-y: auto;
+  background: var(--surface-glass);
+  border-top: 1px solid var(--border-glass);
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -12px 40px rgba(15, 23, 42, 0.16);
+  padding: 0 20px calc(20px + env(safe-area-inset-bottom));
+}
+
+.sheet-grabber {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-glass-strong);
+  margin: 8px auto 12px;
+}
+
+.meta-sheet-head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.meta-sheet-title {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.sheet-close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-deep);
+  color: var(--text-3);
+  font-size: 16px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.meta-sheet-body {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
+/* 上滑过渡 */
+.sheet-enter-active,
+.sheet-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.sheet-enter-active .meta-sheet,
+.sheet-leave-active .meta-sheet {
+  transition: transform 0.24s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.sheet-enter-from,
+.sheet-leave-to {
+  opacity: 0;
+}
+
+.sheet-enter-from .meta-sheet,
+.sheet-leave-to .meta-sheet {
+  transform: translateY(100%);
+}
+
+/* 分组 chips */
 .panel-label {
   font-size: 12px;
   color: var(--text-3);
 }
 
-/* 分组面板 label 行：左标题 + 右「管理」按钮 */
 .panel-label-row {
   display: flex;
   align-items: center;
@@ -1388,10 +1554,17 @@ onUnmounted(() => {
     border-right: none;
   }
 
-  /* 移动端因底部面板更高，max-height 调大点 */
-  .editor-wrap {
-    min-height: 200px;
-    max-height: calc(100vh - 320px);
+  .title-field {
+    padding-top: 6px;
+  }
+
+  /* 移动端收起 meta 文字，仅图标 + 角标，保证工具栏单行不溢出 */
+  .tool-btn.meta {
+    padding: 0 10px;
+  }
+
+  .tool-btn.meta .meta-label {
+    display: none;
   }
 }
 </style>
