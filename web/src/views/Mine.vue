@@ -16,7 +16,7 @@
       </div>
     </div>
 
-    <!-- 数据工具组（对齐移动端 DataSettings，放首位） -->
+    <!-- 数据工具组（对齐移动端 DataSettings 命名；只放数据维护类：数据同步 / 同步设置） -->
     <section class="mine-section">
       <div class="section-title">
         <el-icon :size="15"><Tools /></el-icon>
@@ -44,8 +44,20 @@
           </div>
           <el-icon class="tile-arrow"><ArrowRight /></el-icon>
         </div>
+      </div>
+    </section>
+
+    <!-- 系统设置组（= 功能区；承接 gui 端"通用设置组 + 部分数据工具"：
+         数据共享 / 数据库 / 界面布局 / 主题 / 关于 / 退出登录） -->
+    <section class="mine-section">
+      <div class="section-title">
+        <el-icon :size="15"><Setting /></el-icon>
+        <span>系统设置</span>
+      </div>
+      <div class="group-card glass">
+        <!-- 数据共享（gui 端在通用设置组，本轮 2026-09-10 从"数据工具"挪入） -->
         <div class="setting-tile" @click="router.push('/settings/share')">
-          <div class="tile-icon" style="background: linear-gradient(135deg, #f472b6, #ec4899)">
+          <div class="tile-icon" style="background: linear-gradient(135deg, #3BA55D, #5BC07E)">
             <el-icon :size="17"><Share /></el-icon>
           </div>
           <div class="tile-main">
@@ -54,16 +66,6 @@
           </div>
           <el-icon class="tile-arrow"><ArrowRight /></el-icon>
         </div>
-      </div>
-    </section>
-
-    <!-- 系统设置组（用户 2026-09-10 决策：放到数据工具**下方**；包含 数据库 / 界面布局 / 主题 / 关于 / 退出登录） -->
-    <section class="mine-section">
-      <div class="section-title">
-        <el-icon :size="15"><Setting /></el-icon>
-        <span>系统设置</span>
-      </div>
-      <div class="group-card glass">
         <div class="setting-tile" @click="router.push('/db-viewer')">
           <div class="tile-icon" style="background: linear-gradient(135deg, #06b6d4, #22d3ee)">
             <el-icon :size="17"><Coin /></el-icon>
@@ -74,7 +76,11 @@
           </div>
           <el-icon class="tile-arrow"><ArrowRight /></el-icon>
         </div>
-        <div class="setting-tile no-icon" @click="router.push('/settings/ui')">
+        <!-- 界面布局：恢复图标（之前 7e4a04d 误去图，本轮 2026-09-10 还原，对齐 gui dashboard_outlined #F97316） -->
+        <div class="setting-tile" @click="router.push('/settings/ui')">
+          <div class="tile-icon" style="background: linear-gradient(135deg, #F97316, #FB923C)">
+            <el-icon :size="17"><Histogram /></el-icon>
+          </div>
           <div class="tile-main">
             <span class="tile-label">界面布局</span>
             <span class="tile-sub">记账 / 统计 / 我的页显示方式</span>
@@ -101,8 +107,11 @@
           </div>
           <el-icon class="tile-arrow"><ArrowRight /></el-icon>
         </div>
-        <!-- 退出登录（红色强调 token） -->
-        <div class="setting-tile logout-tile no-icon" @click="handleLogout">
+        <!-- 退出登录（红色强调 token；恢复 SwitchButton 图标，本轮 2026-09-10 还原） -->
+        <div class="setting-tile logout-tile" @click="handleLogout">
+          <div class="tile-icon" style="background: linear-gradient(135deg, #ef4444, #f87171)">
+            <el-icon :size="17"><SwitchButton /></el-icon>
+          </div>
           <div class="tile-main">
             <span class="tile-label tile-label-danger">退出登录</span>
             <span class="tile-sub">清除本地会话，回到登录页</span>
@@ -161,7 +170,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { Setting, Brush, InfoFilled, Tools, Connection, Share, Coin, ArrowRight, Refresh } from '@element-plus/icons-vue';
+import { Setting, Brush, InfoFilled, Tools, Connection, Share, Coin, ArrowRight, Refresh, Histogram, SwitchButton } from '@element-plus/icons-vue';
 import { ElMessageBox } from 'element-plus';
 import { useAuthStore } from '@/stores/auth';
 import { useSyncStore } from '@/stores/sync';
@@ -365,7 +374,7 @@ onMounted(() => {
   transition: background 0.15s ease;
 }
 
-/* 无图标 tile（界面布局 / 退出登录）：把 label 字号放大、sub 位置调整，补偿视觉重心 */
+/* 无图标 tile 视觉补偿（本轮 2026-09-10 已撤销；保留 .no-icon 选择器作为占位，避免外部 class 触发样式塌缩） */
 .setting-tile.no-icon .tile-label {
   font-size: 16px;
 }
