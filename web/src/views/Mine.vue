@@ -74,10 +74,7 @@
           </div>
           <el-icon class="tile-arrow"><ArrowRight /></el-icon>
         </div>
-        <div class="setting-tile" @click="router.push('/settings/ui')">
-          <div class="tile-icon" style="background: linear-gradient(135deg, #f97316, #fb923c)">
-            <el-icon :size="17"><Grid /></el-icon>
-          </div>
+        <div class="setting-tile no-icon" @click="router.push('/settings/ui')">
           <div class="tile-main">
             <span class="tile-label">界面布局</span>
             <span class="tile-sub">记账 / 统计 / 我的页显示方式</span>
@@ -105,10 +102,7 @@
           <el-icon class="tile-arrow"><ArrowRight /></el-icon>
         </div>
         <!-- 退出登录（红色强调 token） -->
-        <div class="setting-tile logout-tile" @click="handleLogout">
-          <div class="tile-icon" style="background: linear-gradient(135deg, #ef4444, #f87171)">
-            <el-icon :size="17"><SwitchButton /></el-icon>
-          </div>
+        <div class="setting-tile logout-tile no-icon" @click="handleLogout">
           <div class="tile-main">
             <span class="tile-label tile-label-danger">退出登录</span>
             <span class="tile-sub">清除本地会话，回到登录页</span>
@@ -369,6 +363,11 @@ onMounted(() => {
   padding: 13px 16px;
   cursor: pointer;
   transition: background 0.15s ease;
+}
+
+/* 无图标 tile（界面布局 / 退出登录）：把 label 字号放大、sub 位置调整，补偿视觉重心 */
+.setting-tile.no-icon .tile-label {
+  font-size: 16px;
 }
 
 .setting-tile:hover {

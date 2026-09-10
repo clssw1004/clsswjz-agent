@@ -12,9 +12,6 @@
             <el-icon :size="14"><ArrowRight /></el-icon>
           </button>
         </div>
-        <button class="mo-cfg" title="首页组件" @click="openCfg">
-          <el-icon :size="16"><Setting /></el-icon>
-        </button>
       </div>
       <div class="mo-stats">
         <div class="mo-main">
@@ -103,59 +100,15 @@
         </div>
       </transition>
     </teleport>
-
-    <!-- 首页组件配置弹层（对齐原型配置 Sheet：排序 + 开关，写 itemTabComponentOrder） -->
-    <teleport to="body">
-      <transition name="sheet">
-        <div v-if="cfgSheet" class="sheet-mask" @click.self="cfgSheet = false">
-          <div class="sheet cfg-sheet">
-            <div class="sheet-bar"></div>
-            <div class="cfg-head">
-              <div class="cfg-title-wrap">
-                <span class="cfg-title">首页组件</span>
-                <span class="cfg-sub">调整顺序 · 开关显示</span>
-              </div>
-              <button class="cfg-done" @click="cfgSheet = false">完成</button>
-            </div>
-            <div class="cfg-list">
-              <div
-                v-for="(row, idx) in cfgRows"
-                :key="row.key"
-                class="cfg-row"
-                :class="{ off: !row.on }"
-              >
-                <el-icon class="cfg-handle" :size="14"><Rank /></el-icon>
-                <span class="cfg-name">{{ row.name }}</span>
-                <div class="cfg-order">
-                  <button :disabled="idx === 0" aria-label="上移" @click="moveCfg(idx, -1)">
-                    <el-icon :size="13"><ArrowUp /></el-icon>
-                  </button>
-                  <button :disabled="idx === cfgRows.length - 1" aria-label="下移" @click="moveCfg(idx, 1)">
-                    <el-icon :size="13"><ArrowDown /></el-icon>
-                  </button>
-                </div>
-                <el-switch v-model="row.on" size="small" @change="persistCfg" />
-              </div>
-            </div>
-            <button class="cfg-reset" @click="resetCfg">恢复默认</button>
-          </div>
-        </div>
-      </transition>
-    </teleport>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { ElMessage } from 'element-plus';
 import {
   ArrowLeft,
   ArrowRight,
-  ArrowUp,
-  ArrowDown,
-  Setting,
-  Rank,
 } from '@element-plus/icons-vue';
 import { itemApi, categoryApi, shopApi, userApi } from '@/api';
 import { useAppStore } from '@/stores/app';
@@ -307,54 +260,6 @@ const componentOrder = computed(() => {
   }
   return DEFAULT_ORDER;
 });
-
-// ========== 组件配置 Sheet（对齐原型屏3：排序 + 开关，即时持久化） ==========
-const CFG_DEFS: Record<string, string> = {
-  daily_bar: '每日收支',
-  period_status: '经期',
-  daily_calendar: '收支日历',
-  user_monthly: '成员统计',
-  activity_recent: '最近活动',
-  debt: '债务',
-};
-const cfgSheet = ref(false);
-const cfgRows = ref<{ key: string; name: string; on: boolean }[]>([]);
-
-function openCfg() {
-  const shown = componentOrder.value;
-  const rest = ALL_KEYS.filter((k) => !shown.includes(k));
-  cfgRows.value = [...shown, ...rest].map((k) => ({
-    key: k,
-    name: CFG_DEFS[k] || k,
-    on: shown.includes(k),
-  }));
-  cfgSheet.value = true;
-}
-
-function moveCfg(idx: number, dir: -1 | 1) {
-  const rows = cfgRows.value;
-  const j = idx + dir;
-  if (j < 0 || j >= rows.length) return;
-  [rows[idx], rows[j]] = [rows[j], rows[idx]];
-  persistCfg();
-}
-
-async function persistCfg() {
-  const order = cfgRows.value.filter((r) => r.on).map((r) => r.key);
-  try {
-    await prefs.set('itemTabComponentOrder', order);
-  } catch {
-    ElMessage.error('保存失败，请重试');
-  }
-}
-
-async function resetCfg() {
-  try {
-    await prefs.remove('itemTabComponentOrder');
-  } catch { /* 忽略网络错误，本地已回退默认 */ }
-  openCfg();
-  ElMessage.success('已恢复默认');
-}
 
 // ========== 当月账目（驱动柱状图/日历/成员统计；后端无按日/按用户聚合，前端内存聚合对齐 gui） ==========
 const monthItems = ref<any[]>([]);
@@ -917,121 +822,6 @@ watch(
 .sheet-enter-from .sheet,
 .sheet-leave-to .sheet {
   transform: translateY(100%);
-}
-
-/* ========== 组件配置 Sheet ========== */
-.cfg-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 4px;
-}
-
-.cfg-title-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.cfg-title {
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--text-1);
-}
-
-.cfg-sub {
-  font-size: 11px;
-  color: var(--text-3);
-}
-
-.cfg-done {
-  height: 30px;
-  padding: 0 14px;
-  border: none;
-  border-radius: 15px;
-  background: var(--brand-gold);
-  color: var(--on-primary);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.cfg-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.cfg-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  height: 50px;
-}
-
-.cfg-row.off .cfg-name {
-  color: var(--text-3);
-}
-
-.cfg-handle {
-  flex-shrink: 0;
-  color: var(--text-3);
-  opacity: 0.5;
-}
-
-.cfg-name {
-  flex: 1;
-  min-width: 0;
-  font-size: 14px;
-  color: var(--text-1);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.cfg-order {
-  display: flex;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
-.cfg-order button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-2);
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.cfg-order button:hover:not(:disabled) {
-  background: var(--surface-hover);
-}
-
-.cfg-order button:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-
-.cfg-reset {
-  margin-top: 10px;
-  width: 100%;
-  height: 38px;
-  border: 1px solid var(--border-glass-strong);
-  border-radius: 10px;
-  background: transparent;
-  color: var(--text-2);
-  font-size: 13px;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.cfg-reset:hover {
-  background: var(--surface-hover);
 }
 
 /* ========== 移动端：整版白板铺满（对齐原型 ContentSheet） ========== */

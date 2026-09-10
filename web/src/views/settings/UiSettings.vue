@@ -22,20 +22,32 @@
         <span>记账页</span>
       </div>
 
-      <div class="setting-switch-row link" @click="$router.push('/items')">
-        <div class="setting-info">
-          <div class="setting-name">首页组件顺序</div>
-          <div class="setting-desc">在首页「记账」Tab 调整组件拖拽与开关</div>
-          <div class="setting-order">
-            <span
-              v-for="(key, i) in itemOrder"
-              :key="key"
-              class="order-chip"
-            >{{ COMPONENT_LABEL[key] || key }}</span>
-          </div>
-        </div>
-        <el-icon class="setting-arrow"><ArrowRight /></el-icon>
+      <div class="setting-info-block">
+        <div class="setting-name">首页组件顺序</div>
+        <div class="setting-desc">调整顺序 · 开关显示 · 即时生效</div>
       </div>
+
+      <div class="cfg-list">
+        <div
+          v-for="(row, idx) in cfgRows"
+          :key="row.key"
+          class="cfg-row"
+          :class="{ off: !row.on }"
+        >
+          <el-icon class="cfg-handle" :size="14"><Rank /></el-icon>
+          <span class="cfg-name">{{ COMPONENT_LABEL[row.key] || row.key }}</span>
+          <div class="cfg-order">
+            <button :disabled="idx === 0" aria-label="上移" @click="moveCfg(idx, -1)">
+              <el-icon :size="13"><ArrowUp /></el-icon>
+            </button>
+            <button :disabled="idx === cfgRows.length - 1" aria-label="下移" @click="moveCfg(idx, 1)">
+              <el-icon :size="13"><ArrowDown /></el-icon>
+            </button>
+          </div>
+          <el-switch v-model="row.on" size="small" @change="persistCfg" />
+        </div>
+      </div>
+      <button class="cfg-reset" @click="resetCfg">恢复默认</button>
 
       <div class="divider" />
 
@@ -181,10 +193,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import {
   Tickets,
-  ArrowRight,
+  Rank,
+  ArrowUp,
+  ArrowDown,
   DataAnalysis,
   User,
 } from '@element-plus/icons-vue';
@@ -200,6 +214,7 @@ const DEFAULT_ORDER = [
   'activity_recent',
   'debt',
 ];
+const ALL_KEYS = ['daily_bar', 'daily_calendar', 'user_monthly', 'activity_recent', 'debt', 'period_status'];
 
 /** 组件显示标签（中文 UI 用） */
 const COMPONENT_LABEL: Record<string, string> = {
@@ -213,12 +228,49 @@ const COMPONENT_LABEL: Record<string, string> = {
 
 const prefs = usePrefsStore();
 
-/* ========== 偏好取数（默认 fallback 对齐 gui UiConfigDTO 默认值） ========== */
-const itemOrder = computed<string[]>(() => {
-  const v = prefs.get<string[]>('itemTabComponentOrder');
-  return Array.isArray(v) && v.length ? v : DEFAULT_ORDER.slice();
-});
+/* ========== 组件顺序编辑（替代 ItemsView 内 cfgSheet：避免双入口配置漂移） ========== */
+const cfgRows = ref<{ key: string; on: boolean }[]>([]);
 
+function rebuildCfgRows() {
+  const raw = prefs.get<string[]>('itemTabComponentOrder');
+  const shown = Array.isArray(raw) && raw.length ? raw.filter((k) => ALL_KEYS.includes(k)) : DEFAULT_ORDER;
+  const shownSet = new Set(shown);
+  const rows: { key: string; on: boolean }[] = [];
+  // 已开启项（保持顺序）
+  for (const k of shown) rows.push({ key: k, on: true });
+  // 已关闭项（按 ALL_KEYS 中未出现的顺序追加）
+  for (const k of ALL_KEYS) {
+    if (!shownSet.has(k)) rows.push({ key: k, on: false });
+  }
+  cfgRows.value = rows;
+}
+
+function moveCfg(idx: number, dir: -1 | 1) {
+  const rows = cfgRows.value;
+  const j = idx + dir;
+  if (j < 0 || j >= rows.length) return;
+  [rows[idx], rows[j]] = [rows[j], rows[idx]];
+  persistCfg();
+}
+
+async function persistCfg() {
+  const order = cfgRows.value.filter((r) => r.on).map((r) => r.key);
+  try {
+    await prefs.set('itemTabComponentOrder', order);
+  } catch {
+    ElMessage.error('保存失败，请重试');
+  }
+}
+
+async function resetCfg() {
+  try {
+    await prefs.remove('itemTabComponentOrder');
+  } catch { /* 忽略网络错误，本地已回退默认 */ }
+  rebuildCfgRows();
+  ElMessage.success('已恢复默认');
+}
+
+/* ========== 其他偏好取数（默认 fallback 对齐 gui UiConfigDTO 默认值） ========== */
 const itemTabShowProjectMonthly = computed(() => prefs.get<boolean>('itemTabShowProjectMonthly', true));
 const useNewItemForm = computed(() => prefs.get<boolean>('useNewItemForm', true));
 const statisticsSelectedRange = computed(() => prefs.get<string>('statisticsSelectedRange', 'month'));
@@ -307,7 +359,10 @@ async function openCustomPicker() {
   }
 }
 
-onMounted(() => prefs.load());
+onMounted(async () => {
+  await prefs.load();
+  rebuildCfgRows();
+});
 </script>
 
 <style scoped>
@@ -420,6 +475,94 @@ onMounted(() => prefs.load());
   height: 1px;
   margin: 0 16px;
   background: var(--border-glass);
+}
+
+/* ========== 首页组件顺序：inline 编辑块（替代 ItemsView 内 cfgSheet） ========== */
+.setting-info-block {
+  padding: 13px 16px 6px;
+}
+.setting-info-block .setting-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+.setting-info-block .setting-desc {
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.5;
+  margin-top: 3px;
+}
+
+.cfg-list {
+  display: flex;
+  flex-direction: column;
+  padding: 0 16px;
+}
+.cfg-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 50px;
+}
+.cfg-row + .cfg-row {
+  border-top: 1px solid var(--border-glass);
+}
+.cfg-row.off .cfg-name {
+  color: var(--text-3);
+}
+.cfg-handle {
+  flex-shrink: 0;
+  color: var(--text-3);
+  opacity: 0.5;
+}
+.cfg-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cfg-order {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.cfg-order button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.cfg-order button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+.cfg-order button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.cfg-reset {
+  margin: 6px 16px 14px;
+  width: calc(100% - 32px);
+  height: 34px;
+  border: 1px solid var(--border-glass-strong);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.cfg-reset:hover {
+  background: var(--surface-hover);
 }
 
 .custom-hint {
