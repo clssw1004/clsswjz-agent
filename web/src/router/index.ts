@@ -29,6 +29,7 @@ const router = createRouter({
         { path: 'settings/funds', component: () => import('../views/settings/Funds.vue'), meta: { title: '账户' } },
         { path: 'settings/sync', component: () => import('../views/settings/SyncSettings.vue'), meta: { title: '同步设置' } },
         { path: 'settings/share', component: () => import('../views/settings/ShareSettings.vue'), meta: { title: '数据共享' } },
+        { path: 'settings/ui', component: () => import('../views/settings/UiSettings.vue'), meta: { title: '界面布局' } },
         { path: 'periods', component: () => import('../views/Periods.vue'), meta: { title: '经期记录' } },
         { path: 'activities', component: () => import('../views/Activities.vue'), meta: { title: '活动打卡' } },
         { path: 'activities/:id', component: () => import('../views/ActivityDetail.vue'), meta: { title: '活动详情' } },

@@ -80,7 +80,11 @@ const app = useAppStore();
 const debts = ref<any[]>([]);
 const loading = ref(false);
 
-const isCleared = (d: any) => d.clearState === 'cleared';
+/**
+ * 已结清判断（对齐 gui DebtsContainer._DebtItem：手动标记 cleared，或剩余金额 ≤0）
+ * —— 之前只判 clearState === 'cleared'，漏了"还满自动结清"导致已还清的仍显示金额
+ */
+const isCleared = (d: any) => d.clearState === 'cleared' || Number(d.remainAmount ?? 0) <= 0;
 
 function progress(d: any) {
   if (isCleared(d)) return 100;

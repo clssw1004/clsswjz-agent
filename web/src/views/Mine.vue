@@ -94,11 +94,30 @@
           </div>
           <el-icon class="tile-arrow"><ArrowRight /></el-icon>
         </div>
+        <!-- 界面布局（数据工具下方；用户 2026-09-10 决策：把 uiSettings 从系统设置迁移到此处） -->
+        <div class="setting-tile" @click="router.push('/settings/ui')">
+          <div class="tile-icon" style="background: linear-gradient(135deg, #f97316, #fb923c)">
+            <el-icon :size="17"><Grid /></el-icon>
+          </div>
+          <div class="tile-main">
+            <span class="tile-label">界面布局</span>
+            <span class="tile-sub">记账 / 统计 / 我的页显示方式</span>
+          </div>
+          <el-icon class="tile-arrow"><ArrowRight /></el-icon>
+        </div>
+        <!-- 退出登录（界面布局下方；红色强调 token） -->
+        <div class="setting-tile logout-tile" @click="handleLogout">
+          <div class="tile-icon" style="background: linear-gradient(135deg, #ef4444, #f87171)">
+            <el-icon :size="17"><SwitchButton /></el-icon>
+          </div>
+          <div class="tile-main">
+            <span class="tile-label tile-label-danger">退出登录</span>
+            <span class="tile-sub">清除本地会话，回到登录页</span>
+          </div>
+          <el-icon class="tile-arrow tile-arrow-danger"><ArrowRight /></el-icon>
+        </div>
       </div>
     </section>
-
-    <!-- 退出登录 -->
-    <button class="logout-btn" @click="handleLogout">退出登录</button>
 
     <!-- 主题设置弹层 -->
     <teleport to="body">
@@ -400,22 +419,19 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-/* 退出登录 */
-.logout-btn {
-  width: 100%;
-  padding: 13px;
-  border: 1px solid rgba(239, 68, 68, 0.35);
-  border-radius: var(--radius-md);
-  background: var(--surface-glass);
-  color: var(--brand-red);
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease;
+/* 退出登录 tile（红色强调 token；原来是页底独立按钮，2026-09-10 决策合并进数据工具组下方） */
+.logout-tile {
+  --tile-accent: #ef4444;
 }
-
-.logout-btn:hover {
-  background: rgba(239, 68, 68, 0.07);
+.tile-label-danger {
+  color: var(--tile-accent);
+}
+.tile-arrow-danger {
+  color: var(--tile-accent);
+  opacity: 0.7;
+}
+.logout-tile:hover .tile-arrow-danger {
+  opacity: 1;
 }
 
 /* 弹层 */
