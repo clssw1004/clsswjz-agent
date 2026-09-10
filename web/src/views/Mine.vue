@@ -53,6 +53,17 @@
         <span>数据工具</span>
       </div>
       <div class="group-card glass">
+        <!-- 数据同步（对齐框架原型"数据同步卡"：移动端 AppBar 零常驻后的同步入口） -->
+        <div class="setting-tile" @click="handleSync">
+          <div class="tile-icon" style="background: linear-gradient(135deg, #2E6BE5, #5B8DEF)">
+            <el-icon :size="17" :class="{ 'is-loading': sync.syncing }"><Refresh /></el-icon>
+          </div>
+          <div class="tile-main">
+            <span class="tile-label">数据同步</span>
+            <span class="tile-sub">{{ syncStatusText }}</span>
+          </div>
+          <el-icon class="tile-arrow"><ArrowRight /></el-icon>
+        </div>
         <div class="setting-tile" @click="router.push('/settings/sync')">
           <div class="tile-icon" style="background: linear-gradient(135deg, #00a9c9, #38bdf8)">
             <el-icon :size="17"><Connection /></el-icon>
@@ -138,10 +149,11 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { Setting, Brush, InfoFilled, Tools, Connection, Share, Coin, ArrowRight } from '@element-plus/icons-vue';
+import { Setting, Brush, InfoFilled, Tools, Connection, Share, Coin, ArrowRight, Refresh } from '@element-plus/icons-vue';
 import { ElMessageBox } from 'element-plus';
 import { useAuthStore } from '@/stores/auth';
 import { useSyncStore } from '@/stores/sync';
+import { useAppStore } from '@/stores/app';
 import { loadAttachmentUrl, userApi } from '@/api';
 import { THEMES, activeTheme, activeThemeId, isDark, setMode, setTheme } from '@/styles/themes';
 
@@ -154,6 +166,20 @@ const aboutVisible = ref(false);
 const avatarUrl = ref('');
 
 const avatarText = computed(() => (auth.nickname || 'U').slice(0, 1).toUpperCase());
+
+/** 同步状态摘要（对齐 AppBar 同步按钮的文案规则） */
+const syncStatusText = computed(() => {
+  if (sync.syncing) return sync.step ? `${sync.step}${sync.percent ? ` ${sync.percent}%` : ''}` : '同步中...';
+  return sync.unsynced > 0 ? `${sync.unsynced} 条待同步，点击立即同步` : '数据已同步';
+});
+
+/** 手动触发同步（对齐 AppBar handleSync：完成后刷新账本列表） */
+function handleSync() {
+  if (sync.syncing) return;
+  sync.triggerSync().then(() => {
+    setTimeout(() => useAppStore().loadBooks(), 500);
+  });
+}
 
 /** 拉头像：带鉴权懒加载（<img> 直接请求会 401，用 fetch + token 拿 blob） */
 async function loadAvatar() {
@@ -203,6 +229,17 @@ onMounted(() => {
   flex-direction: column;
   gap: 18px;
   padding-bottom: 24px;
+}
+
+/* 同步中图标旋转 */
+.tile-icon .is-loading {
+  animation: mine-spin 0.8s linear infinite;
+}
+
+@keyframes mine-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* 用户信息卡 */
