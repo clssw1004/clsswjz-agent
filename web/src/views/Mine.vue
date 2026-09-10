@@ -16,37 +16,7 @@
       </div>
     </div>
 
-    <!-- 系统设置组（对齐移动端 GeneralSettings） -->
-    <section class="mine-section">
-      <div class="section-title">
-        <el-icon :size="15"><Setting /></el-icon>
-        <span>系统设置</span>
-      </div>
-      <div class="group-card glass">
-        <div class="setting-tile" @click="themeSheet = true">
-          <div class="tile-icon" style="background: linear-gradient(135deg, #7c5cfc, #a78bfa)">
-            <el-icon :size="17"><Brush /></el-icon>
-          </div>
-          <div class="tile-main">
-            <span class="tile-label">主题</span>
-            <span class="tile-sub">{{ isDark ? '暗色' : '亮色' }} · {{ activeTheme.name }}</span>
-          </div>
-          <el-icon class="tile-arrow"><ArrowRight /></el-icon>
-        </div>
-        <div class="setting-tile" @click="aboutVisible = true">
-          <div class="tile-icon" style="background: linear-gradient(135deg, #8a90a6, #a5b0c4)">
-            <el-icon :size="17"><InfoFilled /></el-icon>
-          </div>
-          <div class="tile-main">
-            <span class="tile-label">关于</span>
-            <span class="tile-sub">记账助手</span>
-          </div>
-          <el-icon class="tile-arrow"><ArrowRight /></el-icon>
-        </div>
-      </div>
-    </section>
-
-    <!-- 数据工具组（对齐移动端 DataSettings） -->
+    <!-- 数据工具组（对齐移动端 DataSettings，放首位） -->
     <section class="mine-section">
       <div class="section-title">
         <el-icon :size="15"><Tools /></el-icon>
@@ -84,6 +54,16 @@
           </div>
           <el-icon class="tile-arrow"><ArrowRight /></el-icon>
         </div>
+      </div>
+    </section>
+
+    <!-- 系统设置组（用户 2026-09-10 决策：放到数据工具**下方**；包含 数据库 / 界面布局 / 主题 / 关于 / 退出登录） -->
+    <section class="mine-section">
+      <div class="section-title">
+        <el-icon :size="15"><Setting /></el-icon>
+        <span>系统设置</span>
+      </div>
+      <div class="group-card glass">
         <div class="setting-tile" @click="router.push('/db-viewer')">
           <div class="tile-icon" style="background: linear-gradient(135deg, #06b6d4, #22d3ee)">
             <el-icon :size="17"><Coin /></el-icon>
@@ -94,7 +74,6 @@
           </div>
           <el-icon class="tile-arrow"><ArrowRight /></el-icon>
         </div>
-        <!-- 界面布局（数据工具下方；用户 2026-09-10 决策：把 uiSettings 从系统设置迁移到此处） -->
         <div class="setting-tile" @click="router.push('/settings/ui')">
           <div class="tile-icon" style="background: linear-gradient(135deg, #f97316, #fb923c)">
             <el-icon :size="17"><Grid /></el-icon>
@@ -105,7 +84,27 @@
           </div>
           <el-icon class="tile-arrow"><ArrowRight /></el-icon>
         </div>
-        <!-- 退出登录（界面布局下方；红色强调 token） -->
+        <div class="setting-tile" @click="themeSheet = true">
+          <div class="tile-icon" style="background: linear-gradient(135deg, #7c5cfc, #a78bfa)">
+            <el-icon :size="17"><Brush /></el-icon>
+          </div>
+          <div class="tile-main">
+            <span class="tile-label">主题</span>
+            <span class="tile-sub">{{ isDark ? '暗色' : '亮色' }} · {{ activeTheme.name }}</span>
+          </div>
+          <el-icon class="tile-arrow"><ArrowRight /></el-icon>
+        </div>
+        <div class="setting-tile" @click="aboutVisible = true">
+          <div class="tile-icon" style="background: linear-gradient(135deg, #8a90a6, #a5b0c4)">
+            <el-icon :size="17"><InfoFilled /></el-icon>
+          </div>
+          <div class="tile-main">
+            <span class="tile-label">关于</span>
+            <span class="tile-sub">记账助手</span>
+          </div>
+          <el-icon class="tile-arrow"><ArrowRight /></el-icon>
+        </div>
+        <!-- 退出登录（红色强调 token） -->
         <div class="setting-tile logout-tile" @click="handleLogout">
           <div class="tile-icon" style="background: linear-gradient(135deg, #ef4444, #f87171)">
             <el-icon :size="17"><SwitchButton /></el-icon>
