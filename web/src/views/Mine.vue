@@ -16,39 +16,30 @@
       </div>
     </div>
 
-    <!-- 数据工具组（对齐 gui _buildDataSettings / _buildCompactSyncRow：只放数据维护类
-     + 同步状态条，含 LinearProgressIndicator 进度条） -->
-    <section class="mine-section">
-      <div class="section-title">
-        <el-icon :size="15"><Tools /></el-icon>
-        <span>数据工具</span>
+    <!-- 同步状态卡（独立组件，参考 gui 端 mine_tab.dart _buildCompactSyncRow：
+         圆角 14 浅卡 + cloud 图标 + 状态文字 + 28x28 紧凑触发按钮 + 底部 2px LinearProgressIndicator。
+         不嵌在 group-card / setting-tile 里，避免跟系统设置 tile 视觉混淆。
+         用户 2026-09-10 决策：不显示"数据工具"分组标题；本身是一个完整进度条 UI） -->
+    <div class="sync-card" :class="{ syncing: sync.syncing }" @click="handleSync">
+      <div class="sync-card-row">
+        <el-icon class="sync-card-icon" :size="16"><Cloudy /></el-icon>
+        <span class="sync-card-text">{{ syncStatusText }}</span>
+        <button
+          class="sync-card-btn"
+          type="button"
+          :disabled="sync.syncing"
+          :aria-label="sync.syncing ? '同步中' : '立即同步'"
+          @click.stop="handleSync"
+        >
+          <el-icon v-if="!sync.syncing" :size="14"><Refresh /></el-icon>
+          <span v-else class="sync-mini-spinner" aria-hidden="true"></span>
+        </button>
       </div>
-      <div class="group-card glass">
-        <!-- 数据同步：参考 gui 端 _buildCompactSyncRow 紧凑模式 + 底部 2px LinearProgressIndicator
-             同步中 step + 百分比，闲置显示待同步条数/上次同步；右侧 32x32 触发按钮（同步中转圈） -->
-        <div class="setting-tile sync-tile" :class="{ syncing: sync.syncing }" @click="handleSync">
-          <div class="tile-icon" style="background: linear-gradient(135deg, #2E6BE5, #5B8DEF)">
-            <el-icon :size="17" :class="{ 'is-loading': sync.syncing }"><Refresh /></el-icon>
-          </div>
-          <div class="tile-main">
-            <span class="tile-label">数据同步</span>
-            <span class="tile-sub">{{ syncStatusText }}</span>
-          </div>
-          <button
-            class="tile-sync-btn"
-            type="button"
-            :disabled="sync.syncing"
-            :aria-label="sync.syncing ? '同步中' : '立即同步'"
-            @click.stop="handleSync"
-          >
-            <el-icon v-if="!sync.syncing" :size="15"><Refresh /></el-icon>
-            <span v-else class="sync-mini-spinner" aria-hidden="true"></span>
-          </button>
-          <!-- 底部 2px 进度条（仅同步中显示；对齐 gui LinearProgressIndicator minHeight:2） -->
-          <div v-if="sync.syncing" class="tile-progress" :style="{ width: `${sync.percent || 0}%` }"></div>
-        </div>
+      <!-- 完整进度条 track（始终渲染；仅同步中填充宽度） -->
+      <div class="sync-card-progress-track">
+        <div class="sync-card-progress-bar" :style="{ width: `${sync.percent || 0}%` }"></div>
       </div>
-    </section>
+    </div>
 
     <!-- 系统设置组（= 功能区；承接 gui 端"通用设置组 + 部分数据工具"：
          数据共享 / 数据库 / 界面布局 / 主题 / 关于 / 退出登录） -->
@@ -173,7 +164,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { Setting, Brush, InfoFilled, Tools, Share, Coin, ArrowRight, Refresh, Histogram, SwitchButton } from '@element-plus/icons-vue';
+import { Setting, Brush, InfoFilled, Share, Coin, ArrowRight, Refresh, Histogram, SwitchButton, Cloudy } from '@element-plus/icons-vue';
 import { ElMessageBox } from 'element-plus';
 import { useAuthStore } from '@/stores/auth';
 import { useSyncStore } from '@/stores/sync';
@@ -260,56 +251,107 @@ onMounted(() => {
   animation: mine-spin 0.8s linear infinite;
 }
 
-/* 数据同步 tile：紧凑同步状态条模式（参考 gui _buildCompactSyncRow） */
-.setting-tile.sync-tile {
+/* 同步状态卡（独立组件，参考 gui _buildCompactSyncRow；圆角 14 + 紧凑 row + 底部 2px 进度条） */
+.sync-card {
   position: relative;
+  border-radius: 14px;
+  background: var(--surface-glass);
+  border: 1px solid var(--border-glass);
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+.sync-card:hover {
+  border-color: var(--border-glass-strong);
+}
+.sync-card.syncing {
+  border-color: var(--brand-gold);
+  background: var(--surface-glass-strong);
 }
 
-.tile-sync-btn {
-  width: 32px;
-  height: 32px;
+.sync-card-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.sync-card-icon {
+  color: var(--text-2);
   flex-shrink: 0;
+  transition: color 0.2s ease;
+}
+.sync-card.syncing .sync-card-icon {
+  color: var(--brand-gold);
+}
+
+.sync-card-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.2s ease;
+}
+.sync-card.syncing .sync-card-text {
+  font-weight: 600;
+}
+
+.sync-card-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: none;
+  background: var(--surface-active);
+  color: var(--text-2);
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 9px;
-  border: 1px solid var(--border-glass);
-  background: var(--surface-active);
-  color: var(--text-2);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease;
 }
-.tile-sync-btn:hover:not(:disabled) {
-  background: var(--surface-hover);
-  border-color: var(--brand-gold);
-  color: var(--brand-gold);
+.sync-card-btn:hover:not(:disabled) {
+  background: var(--grad-brand);
+  color: var(--on-primary);
 }
-.tile-sync-btn:disabled {
+.sync-card-btn:disabled {
+  opacity: 0.75;
   cursor: default;
-  opacity: 0.85;
 }
 
-/* 同步中触发按钮内的迷你转圈（24×24 spinner 缩到 14×14，0.6s） */
+/* 同步中按钮内的迷你转圈（12×12 spinner；独立卡片里尺寸小一点） */
 .sync-mini-spinner {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  border: 2px solid var(--text-3);
-  border-top-color: var(--brand-gold);
+  border: 2px solid currentColor;
+  border-top-color: transparent;
   animation: mine-spin 0.6s linear infinite;
   display: inline-block;
 }
 
-/* 底部 2px 进度条（绝对定位贴 tile 底边，group-card overflow:hidden 兜底切角） */
-.tile-progress {
+/* 完整进度条：track 始终渲染（2px 圆角），仅同步中 bar 填充宽度
+   对齐 gui LinearProgressIndicator minHeight:2 + borderRadius:2 */
+.sync-card-progress-track {
   position: absolute;
   left: 0;
+  right: 0;
   bottom: 0;
   height: 2px;
+  background: var(--surface-active);
+  overflow: hidden;
+}
+.sync-card-progress-bar {
+  height: 100%;
   background: var(--grad-brand);
-  border-radius: 0 var(--radius-lg) 0 0;
   transition: width 0.35s cubic-bezier(0.2, 0.8, 0.3, 1);
-  pointer-events: none;
+  border-radius: 0 2px 2px 0;
 }
 
 @keyframes mine-spin {
