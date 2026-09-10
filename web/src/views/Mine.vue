@@ -16,15 +16,17 @@
       </div>
     </div>
 
-    <!-- 数据工具组（对齐移动端 DataSettings 命名；只放数据维护类：数据同步 / 同步设置） -->
+    <!-- 数据工具组（对齐 gui _buildDataSettings / _buildCompactSyncRow：只放数据维护类
+     + 同步状态条，含 LinearProgressIndicator 进度条） -->
     <section class="mine-section">
       <div class="section-title">
         <el-icon :size="15"><Tools /></el-icon>
         <span>数据工具</span>
       </div>
       <div class="group-card glass">
-        <!-- 数据同步（对齐框架原型"数据同步卡"：移动端 AppBar 零常驻后的同步入口） -->
-        <div class="setting-tile" @click="handleSync">
+        <!-- 数据同步：参考 gui 端 _buildCompactSyncRow 紧凑模式 + 底部 2px LinearProgressIndicator
+             同步中 step + 百分比，闲置显示待同步条数/上次同步；右侧 32x32 触发按钮（同步中转圈） -->
+        <div class="setting-tile sync-tile" :class="{ syncing: sync.syncing }" @click="handleSync">
           <div class="tile-icon" style="background: linear-gradient(135deg, #2E6BE5, #5B8DEF)">
             <el-icon :size="17" :class="{ 'is-loading': sync.syncing }"><Refresh /></el-icon>
           </div>
@@ -32,17 +34,18 @@
             <span class="tile-label">数据同步</span>
             <span class="tile-sub">{{ syncStatusText }}</span>
           </div>
-          <el-icon class="tile-arrow"><ArrowRight /></el-icon>
-        </div>
-        <div class="setting-tile" @click="router.push('/settings/sync')">
-          <div class="tile-icon" style="background: linear-gradient(135deg, #00a9c9, #38bdf8)">
-            <el-icon :size="17"><Connection /></el-icon>
-          </div>
-          <div class="tile-main">
-            <span class="tile-label">同步设置</span>
-            <span class="tile-sub">服务器与账号 · 数据管理</span>
-          </div>
-          <el-icon class="tile-arrow"><ArrowRight /></el-icon>
+          <button
+            class="tile-sync-btn"
+            type="button"
+            :disabled="sync.syncing"
+            :aria-label="sync.syncing ? '同步中' : '立即同步'"
+            @click.stop="handleSync"
+          >
+            <el-icon v-if="!sync.syncing" :size="15"><Refresh /></el-icon>
+            <span v-else class="sync-mini-spinner" aria-hidden="true"></span>
+          </button>
+          <!-- 底部 2px 进度条（仅同步中显示；对齐 gui LinearProgressIndicator minHeight:2） -->
+          <div v-if="sync.syncing" class="tile-progress" :style="{ width: `${sync.percent || 0}%` }"></div>
         </div>
       </div>
     </section>
@@ -170,7 +173,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { Setting, Brush, InfoFilled, Tools, Connection, Share, Coin, ArrowRight, Refresh, Histogram, SwitchButton } from '@element-plus/icons-vue';
+import { Setting, Brush, InfoFilled, Tools, Share, Coin, ArrowRight, Refresh, Histogram, SwitchButton } from '@element-plus/icons-vue';
 import { ElMessageBox } from 'element-plus';
 import { useAuthStore } from '@/stores/auth';
 import { useSyncStore } from '@/stores/sync';
@@ -255,6 +258,58 @@ onMounted(() => {
 /* 同步中图标旋转 */
 .tile-icon .is-loading {
   animation: mine-spin 0.8s linear infinite;
+}
+
+/* 数据同步 tile：紧凑同步状态条模式（参考 gui _buildCompactSyncRow） */
+.setting-tile.sync-tile {
+  position: relative;
+}
+
+.tile-sync-btn {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  border: 1px solid var(--border-glass);
+  background: var(--surface-active);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.tile-sync-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--brand-gold);
+  color: var(--brand-gold);
+}
+.tile-sync-btn:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+
+/* 同步中触发按钮内的迷你转圈（24×24 spinner 缩到 14×14，0.6s） */
+.sync-mini-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--text-3);
+  border-top-color: var(--brand-gold);
+  animation: mine-spin 0.6s linear infinite;
+  display: inline-block;
+}
+
+/* 底部 2px 进度条（绝对定位贴 tile 底边，group-card overflow:hidden 兜底切角） */
+.tile-progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--grad-brand);
+  border-radius: 0 var(--radius-lg) 0 0;
+  transition: width 0.35s cubic-bezier(0.2, 0.8, 0.3, 1);
+  pointer-events: none;
 }
 
 @keyframes mine-spin {
