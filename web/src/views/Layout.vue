@@ -53,9 +53,29 @@
           <button v-if="isDetailPage" class="back-btn" aria-label="返回" @click="goBack">
             <el-icon :size="18"><ArrowLeft /></el-icon>
           </button>
-          <span class="page-title">{{ route.meta.title || '记账' }}</span>
+          <!-- 账本切换胶囊（移动端记账 Tab，对齐原型 BookSelector：chip + 标题 + chevron） -->
+          <button
+            v-if="isMobile && showBookSelect"
+            class="book-pill"
+            @click="bookSheet = true"
+          >
+            <span class="book-chip" aria-hidden="true">
+              <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="26" height="26" rx="8" fill="#E3ECFB"/>
+                <rect x="8.5" y="5.5" width="9" height="15" rx="2" fill="#2E6BE5"/>
+                <rect x="12.7" y="5.5" width="1.2" height="15" fill="#FFFFFF"/>
+                <rect x="10.4" y="8.6" width="4.2" height="1.5" rx="0.75" fill="#FFFFFF"/>
+                <rect x="10.4" y="11.8" width="4.2" height="1.5" rx="0.75" fill="#FFFFFF"/>
+              </svg>
+            </span>
+            <span class="book-name">{{ currentBookName || '选择账本' }}</span>
+            <svg class="book-chev" width="12" height="8" viewBox="0 0 12 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M1.5 1.5L6 6L10.5 1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <span v-else class="page-title">{{ route.meta.title || '记账' }}</span>
           <el-select
-            v-if="showBookSelect"
+            v-if="showBookSelect && !isMobile"
             :model-value="app.currentBookId"
             class="global-book-select"
             placeholder="选择账本"
@@ -66,7 +86,8 @@
           </el-select>
         </div>
 
-        <div class="topbar-right">
+        <!-- 桌面端才常驻同步/主题/用户（移动端右上角零常驻，对齐框架原型；同步入口在"我的"） -->
+        <div v-if="!isMobile" class="topbar-right">
           <!-- 同步状态（移动端紧凑图标，桌面端文字行） -->
           <button class="sync-btn" :disabled="sync.syncing" @click="handleSync" :title="syncTitle">
             <span v-if="sync.syncing" class="sync-spinner"></span>
@@ -100,7 +121,7 @@
       </header>
 
       <!-- Content -->
-      <main class="content" :class="{ 'is-editor': isNoteEditor }">
+      <main class="content" :class="{ 'is-editor': isNoteEditor, 'is-bleed': isBleedPage }">
         <router-view v-slot="{ Component }">
           <transition name="page" mode="out-in">
             <component :is="Component" />
@@ -131,11 +152,44 @@
         </router-link>
       </nav>
     </div>
+
+    <!-- 账本切换弹层（移动端，底部 sheet） -->
+    <teleport to="body">
+      <transition name="sheet">
+        <div v-if="bookSheet" class="sheet-mask" @click.self="bookSheet = false">
+          <div class="sheet">
+            <div class="sheet-bar"></div>
+            <div class="sheet-title">选择账本</div>
+            <div class="book-list">
+              <button
+                v-for="b in app.books"
+                :key="b.id"
+                class="book-row"
+                :class="{ on: b.id === app.currentBookId }"
+                @click="pickBook(b.id)"
+              >
+                <span class="book-dot" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="26" height="26" rx="8" fill="#E3ECFB"/>
+                    <rect x="8.5" y="5.5" width="9" height="15" rx="2" fill="#2E6BE5"/>
+                    <rect x="12.7" y="5.5" width="1.2" height="15" fill="#FFFFFF"/>
+                    <rect x="10.4" y="8.6" width="4.2" height="1.5" rx="0.75" fill="#FFFFFF"/>
+                    <rect x="10.4" y="11.8" width="4.2" height="1.5" rx="0.75" fill="#FFFFFF"/>
+                  </svg>
+                </span>
+                <span class="book-row-name">{{ b.name }}</span>
+                <el-icon v-if="b.id === app.currentBookId" class="book-check"><Check /></el-icon>
+              </button>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   Coin,
@@ -151,6 +205,7 @@ import {
   Histogram,
   ArrowLeft,
   Plus,
+  Check,
 } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 import { useAppStore } from '@/stores/app';
@@ -198,6 +253,19 @@ function handleBookChange(id: string) {
 
 // 账本选择仅首页展示（对齐移动端：首页/记账页才切账本）
 const showBookSelect = computed(() => route.path === '/items');
+
+// 移动端账本切换弹层
+const bookSheet = ref(false);
+const currentBookName = computed(
+  () => app.books.find((b: any) => b.id === app.currentBookId)?.name || ''
+);
+function pickBook(id: string) {
+  app.switchBook(id);
+  bookSheet.value = false;
+}
+
+// 记账 Tab 移动端通栏（内容区去内边距，页面自身为整版白板）
+const isBleedPage = computed(() => isMobile.value && route.path === '/items');
 
 // 子页面（新增/编辑详情/列表/账本/经期/设置）在顶栏显示返回（对齐移动端 AppBar leading 返回）
 const isDetailPage = computed(() => /^\/(items\/(new|list|[^/]+)|notes\/(new|[^/]+)|books|periods|activities|vehicles|attachments|debts|fuel-records|db-viewer|settings\/)/.test(route.path));
@@ -426,6 +494,160 @@ function handleSync() {
 
 .global-book-select {
   width: 160px;
+}
+
+/* ========== 账本切换胶囊（移动端记账 Tab AppBar，对齐原型 BookSelector） ========== */
+.book-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 11px 0 5px;
+  background: var(--surface-glass-strong);
+  border: 1px solid var(--border-glass-strong);
+  border-radius: 18px;
+  cursor: pointer;
+  max-width: 68vw;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.book-pill:active {
+  background: var(--surface-hover);
+}
+
+.book-chip {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+}
+
+.book-chip svg {
+  display: block;
+  width: 26px;
+  height: 26px;
+}
+
+.book-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.book-chev {
+  flex-shrink: 0;
+  color: var(--text-3);
+}
+
+/* ========== 账本切换弹层 ========== */
+.sheet-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  background: rgba(4, 8, 18, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.sheet {
+  width: 100%;
+  max-width: 480px;
+  background: var(--surface-glass-strong);
+  backdrop-filter: var(--blur-glass);
+  border: 1px solid var(--border-glass);
+  border-radius: 20px 20px 0 0;
+  padding: 10px 16px calc(16px + env(safe-area-inset-bottom));
+  box-shadow: var(--shadow-pop);
+}
+
+.sheet-bar {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--text-3);
+  opacity: 0.4;
+  margin: 4px auto 14px;
+}
+
+.sheet-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-1);
+  margin-bottom: 12px;
+}
+
+.book-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.book-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.book-row:active {
+  background: var(--surface-hover);
+}
+
+.book-row.on {
+  background: var(--brand-gold-soft);
+}
+
+.book-dot {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.book-row-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.book-check {
+  color: var(--brand-gold);
+  flex-shrink: 0;
+}
+
+.sheet-enter-active,
+.sheet-leave-active {
+  transition: opacity 0.22s ease;
+}
+
+.sheet-enter-active .sheet,
+.sheet-leave-active .sheet {
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.sheet-enter-from,
+.sheet-leave-to {
+  opacity: 0;
+}
+
+.sheet-enter-from .sheet,
+.sheet-leave-to .sheet {
+  transform: translateY(100%);
 }
 
 .topbar-right {
@@ -691,6 +913,12 @@ function handleSync() {
 
   .content {
     padding: 20px 12px calc(76px + env(safe-area-inset-bottom));
+  }
+
+  /* 记账 Tab 通栏：去内容区内边距，由页面自身渲染整版白板（对齐原型铺满式） */
+  .content.is-bleed {
+    padding: 0;
+    max-width: none;
   }
 }
 </style>

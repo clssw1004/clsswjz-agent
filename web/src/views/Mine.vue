@@ -16,13 +16,71 @@
       </div>
     </div>
 
-    <!-- 系统设置组（对齐移动端 GeneralSettings） -->
+    <!-- 同步状态卡（独立组件，参考 gui 端 mine_tab.dart _buildCompactSyncRow：
+         圆角 14 浅卡 + cloud 图标 + 状态文字 + 28x28 紧凑触发按钮 + 底部 2px LinearProgressIndicator。
+         不嵌在 group-card / setting-tile 里，避免跟系统设置 tile 视觉混淆。
+         用户 2026-09-10 决策：不显示"数据工具"分组标题；本身是一个完整进度条 UI） -->
+    <div class="sync-card" :class="{ syncing: sync.syncing }" @click="handleSync">
+      <div class="sync-card-row">
+        <el-icon class="sync-card-icon" :size="16"><Cloudy /></el-icon>
+        <span class="sync-card-text">{{ syncStatusText }}</span>
+        <button
+          class="sync-card-btn"
+          type="button"
+          :disabled="sync.syncing"
+          :aria-label="sync.syncing ? '同步中' : '立即同步'"
+          @click.stop="handleSync"
+        >
+          <el-icon v-if="!sync.syncing" :size="14"><Refresh /></el-icon>
+          <span v-else class="sync-mini-spinner" aria-hidden="true"></span>
+        </button>
+      </div>
+      <!-- 完整进度条 track（始终渲染；仅同步中填充宽度） -->
+      <div class="sync-card-progress-track">
+        <div class="sync-card-progress-bar" :style="{ width: `${sync.percent || 0}%` }"></div>
+      </div>
+    </div>
+
+    <!-- 系统设置组（= 功能区；承接 gui 端"通用设置组 + 部分数据工具"：
+         数据共享 / 数据库 / 界面布局 / 主题 / 关于 / 退出登录） -->
     <section class="mine-section">
       <div class="section-title">
         <el-icon :size="15"><Setting /></el-icon>
         <span>系统设置</span>
       </div>
       <div class="group-card glass">
+        <!-- 数据共享（gui 端在通用设置组，本轮 2026-09-10 从"数据工具"挪入） -->
+        <div class="setting-tile" @click="router.push('/settings/share')">
+          <div class="tile-icon" style="background: linear-gradient(135deg, #3BA55D, #5BC07E)">
+            <el-icon :size="17"><Share /></el-icon>
+          </div>
+          <div class="tile-main">
+            <span class="tile-label">数据共享</span>
+            <span class="tile-sub">把车辆/加油/债务/活动/经期共享给家人</span>
+          </div>
+          <el-icon class="tile-arrow"><ArrowRight /></el-icon>
+        </div>
+        <div class="setting-tile" @click="router.push('/db-viewer')">
+          <div class="tile-icon" style="background: linear-gradient(135deg, #06b6d4, #22d3ee)">
+            <el-icon :size="17"><Coin /></el-icon>
+          </div>
+          <div class="tile-main">
+            <span class="tile-label">数据库</span>
+            <span class="tile-sub">查看本地 SQLite 数据 · 只读</span>
+          </div>
+          <el-icon class="tile-arrow"><ArrowRight /></el-icon>
+        </div>
+        <!-- 界面布局：恢复图标（之前 7e4a04d 误去图，本轮 2026-09-10 还原，对齐 gui dashboard_outlined #F97316） -->
+        <div class="setting-tile" @click="router.push('/settings/ui')">
+          <div class="tile-icon" style="background: linear-gradient(135deg, #F97316, #FB923C)">
+            <el-icon :size="17"><Histogram /></el-icon>
+          </div>
+          <div class="tile-main">
+            <span class="tile-label">界面布局</span>
+            <span class="tile-sub">记账 / 统计 / 我的页显示方式</span>
+          </div>
+          <el-icon class="tile-arrow"><ArrowRight /></el-icon>
+        </div>
         <div class="setting-tile" @click="themeSheet = true">
           <div class="tile-icon" style="background: linear-gradient(135deg, #7c5cfc, #a78bfa)">
             <el-icon :size="17"><Brush /></el-icon>
@@ -43,51 +101,19 @@
           </div>
           <el-icon class="tile-arrow"><ArrowRight /></el-icon>
         </div>
-      </div>
-    </section>
-
-    <!-- 数据工具组（对齐移动端 DataSettings） -->
-    <section class="mine-section">
-      <div class="section-title">
-        <el-icon :size="15"><Tools /></el-icon>
-        <span>数据工具</span>
-      </div>
-      <div class="group-card glass">
-        <div class="setting-tile" @click="router.push('/settings/sync')">
-          <div class="tile-icon" style="background: linear-gradient(135deg, #00a9c9, #38bdf8)">
-            <el-icon :size="17"><Connection /></el-icon>
+        <!-- 退出登录（红色强调 token；恢复 SwitchButton 图标，本轮 2026-09-10 还原） -->
+        <div class="setting-tile logout-tile" @click="handleLogout">
+          <div class="tile-icon" style="background: linear-gradient(135deg, #ef4444, #f87171)">
+            <el-icon :size="17"><SwitchButton /></el-icon>
           </div>
           <div class="tile-main">
-            <span class="tile-label">同步设置</span>
-            <span class="tile-sub">服务器与账号 · 数据管理</span>
+            <span class="tile-label tile-label-danger">退出登录</span>
+            <span class="tile-sub">清除本地会话，回到登录页</span>
           </div>
-          <el-icon class="tile-arrow"><ArrowRight /></el-icon>
-        </div>
-        <div class="setting-tile" @click="router.push('/settings/share')">
-          <div class="tile-icon" style="background: linear-gradient(135deg, #f472b6, #ec4899)">
-            <el-icon :size="17"><Share /></el-icon>
-          </div>
-          <div class="tile-main">
-            <span class="tile-label">数据共享</span>
-            <span class="tile-sub">把车辆/加油/债务/活动/经期共享给家人</span>
-          </div>
-          <el-icon class="tile-arrow"><ArrowRight /></el-icon>
-        </div>
-        <div class="setting-tile" @click="router.push('/db-viewer')">
-          <div class="tile-icon" style="background: linear-gradient(135deg, #06b6d4, #22d3ee)">
-            <el-icon :size="17"><Coin /></el-icon>
-          </div>
-          <div class="tile-main">
-            <span class="tile-label">数据库</span>
-            <span class="tile-sub">查看本地 SQLite 数据 · 只读</span>
-          </div>
-          <el-icon class="tile-arrow"><ArrowRight /></el-icon>
+          <el-icon class="tile-arrow tile-arrow-danger"><ArrowRight /></el-icon>
         </div>
       </div>
     </section>
-
-    <!-- 退出登录 -->
-    <button class="logout-btn" @click="handleLogout">退出登录</button>
 
     <!-- 主题设置弹层 -->
     <teleport to="body">
@@ -138,10 +164,11 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { Setting, Brush, InfoFilled, Tools, Connection, Share, Coin, ArrowRight } from '@element-plus/icons-vue';
+import { Setting, Brush, InfoFilled, Share, Coin, ArrowRight, Refresh, Histogram, SwitchButton, Cloudy } from '@element-plus/icons-vue';
 import { ElMessageBox } from 'element-plus';
 import { useAuthStore } from '@/stores/auth';
 import { useSyncStore } from '@/stores/sync';
+import { useAppStore } from '@/stores/app';
 import { loadAttachmentUrl, userApi } from '@/api';
 import { THEMES, activeTheme, activeThemeId, isDark, setMode, setTheme } from '@/styles/themes';
 
@@ -154,6 +181,20 @@ const aboutVisible = ref(false);
 const avatarUrl = ref('');
 
 const avatarText = computed(() => (auth.nickname || 'U').slice(0, 1).toUpperCase());
+
+/** 同步状态摘要（对齐 AppBar 同步按钮的文案规则） */
+const syncStatusText = computed(() => {
+  if (sync.syncing) return sync.step ? `${sync.step}${sync.percent ? ` ${sync.percent}%` : ''}` : '同步中...';
+  return sync.unsynced > 0 ? `${sync.unsynced} 条待同步，点击立即同步` : '数据已同步';
+});
+
+/** 手动触发同步（对齐 AppBar handleSync：完成后刷新账本列表） */
+function handleSync() {
+  if (sync.syncing) return;
+  sync.triggerSync().then(() => {
+    setTimeout(() => useAppStore().loadBooks(), 500);
+  });
+}
 
 /** 拉头像：带鉴权懒加载（<img> 直接请求会 401，用 fetch + token 拿 blob） */
 async function loadAvatar() {
@@ -203,6 +244,120 @@ onMounted(() => {
   flex-direction: column;
   gap: 18px;
   padding-bottom: 24px;
+}
+
+/* 同步中图标旋转 */
+.tile-icon .is-loading {
+  animation: mine-spin 0.8s linear infinite;
+}
+
+/* 同步状态卡（独立组件，参考 gui _buildCompactSyncRow；圆角 14 + 紧凑 row + 底部 2px 进度条） */
+.sync-card {
+  position: relative;
+  border-radius: 14px;
+  background: var(--surface-glass);
+  border: 1px solid var(--border-glass);
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+.sync-card:hover {
+  border-color: var(--border-glass-strong);
+}
+.sync-card.syncing {
+  border-color: var(--brand-gold);
+  background: var(--surface-glass-strong);
+}
+
+.sync-card-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.sync-card-icon {
+  color: var(--text-2);
+  flex-shrink: 0;
+  transition: color 0.2s ease;
+}
+.sync-card.syncing .sync-card-icon {
+  color: var(--brand-gold);
+}
+
+.sync-card-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.2s ease;
+}
+.sync-card.syncing .sync-card-text {
+  font-weight: 600;
+}
+
+.sync-card-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: none;
+  background: var(--surface-active);
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.sync-card-btn:hover:not(:disabled) {
+  background: var(--grad-brand);
+  color: var(--on-primary);
+}
+.sync-card-btn:disabled {
+  opacity: 0.75;
+  cursor: default;
+}
+
+/* 同步中按钮内的迷你转圈（12×12 spinner；独立卡片里尺寸小一点） */
+.sync-mini-spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: mine-spin 0.6s linear infinite;
+  display: inline-block;
+}
+
+/* 完整进度条：track 始终渲染（2px 圆角），仅同步中 bar 填充宽度
+   对齐 gui LinearProgressIndicator minHeight:2 + borderRadius:2 */
+.sync-card-progress-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--surface-active);
+  overflow: hidden;
+}
+.sync-card-progress-bar {
+  height: 100%;
+  background: var(--grad-brand);
+  transition: width 0.35s cubic-bezier(0.2, 0.8, 0.3, 1);
+  border-radius: 0 2px 2px 0;
+}
+
+@keyframes mine-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* 用户信息卡 */
@@ -316,6 +471,11 @@ onMounted(() => {
   transition: background 0.15s ease;
 }
 
+/* 无图标 tile 视觉补偿（本轮 2026-09-10 已撤销；保留 .no-icon 选择器作为占位，避免外部 class 触发样式塌缩） */
+.setting-tile.no-icon .tile-label {
+  font-size: 16px;
+}
+
 .setting-tile:hover {
   background: var(--surface-hover);
 }
@@ -363,22 +523,19 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-/* 退出登录 */
-.logout-btn {
-  width: 100%;
-  padding: 13px;
-  border: 1px solid rgba(239, 68, 68, 0.35);
-  border-radius: var(--radius-md);
-  background: var(--surface-glass);
-  color: var(--brand-red);
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease;
+/* 退出登录 tile（红色强调 token；原来是页底独立按钮，2026-09-10 决策合并进数据工具组下方） */
+.logout-tile {
+  --tile-accent: #ef4444;
 }
-
-.logout-btn:hover {
-  background: rgba(239, 68, 68, 0.07);
+.tile-label-danger {
+  color: var(--tile-accent);
+}
+.tile-arrow-danger {
+  color: var(--tile-accent);
+  opacity: 0.7;
+}
+.logout-tile:hover .tile-arrow-danger {
+  opacity: 1;
 }
 
 /* 弹层 */

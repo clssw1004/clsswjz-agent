@@ -1,86 +1,72 @@
 <template>
   <div class="items-view">
-    <!-- 统计卡：对齐移动端 BookStatisticCard -->
-    <Panel :icon="Wallet" :title="monthLabel" accent>
-      <template #head>
-        <span class="stat-head-book">{{ currentBookName }}</span>
-      </template>
-      <template #action>
-        <button class="stat-head-change" @click="monthSheet = true">切换</button>
-      </template>
-      <div class="stat-body">
-        <div class="stat-item">
-          <span class="stat-pill pill-expense">
-            <el-icon :size="14"><ArrowDown /></el-icon>支出
-          </span>
-          <span class="stat-num num expense">{{ fmt(summary.expense) }}</span>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat-item">
-          <span class="stat-pill pill-income">
-            <el-icon :size="14"><ArrowUp /></el-icon>收入
-          </span>
-          <span class="stat-num num income">{{ fmt(summary.income) }}</span>
+    <!-- 月度概览（对齐原型 MonthOverview：月份切换 + 支出主视觉 + 收入/结余） -->
+    <section class="month-overview">
+      <div class="mo-head">
+        <div class="mo-nav">
+          <button class="mo-arrow" aria-label="上月" @click="shiftMonth(-1)">
+            <el-icon :size="14"><ArrowLeft /></el-icon>
+          </button>
+          <button class="mo-title" @click="monthSheet = true">{{ monthShortLabel }}</button>
+          <button class="mo-arrow" aria-label="下月" @click="shiftMonth(1)">
+            <el-icon :size="14"><ArrowRight /></el-icon>
+          </button>
         </div>
       </div>
-      <div class="stat-line"></div>
-    </Panel>
-
-    <!-- 列表卡片：对齐移动端 ItemsContainer（仅展示最新一天账目，"更多"进列表页） -->
-    <Panel title="最近账目" divider noPad>
-      <template #head>
-        <span class="list-date">{{ lastDayLabel }}</span>
-        <div v-if="!loading && items.length" class="list-stats">
-          <span v-if="pageExpense < 0" class="mini-stat expense">
-            <el-icon :size="13"><ArrowDown /></el-icon>{{ abs2(pageExpense) }}
-          </span>
-          <span v-if="pageExpense < 0 && pageIncome > 0" class="mini-sep">|</span>
-          <span v-if="pageIncome > 0" class="mini-stat income">
-            <el-icon :size="13"><ArrowUp /></el-icon>{{ pageIncome.toFixed(2) }}
-          </span>
+      <div class="mo-stats">
+        <div class="mo-main">
+          <span class="mo-label">支出</span>
+          <span class="mo-num expense">¥{{ fmt(summary.expense) }}</span>
         </div>
-      </template>
-      <template #action>
-        <span class="list-more" @click="goList">
-          更多<el-icon :size="14"><ArrowRight /></el-icon>
-        </span>
-      </template>
-
-      <div v-loading="loading" class="list-body">
-        <el-empty v-if="!loading && items.length === 0" description="暂无账目，点中间加号记一笔" />
-
-        <div
-          v-for="item in items"
-          :key="item.id"
-          class="list-item"
-          @click="goDetail(item)"
-        >
-          <div class="deco-bar" :style="{ background: decoGrad(item.type) }"></div>
-          <div class="item-main">
-            <div class="item-row1">
-              <span class="item-cat">{{ catName(item.categoryCode) || item.categoryCode || '未分类' }}</span>
-              <span v-if="itemTags(item).length" class="item-tag">{{ itemTags(item).join(' · ') }}</span>
-              <span class="item-amount num" :style="{ color: amountColor(item.type) }">
-                {{ fmtAmount(item.amount) }}
-              </span>
-            </div>
-            <div class="item-row2">
-              <el-icon :size="13"><Clock /></el-icon>
-              <span>{{ timeOf(item) }}</span>
-              <template v-if="shopName(item.shopCode)">
-                <el-icon :size="13"><Shop /></el-icon>
-                <span class="ellipsis">{{ shopName(item.shopCode) }}</span>
-              </template>
-              <template v-if="item.description">
-                <span class="row2-dot">·</span>
-                <el-icon :size="13"><Document /></el-icon>
-                <span class="ellipsis">{{ item.description }}</span>
-              </template>
-            </div>
+        <div class="mo-side">
+          <div class="mo-col">
+            <span class="mo-label">收入</span>
+            <span class="mo-val income">+¥{{ fmt(summary.income) }}</span>
+          </div>
+          <div class="mo-vdiv"></div>
+          <div class="mo-col">
+            <span class="mo-label">结余</span>
+            <span class="mo-val balance">{{ balanceStr }}</span>
           </div>
         </div>
       </div>
-    </Panel>
+    </section>
+
+    <div class="sheet-divider"></div>
+
+    <!-- 最近一天明细（对齐原型：当日小计 + 全部账目入口 + 分类彩色头像行） -->
+    <section class="day-list">
+      <div class="day-head">
+        <div class="day-head-left">
+          <span class="day-label">{{ lastDayLabel }}</span>
+          <span v-if="!loading && items.length" class="day-sum">支出 ¥{{ fmt(pageExpense) }}</span>
+        </div>
+        <button class="day-more" @click="goList">
+          全部账目<el-icon :size="12"><ArrowRight /></el-icon>
+        </button>
+      </div>
+
+      <div v-loading="loading" class="day-body">
+        <el-empty v-if="!loading && items.length === 0" description="暂无账目，点中间加号记一笔" />
+
+        <!-- 精致账目行：左侧 4px 分类色条 + 描述/分类/时间 + 右侧金额（无图标，对齐移动端"无图标就去掉"约定） -->
+        <div v-for="item in items" :key="item.id" class="day-row" @click="goDetail(item)">
+          <span class="row-bar" :style="{ background: catColor(item) }" aria-hidden="true"></span>
+          <div class="row-main">
+            <div class="row-line1">
+              <span class="row-name">{{ rowTitle(item) }}</span>
+              <span v-if="catName(item.categoryCode)" class="row-cat-tag" :style="{ color: catColor(item) }">
+                {{ catName(item.categoryCode) }}
+              </span>
+            </div>
+            <span class="row-sub">{{ rowSub(item) }}</span>
+          </div>
+          <span class="row-amount" :class="item.type === 'INCOME' ? 'income' : 'expense'">
+            {{ item.type === 'INCOME' ? '+' : '-' }}¥{{ fmtAmount(item.amount) }}
+          </span>
+        </div>
+      </div>
+    </section>
 
     <!-- 统计组件（按 itemTabComponentOrder 配置化渲染，对齐 gui ItemsTab._buildOrderedComponents） -->
     <template v-for="key in componentOrder" :key="key">
@@ -120,12 +106,14 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { Wallet, ArrowDown, ArrowUp, ArrowRight, Clock, Shop, Document } from '@element-plus/icons-vue';
-import { itemApi, categoryApi, shopApi, tagApi, userApi } from '@/api';
+import {
+  ArrowLeft,
+  ArrowRight,
+} from '@element-plus/icons-vue';
+import { itemApi, categoryApi, shopApi, userApi } from '@/api';
 import { useAppStore } from '@/stores/app';
 import { usePrefsStore } from '@/stores/prefs';
 import { useAuthStore } from '@/stores/auth';
-import Panel from '@/components/Panel.vue';
 import DailyBarCard from '@/components/stats/DailyBarCard.vue';
 import DailyCalendarCard from '@/components/stats/DailyCalendarCard.vue';
 import UserMonthlyCard from '@/components/stats/UserMonthlyCard.vue';
@@ -144,10 +132,22 @@ const monthValue = ref(
 );
 const monthSheet = ref(false);
 
-const monthLabel = computed(() => {
+/** 月份短标题：当年只显「9月」，跨年带年份（对齐原型 MonthTitle） */
+const monthShortLabel = computed(() => {
   const m = /^(\d{4})-(\d{2})$/.exec(String(monthValue.value || ''));
-  return m ? `${m[1]}年${Number(m[2])}月` : '';
+  if (!m) return '';
+  return Number(m[1]) === now.getFullYear()
+    ? `${Number(m[2])}月`
+    : `${m[1]}年${Number(m[2])}月`;
 });
+
+/** 左右箭头切月（对齐原型 MonthNav） */
+function shiftMonth(delta: number) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(monthValue.value || ''));
+  if (!m) return;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1 + delta, 1);
+  monthValue.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
 
 // 拉到的最近一页（倒序），展示其中"最新一天"的账目（对齐移动端 lastDayItems）
 const allItems = ref<any[]>([]);
@@ -158,11 +158,22 @@ const summary = ref({ income: 0, expense: 0 });
 const lastDay = computed(() =>
   allItems.value.length ? String(allItems.value[0].accountDate || '').slice(0, 10) : ''
 );
-const lastDayLabel = computed(() => {
-  if (!lastDay.value) return '';
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(lastDay.value);
-  return m ? `${m[1]}年${Number(m[2])}月${Number(m[3])}日` : lastDay.value;
-});
+const lastDayLabel = computed(() => (lastDay.value ? fmtDayLabel(lastDay.value) : ''));
+
+/** 友好日期标签：今天/昨天 + M月D日 周X（对齐原型 GroupLabel） */
+function fmtDayLabel(dateStr: string) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (!m) return dateStr;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diff = Math.round((today.getTime() - d.getTime()) / 86400000);
+  const week = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
+  const base = `${Number(m[2])}月${Number(m[3])}日 周${week}`;
+  if (diff === 0) return `今天 · ${base}`;
+  if (diff === 1) return `昨天 · ${base}`;
+  return base;
+}
 
 /** 最新一天的账目（首页容器展示内容） */
 const items = computed(() =>
@@ -171,36 +182,51 @@ const items = computed(() =>
     : []
 );
 
-// code → name 映射（分类/商户/标签）
+// code → name 映射（分类/商户）
 const catMap = ref<Record<string, string>>({});
 const shopMap = ref<Record<string, string>>({});
-const tagMap = ref<Record<string, string>>({});
-
-const currentBookName = computed(
-  () => app.books.find((b: any) => b.id === app.currentBookId)?.name || ''
-);
 
 const catName = (code?: string) => (code ? catMap.value[code] : '');
 const shopName = (code?: string) => (code ? shopMap.value[code] : '');
-const tagName = (code?: string) => (code ? tagMap.value[code] : '');
-// 多标签显示：优先 item.tags（关联表），兼容历史 tagCode 单值
-const itemTags = (item: any) => {
-  if (Array.isArray(item.tags) && item.tags.length) {
-    return item.tags.map((c: string) => tagMap.value[c] || c);
-  }
-  return item.tagCode ? [tagMap.value[item.tagCode] || item.tagCode] : [];
-};
 
 const pageExpense = computed(() =>
   items.value
     .filter((i) => i.type === 'EXPENSE')
     .reduce((s, i) => s + Number(i.amount || 0), 0)
 );
-const pageIncome = computed(() =>
-  items.value
-    .filter((i) => i.type === 'INCOME')
-    .reduce((s, i) => s + Number(i.amount || 0), 0)
-);
+
+/** 结余 = 收入 - 支出（对齐原型 BalanceCol） */
+const balanceStr = computed(() => {
+  const v = summary.value.income - summary.value.expense;
+  return `${v >= 0 ? '+' : '-'}¥${fmt(v)}`;
+});
+
+// ========== 分类色（10 色调色板 + hashCode 取色，给左侧 4px 条 + 分类标签用，同 note_tile 规律） ==========
+const PALETTE = [
+  '#5C6BC0', '#26A69A', '#FF7043', '#AB47BC', '#42A5F5',
+  '#66BB6A', '#EC407A', '#FFA726', '#26C6DA', '#8D6E63',
+];
+
+function hashStr(s: string) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+function catColor(item: any) {
+  const key = String(item.categoryCode || item.categoryId || catName(item.categoryCode) || 'x');
+  return PALETTE[hashStr(key) % PALETTE.length];
+}
+
+function rowTitle(item: any) {
+  return item.description?.trim() || catName(item.categoryCode) || item.categoryCode || '未分类';
+}
+
+function rowSub(item: any) {
+  const cat = catName(item.categoryCode) || item.categoryCode || '未分类';
+  const shop = shopName(item.shopCode);
+  return shop ? `${cat} · ${timeOf(item)} · ${shop}` : `${cat} · ${timeOf(item)}`;
+}
 
 const range = computed(() => {
   const match = /^(\d{4})-(\d{2})$/.exec(String(monthValue.value || ''));
@@ -225,12 +251,11 @@ const range = computed(() => {
 // ========== 统计组件编排（对齐 gui UiConfigDTO.itemTabComponentOrder） ==========
 /** gui 默认顺序：daily_bar → period_status → daily_calendar → user_monthly → activity_recent → debt */
 const DEFAULT_ORDER = ['daily_bar', 'period_status', 'daily_calendar', 'user_monthly', 'activity_recent', 'debt'];
+const ALL_KEYS = ['daily_bar', 'daily_calendar', 'user_monthly', 'activity_recent', 'debt', 'period_status'];
 const componentOrder = computed(() => {
   const raw = prefs.get<string[]>('itemTabComponentOrder');
   if (Array.isArray(raw)) {
-    const valid = raw.filter((k) =>
-      ['daily_bar', 'daily_calendar', 'user_monthly', 'activity_recent', 'debt', 'period_status'].includes(k)
-    );
+    const valid = raw.filter((k) => ALL_KEYS.includes(k));
     if (valid.length) return valid;
   }
   return DEFAULT_ORDER;
@@ -324,21 +349,8 @@ function fmt(n: number) {
   return v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function abs2(n: number) {
-  return Math.abs(n).toFixed(2);
-}
-
 function fmtAmount(amount: number | string) {
   return (Number(amount) || 0).toFixed(2);
-}
-
-function amountColor(type?: string) {
-  return type === 'INCOME' ? 'var(--amount-income)' : 'var(--amount-expense)';
-}
-
-function decoGrad(type?: string) {
-  const c = type === 'INCOME' ? 'var(--amount-income)' : 'var(--amount-expense)';
-  return `linear-gradient(180deg, ${c}, color-mix(in srgb, ${c} 20%, transparent))`;
 }
 
 function timeOf(item: any) {
@@ -348,17 +360,14 @@ function timeOf(item: any) {
 
 async function loadMaps() {
   const bookId = app.currentBookId;
-  const [cats, shps, tgs] = await Promise.all([
+  const [cats, shps] = await Promise.all([
     categoryApi.list(bookId ? { accountBookId: bookId } : {}),
     shopApi.list(bookId ? { accountBookId: bookId } : {}),
-    tagApi.list(bookId ? { accountBookId: bookId } : {}),
   ]);
   const catList: any[] = cats.items || cats || [];
   const shopList: any[] = shps.items || shps || [];
-  const tagList: any[] = tgs.items || tgs || [];
   catMap.value = Object.fromEntries(catList.map((c) => [c.code, c.name]));
   shopMap.value = Object.fromEntries(shopList.map((s) => [s.code, s.name]));
-  tagMap.value = Object.fromEntries(tagList.map((t) => [t.code, t.name]));
 }
 
 async function loadSummary() {
@@ -435,271 +444,297 @@ watch(
   margin: 0 auto;
 }
 
-/* ========== 统计卡（对齐 BookStatisticCard，容器由 Panel 提供） ========== */
-.stat-head-book {
-  flex: 1;
-  font-size: 12px;
-  color: var(--text-3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* ========== 月度概览（桌面端为卡片，移动端融入整版白板） ========== */
+.month-overview,
+.day-list {
+  background: var(--surface-glass);
+  border: 1px solid var(--border-glass);
+  box-shadow: var(--shadow-card);
+  border-radius: var(--radius-lg);
+  padding: 16px;
 }
 
-.stat-head-change {
+.mo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mo-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mo-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.mo-arrow:hover {
+  background: var(--surface-hover);
+  color: var(--text-1);
+}
+
+.mo-title {
   border: none;
   background: transparent;
-  color: var(--brand-gold);
-  font-size: 12px;
-  cursor: pointer;
   padding: 2px 6px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-1);
+  cursor: pointer;
+  line-height: 1.2;
 }
 
-.stat-body {
+.mo-cfg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.mo-cfg:hover {
+  background: var(--surface-hover);
+  color: var(--brand-gold);
+}
+
+.mo-stats {
+  margin-top: 14px;
   display: flex;
-  align-items: stretch;
-  gap: 14px;
-  padding: 18px 16px 16px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
-.stat-item {
-  flex: 1;
+.mo-main {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 10px;
+  gap: 4px;
   min-width: 0;
 }
 
-.stat-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.pill-expense {
-  color: var(--amount-expense);
-  background: rgba(185, 91, 75, 0.12);
-}
-
-.pill-income {
-  color: var(--amount-income);
-  background: rgba(67, 160, 71, 0.12);
-}
-
-.stat-num {
-  font-size: 20px;
-  font-weight: 700;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.stat-num.expense {
-  color: var(--amount-expense);
-}
-
-.stat-num.income {
-  color: var(--amount-income);
-}
-
-.stat-divider {
-  width: 1px;
-  height: 44px;
-  align-self: center;
-  background: var(--border-glass);
-}
-
-/* 底部红绿渐变线 */
-.stat-line {
-  height: 2px;
-  border-radius: 1px;
-  margin: 0 16px 14px;
-  background: linear-gradient(90deg, rgba(185, 91, 75, 0.5), rgba(67, 160, 71, 0.5));
-}
-
-/* ========== 列表卡片（对齐 ItemsContainer，容器由 Panel 提供） ========== */
-.list-date {
+.mo-label {
   font-size: 11px;
   color: var(--text-3);
 }
 
-.list-stats {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
+.mo-num {
+  font-size: 24px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.mini-stat {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  font-weight: 500;
-}
-
-.mini-stat.expense {
+.mo-num.expense {
   color: var(--amount-expense);
 }
 
-.mini-stat.income {
-  color: var(--amount-income);
-}
-
-.mini-sep {
-  color: var(--text-3);
-}
-
-.list-more {
-  margin-left: auto;
-  display: inline-flex;
+.mo-side {
+  display: flex;
   align-items: center;
-  gap: 2px;
-  font-size: 13px;
-  color: var(--text-2);
-  cursor: pointer;
-  padding: 4px 2px;
-  border-radius: 6px;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.mo-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.mo-val {
+  font-size: 14px;
+  font-weight: 600;
   white-space: nowrap;
 }
 
-.list-more:hover {
+.mo-val.income {
+  color: var(--amount-income);
+}
+
+.mo-val.balance {
   color: var(--brand-gold);
 }
 
-.list-body {
-  min-height: 60px;
-  padding: 2px 0;
+.mo-vdiv {
+  width: 1px;
+  height: 30px;
+  background: var(--border-glass);
 }
 
-.list-item {
+/* ========== 最近一天明细 ========== */
+.day-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.day-head-left {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.day-label {
+  font-size: 13px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.day-sum {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+  white-space: nowrap;
+}
+
+.day-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  padding: 4px 2px;
+  font-size: 12px;
+  color: var(--brand-gold);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.day-body {
+  min-height: 60px;
+}
+
+.day-row {
+  position: relative;
   display: flex;
   align-items: stretch;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 11px 0;
   cursor: pointer;
   transition: background 0.15s ease;
 }
 
-.list-item:hover {
+.day-row:hover {
   background: var(--surface-hover);
 }
 
-.list-item:active {
+.day-row:active {
   background: var(--surface-active);
 }
 
-.deco-bar {
-  width: 4px;
-  height: 46px;
-  flex-shrink: 0;
-  margin-top: 2px;
-  border-radius: 2px;
+/* 行间内嵌分隔线（从左色条右侧起算，对齐原型 inset divider） */
+.day-row:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 18px;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--border-glass);
 }
 
-.item-main {
+/* 4px 分类色左侧条（精致行：用色条代替头像，保留分类色彩识别） */
+.row-bar {
+  flex-shrink: 0;
+  width: 4px;
+  align-self: stretch;
+  border-radius: 2px;
+  opacity: 0.85;
+}
+
+.row-main {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  justify-content: center;
+  gap: 3px;
 }
 
-.item-row1 {
+/* 第一行：账目名（粗体）+ 分类小标签（彩色，名字替换空格时无缝衔接） */
+.row-line1 {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
+  min-width: 0;
 }
 
-.item-cat {
+.row-name {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-1);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.item-tag {
-  flex-shrink: 0;
-  padding: 2px 8px;
-  border-radius: 5px;
-  background: var(--brand-gold-soft);
-  color: var(--brand-gold-dark);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-.item-amount {
-  margin-left: auto;
-  flex-shrink: 0;
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.item-row2 {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--text-3);
+  flex-shrink: 1;
   min-width: 0;
 }
 
-.item-row2 span.ellipsis {
+/* 分类小标签（仅当 description ≠ category name 时出现，颜色随分类变化） */
+.row-cat-tag {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.row-sub {
+  font-size: 12px;
+  color: var(--text-3);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 160px;
 }
 
-.row2-dot {
-  margin: 0 4px;
+.row-amount {
+  flex-shrink: 0;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  align-self: center;
 }
 
-/* ========== 触底加载 ========== */
-.list-sentinel {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 14px 0 16px;
-  min-height: 20px;
+.row-amount.income {
+  color: var(--amount-income);
 }
 
-.loading-hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--text-3);
+.row-amount.expense {
+  color: var(--amount-expense);
 }
 
-.loading-hint.end {
-  color: var(--text-3);
-  opacity: 0.7;
+/* 桌面端区块间分隔线隐藏（用 gap），移动端启用 */
+.sheet-divider {
+  display: none;
+  height: 1px;
+  background: var(--border-glass);
 }
 
-.spinner {
-  width: 13px;
-  height: 13px;
-  border: 2px solid var(--border-glass-strong);
-  border-top-color: var(--brand-gold);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* ========== FAB ========== */
+/* ========== FAB（桌面端；移动端由底部 tab 中央按钮提供） ========== */
 .fab {
   position: fixed;
   right: 28px;
@@ -789,9 +824,47 @@ watch(
   transform: translateY(100%);
 }
 
+/* ========== 移动端：整版白板铺满（对齐原型 ContentSheet） ========== */
 @media (max-width: 767px) {
   .items-view {
-    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+    gap: 0;
+    max-width: none;
+    min-height: 100%;
+    background: var(--surface-active);
+    border-radius: 16px 16px 0 0;
+    padding: 0 0 calc(76px + env(safe-area-inset-bottom));
+    box-sizing: border-box;
+  }
+
+  .month-overview,
+  .day-list {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 16px 16px 14px;
+  }
+
+  .sheet-divider {
+    display: block;
+  }
+
+  /* 统计卡融入白板：去卡片壳，改为区块 + 顶部分隔线 */
+  .items-view :deep(.panel) {
+    background: transparent;
+    border: none;
+    border-top: 1px solid var(--border-glass);
+    box-shadow: none;
+    backdrop-filter: none;
+    border-radius: 0;
+  }
+
+  .items-view :deep(.panel .panel-head) {
+    padding: 14px 16px 8px;
+  }
+
+  .items-view :deep(.panel .panel-body) {
+    padding: 4px 16px 14px;
   }
 
   /* 移动端新增入口由底部 tab 中间按钮提供，隐藏右下角 FAB */
@@ -799,8 +872,12 @@ watch(
     display: none;
   }
 
-  .stat-num {
-    font-size: 18px;
+  .mo-num {
+    font-size: 22px;
+  }
+
+  .day-row:not(:last-child)::after {
+    left: 18px;
   }
 }
 </style>
