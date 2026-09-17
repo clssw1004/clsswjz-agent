@@ -39,11 +39,40 @@ import Panel from '@/components/Panel.vue';
 
 const props = defineProps<{
   stats: { date: string; income: number; expense: number }[];
+  /** 当月月份（YYYY-MM），用于生成整月 1~N 号的完整槽位（缺失日期补零） */
+  month?: string;
 }>();
 
 const mode = ref<'expense' | 'income'>('expense'); // 默认支出（对齐 gui _showIncome=false）
 
-const days = computed(() => [...props.stats].sort((a, b) => a.date.localeCompare(b.date)));
+/** 推断月份：优先 month prop，否则取首条数据的年月 */
+const monthKey = computed(() => {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(props.month || ''));
+  if (m) return `${m[1]}-${m[2]}`;
+  const first = props.stats[0]?.date;
+  return first ? String(first).slice(0, 7) : '';
+});
+
+/** 当月天数 */
+const daysInMonth = computed(() => {
+  const m = /^(\d{4})-(\d{2})$/.exec(monthKey.value);
+  if (!m) return 0;
+  return new Date(Number(m[1]), Number(m[2]), 0).getDate();
+});
+
+/** 整月槽位：1~N 号每天一列，没账目的日期补零 —— 保证柱子与真实日期对齐、疏密均匀 */
+const days = computed(() => {
+  const n = daysInMonth.value;
+  if (!n) return [];
+  const byDate = new Map(props.stats.map((s) => [String(s.date).slice(0, 10), s]));
+  const arr: { date: string; income: number; expense: number }[] = [];
+  for (let d = 1; d <= n; d++) {
+    const date = `${monthKey.value}-${String(d).padStart(2, '0')}`;
+    const s = byDate.get(date);
+    arr.push({ date, income: Number(s?.income || 0), expense: Math.abs(Number(s?.expense || 0)) });
+  }
+  return arr;
+});
 
 const maxVal = computed(() => {
   let m = 0;
@@ -68,22 +97,20 @@ function fmtValue(d: { income: number; expense: number }) {
 const showXLabel = (_d: { date: string }, idx: number) => idx % xInterval.value === 0;
 const xLabel = (d: { date: string }) => String(Number(d.date.slice(8, 10)));
 
-/** X 轴标签间隔（对齐 gui _calculateXAxisInterval：按有账目的数据点数量动态） */
+/** X 轴标签间隔：整月 28~31 列，隔 3 列标一个（1、4、7…），保证不拥挤 */
 const xInterval = computed(() => {
   const n = days.value.length;
   if (n <= 10) return 1; // 数据点少，全显
   if (n <= 20) return 2;
-  if (n <= 30) return 3;
-  return 5;
+  return 3;
 });
 
-/** 柱子宽度（对齐 gui _calculateColumnWidth：数据少时收窄避免月初柱过粗） */
+/** 柱子宽度：整月固定槽位数，统一 8px（数据少时收窄避免柱过粗） */
 const colMaxWidth = computed(() => {
   const n = days.value.length;
   if (n <= 7) return '6px';
-  if (n <= 15) return '8px';
-  if (n <= 31) return '10px';
-  return '6px';
+  if (n <= 20) return '8px';
+  return '10px';
 });
 </script>
 

@@ -62,7 +62,7 @@
             <span class="row-sub">{{ rowSub(item) }}</span>
           </div>
           <span class="row-amount" :class="item.type === 'INCOME' ? 'income' : 'expense'">
-            {{ item.type === 'INCOME' ? '+' : '-' }}¥{{ fmtAmount(item.amount) }}
+            {{ item.type === 'INCOME' ? '+' : '-' }}¥{{ fmtAmount(Math.abs(Number(item.amount) || 0)) }}
           </span>
         </div>
       </div>
@@ -70,7 +70,7 @@
 
     <!-- 统计组件（按 itemTabComponentOrder 配置化渲染，对齐 gui ItemsTab._buildOrderedComponents） -->
     <template v-for="key in componentOrder" :key="key">
-      <DailyBarCard v-if="key === 'daily_bar'" :stats="dailyStats" />
+      <DailyBarCard v-if="key === 'daily_bar'" :stats="dailyStats" :month="monthValue" />
       <DailyCalendarCard v-else-if="key === 'daily_calendar'" :stats="dailyStats" :month="monthValue" />
       <UserMonthlyCard v-else-if="key === 'user_monthly'" :users="userStats" />
       <ActivityRecentCard v-else-if="key === 'activity_recent'" />
@@ -298,7 +298,7 @@ const userStats = computed(() => {
       map.set(key, { userId: uid, userName: name, income: 0, expense: 0, count: 0 });
     }
     const row = map.get(key)!;
-    const amt = Number(i.amount || 0);
+    const amt = Math.abs(Number(i.amount || 0));
     if (i.type === 'INCOME') row.income += amt;
     else if (i.type === 'EXPENSE') row.expense += amt;
     row.count += 1;
