@@ -192,12 +192,14 @@ const shopName = (code?: string) => (code ? shopMap.value[code] : '');
 const pageExpense = computed(() =>
   items.value
     .filter((i) => i.type === 'EXPENSE')
-    .reduce((s, i) => s + Number(i.amount || 0), 0)
+    .reduce((s, i) => s + Math.abs(Number(i.amount || 0)), 0)
 );
 
-/** 结余 = 收入 - 支出（对齐原型 BalanceCol） */
+/** 结余 = 收入 - 支出（对齐原型 BalanceCol）。
+ *  注意：后端金额按符号存储（EXPENSE 为负数），两端都取 abs 归一化，
+ *  避免「负负相减变相加」——曾出现 结余 = 收入 + 支出 的错误。 */
 const balanceStr = computed(() => {
-  const v = summary.value.income - summary.value.expense;
+  const v = Math.abs(summary.value.income) - Math.abs(summary.value.expense);
   return `${v >= 0 ? '+' : '-'}¥${fmt(v)}`;
 });
 
@@ -275,7 +277,7 @@ const dailyStats = computed(() => {
     if (!d) continue;
     if (!map.has(d)) map.set(d, { date: d, income: 0, expense: 0 });
     const row = map.get(d)!;
-    const amt = Number(i.amount || 0);
+    const amt = Math.abs(Number(i.amount || 0));
     if (i.type === 'INCOME') row.income += amt;
     else if (i.type === 'EXPENSE') row.expense += amt;
   }
