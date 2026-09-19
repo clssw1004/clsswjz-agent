@@ -19,7 +19,7 @@ npm run build:web        # Vite → web/dist/
 npm run start:prod       # node dist/main.js (serves SPA if web/dist exists)
 
 # Tests (Jest + ts-jest)
-npm test                 # Run all 91 tests
+npm test                 # Run all tests
 npm run test:watch       # Watch mode
 npm run test:cov         # Coverage report
 npx jest path/to/file.spec.ts   # Single test file
@@ -38,13 +38,17 @@ Browser (Vue 3) ←HTTPS→ clsswjz-agent (NestJS+SQLite) ←push/pull→ clsswj
 ### Two Separate Database Systems
 
 - **`data/meta.db`** — Managed by `MetaModule` via standard TypeORM `@InjectRepository(MetaUser)`. Stores user connection info (mainServerUrl, mainToken).
-- **`data/<host>/<userId>/db.sqlite`** — Per-user business database managed by `ConnectionManager`. Data is isolated by main server host AND userId (different main servers with the same userId get separate databases). Uses `this.connMgr.getRepository(userId, Entity)` — **not** `@InjectRepository`. Host context is set per-request via `AsyncLocalStorage` in `JwtStrategy.validate()`.
+- **`data/<hostDir>/<userId>/db.sqlite`** — Per-user business database managed by `ConnectionManager`. Data is isolated by main server host AND userId (different main servers with the same userId get separate databases). Uses `this.connMgr.getRepository(userId, Entity)` — **not** `@InjectRepository`. The host is resolved from `ConnectionManager.userHostMap` (a `userId → hostDir` map), **never** from request-scoped storage.
 
 ### Host-Based Data Isolation
 
-`ConnectionManager` uses `AsyncLocalStorage` to track the current request's main server host. The JWT token includes `host` (derived from `mainServerUrl` at login), and `JwtStrategy.validate()` writes it to the ALS store via `connMgr.setHost(host)`. This means all `getRepository()` / `getAttachmentsDir()` calls within a request automatically route to the correct `data/<host>/<userId>/` directory — no controller or service signature changes needed.
+`ConnectionManager` keeps a process-wide `userId → hostDir` map (`userHostMap`). `JwtStrategy.validate()` binds the token's `host` to `payload.sub` on every authenticated request; when an old token carries no `host`, `resolveHost(userId)` falls back to reading `mainServerUrl` from `data/meta.db` and caches the result. `getRepository()`, `getAttachmentsDir()`, `closeConnection()` and `resetUserDataDir()` all resolve the host this way, so every call routes to `data/<hostDir>/<userId>/` regardless of call stack.
 
-The `hostDirFromUrl()` helper normalizes URLs: strips protocol, port, and replaces non-alphanumeric chars with `_` (e.g., `http://192.168.1.100:3000` → `192.168.1.100`).
+> ⚠️ **Never reintroduce `AsyncLocalStorage` for the host.** It was the original design (commit `1f920f5`) and it failed silently: the ALS store written in `JwtStrategy.validate()` does not reliably reach the service layer through Nest's `guard → interceptor → handler` chain, so `host` was always `''` and every user's data collapsed into `data/<userId>/`. This was proven by signing a JWT with `host=bogushost-probe` — `/api/sync/status` returned 200 with normal data, yet `data/bogushost-probe/` was never created.
+
+`hostDirFromUrl()` (`src/core/host.util.ts`) normalizes URLs: strips protocol, port and trailing slashes, then replaces unsafe chars with `_` (e.g. `http://192.168.1.100:3000` → `192.168.1.100`).
+
+`migrateLegacyDir()` performs a one-shot, lossless rename of a legacy `data/<userId>/` directory into `data/<hostDir>/<userId>/` — only when the target database does not exist yet, and a failure never blocks startup.
 
 ### Adding a New Backend Module
 
@@ -83,6 +87,7 @@ Every mutation creates a `LogSync` entry. The sync cycle:
 
 - **Timestamps are epoch milliseconds** (`bigint`), not Date objects
 - **IDs are 32-char nanoid** (alphabet: `123456789abcdefghijkmnpqrstuvwxyz`)
+- **Host isolation is keyed by `userId`, not request context**: always resolve the data directory through `ConnectionManager` (`getRepository` / `getAttachmentsDir`) — do not read a host from `AsyncLocalStorage` or from the incoming request. See *Host-Based Data Isolation* above
 - **`synchronize: true`** everywhere — no migrations, TypeORM auto-alters tables
 - **Response wrapper**: `TransformInterceptor` wraps all responses in `{ code: 0, data, message: 'ok' }`. Frontend unwraps via axios interceptor
 - **TS is loosely configured**: `strictNullChecks: false`, `noImplicitAny: false`
