@@ -36,7 +36,7 @@ export class UserService {
    * 数据源为 per-user 的 AppUser 表（跨用户同步 + desensitize 已把共享账本成员昵称落库）。
    */
   async getNicknames(userId: string, ids: string[]): Promise<Record<string, string>> {
-    const unique = [...new Set((ids || []).filter((s) => typeof s === 'string' && s))];
+    const unique = [...new Set((ids || []).filter((s) => typeof s === 'string' && s.trim()))];
     if (!unique.length) return {};
     const repo = await this.connMgr.getRepository(userId, AppUser);
     const users = await repo.findByIds(unique);
