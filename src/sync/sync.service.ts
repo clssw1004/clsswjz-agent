@@ -1,6 +1,9 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { IsNull } from 'typeorm';
 import axios from 'axios';
+import * as fs from 'fs';
+import * as path from 'path';
 import { ConnectionManager } from '../core/connection-manager';
 import { UserService } from '../meta/user.service';
 import { LogSync } from '../entities/log-sync.entity';
@@ -26,6 +29,40 @@ export class SyncService implements OnModuleInit, OnModuleDestroy {
     if (interval > 0) {
       this.syncTimer = setInterval(() => this.syncAll(), interval);
       this.logger.log(`Auto-sync scheduler started (interval=${interval}ms)`);
+    }
+    // 启动补偿：物化是逐条日志回放，进程重启（或 flush 中断）会留下 materializedAt 为空的已同步日志。
+    // 它们原本只在"下一次拉到新日志"时才被顺带物化，主端无新增时会长期缺失（表现：标签/分类/商户名无法翻译）。
+    this.resumePendingMaterialization().catch((err) =>
+      this.logger.warn(`Resume materialization crashed: ${err.message}`),
+    );
+  }
+
+  /**
+   * 补齐上次运行遗留的未物化日志（启动补偿）。
+   * 只处理已有本地库文件的用户，避免给从未同步过的用户凭空创建数据目录。
+   */
+  private async resumePendingMaterialization(): Promise<void> {
+    let users;
+    try {
+      users = await this.userService.findAll();
+    } catch (err) {
+      this.logger.error(`Resume materialization failed to list users: ${err.message}`);
+      return;
+    }
+    for (const user of users) {
+      try {
+        if (!user.mainServerUrl || !user.mainToken) continue;
+        const host = await this.connMgr.resolveHost(user.id);
+        const dbPath = path.join(this.connMgr.getUserDataDir(host, user.id), 'db.sqlite');
+        if (!fs.existsSync(dbPath)) continue;
+        const logRepo = await this.connMgr.getRepository(user.id, LogSync);
+        const pending = await logRepo.countBy({ syncState: SyncState.SYNCED, materializedAt: IsNull() });
+        if (pending === 0) continue;
+        this.logger.log(`Resuming materialization for ${user.id}: ${pending} pending logs`);
+        await this.materialize.flush(user.id);
+      } catch (err) {
+        this.logger.warn(`Resume materialization failed for ${user.id}: ${err.message}`);
+      }
     }
   }
 
@@ -250,10 +287,11 @@ export class SyncService implements OnModuleInit, OnModuleDestroy {
         throw err;
       }
     }
-    if (totalPulled > 0) {
-      onProgress?.({ step: '应用服务端数据', percent: 90 });
-      await this.materialize.flush(userId);
-    }
+    // 物化不能依赖"本次是否拉到新日志"：进程重启或上次 flush 中断会留下 materializedAt 为空的已同步日志，
+    // 若只在 totalPulled > 0 时物化，这些日志会永久停留在未物化状态（表现为标签/分类/商户等名称无法翻译）。
+    // 无新日志时 flush 内部第一轮 find 即返回空并退出，成本仅一次查询。
+    onProgress?.({ step: '应用服务端数据', percent: 90 });
+    await this.materialize.flush(userId);
     return totalPulled;
   }
 
