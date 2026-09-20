@@ -70,8 +70,7 @@
 
     <!-- 统计组件（按 itemTabComponentOrder 配置化渲染，对齐 gui ItemsTab._buildOrderedComponents） -->
     <template v-for="key in componentOrder" :key="key">
-      <DailyBarCard v-if="key === 'daily_bar'" :stats="dailyStats" :month="monthValue" />
-      <DailyCalendarCard v-else-if="key === 'daily_calendar'" :stats="dailyStats" :month="monthValue" />
+      <DailyCalendarCard v-if="key === 'daily_calendar'" :stats="dailyStats" :month="monthValue" />
       <UserMonthlyCard v-else-if="key === 'user_monthly'" :users="userStats" />
       <ActivityRecentCard v-else-if="key === 'activity_recent'" />
       <DebtsCard v-else-if="key === 'debt'" />
@@ -114,7 +113,6 @@ import { itemApi, categoryApi, shopApi, userApi } from '@/api';
 import { useAppStore } from '@/stores/app';
 import { usePrefsStore } from '@/stores/prefs';
 import { useAuthStore } from '@/stores/auth';
-import DailyBarCard from '@/components/stats/DailyBarCard.vue';
 import DailyCalendarCard from '@/components/stats/DailyCalendarCard.vue';
 import UserMonthlyCard from '@/components/stats/UserMonthlyCard.vue';
 import ActivityRecentCard from '@/components/stats/ActivityRecentCard.vue';
@@ -256,9 +254,13 @@ const range = computed(() => {
 });
 
 // ========== 统计组件编排（对齐 gui UiConfigDTO.itemTabComponentOrder） ==========
-/** gui 默认顺序：daily_bar → period_status → daily_calendar → user_monthly → activity_recent → debt */
-const DEFAULT_ORDER = ['daily_bar', 'period_status', 'daily_calendar', 'user_monthly', 'activity_recent', 'debt'];
-const ALL_KEYS = ['daily_bar', 'daily_calendar', 'user_monthly', 'activity_recent', 'debt', 'period_status'];
+/**
+ * 默认顺序（对齐 gui 去掉 daily_bar 后的顺序）
+ * 2026-09-20：移除「每日收支柱状图」—— 单日金额量级差异过大（大额月付 vs 日常小额），
+ * 柱高归一化后小额日常支出被压成 2px 几乎不可读；日粒度分布改由日历视图（daily_calendar）承担。
+ */
+const DEFAULT_ORDER = ['period_status', 'daily_calendar', 'user_monthly', 'activity_recent', 'debt'];
+const ALL_KEYS = ['daily_calendar', 'user_monthly', 'activity_recent', 'debt', 'period_status'];
 const componentOrder = computed(() => {
   const raw = prefs.get<string[]>('itemTabComponentOrder');
   if (Array.isArray(raw)) {
@@ -268,7 +270,7 @@ const componentOrder = computed(() => {
   return DEFAULT_ORDER;
 });
 
-// ========== 当月账目（驱动柱状图/日历/成员统计；后端无按日/按用户聚合，前端内存聚合对齐 gui） ==========
+// ========== 当月账目（驱动日历/成员统计；后端无按日/按用户聚合，前端内存聚合对齐 gui） ==========
 const monthItems = ref<any[]>([]);
 const monthLoading = ref(false);
 /** 他人 userId → 昵称（对齐 gui id2name：查本地 userTable；失败回退「用户{id后4位}」） */
