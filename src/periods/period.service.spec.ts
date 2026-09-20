@@ -110,10 +110,18 @@ describe('PeriodService', () => {
 
     it('filters by recent days', async () => {
       const { service, cycleRepo } = buildService();
-      // recent=7 → cutoff ~2026-08-17
+      // 相对「今天」构造，避免写死日期后随时间推移而腐烂（原 fixture 写死 2026-08 → 9 月起必然失败）
+      const day = (offset: number) => {
+        const d = new Date();
+        d.setDate(d.getDate() + offset);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+          d.getDate(),
+        ).padStart(2, '0')}`;
+      };
+      // recent=7 → cutoff 为 7 天前：c1 结束于 1 天前（命中），c2 结束于 35 天前（不命中）
       cycleRepo.store.push(
-        { id: 'c1', startDate: '2026-08-20', endDate: '2026-08-23', createdBy: 'u1' },
-        { id: 'c2', startDate: '2026-07-01', endDate: '2026-07-05', createdBy: 'u1' },
+        { id: 'c1', startDate: day(-4), endDate: day(-1), createdBy: 'u1' },
+        { id: 'c2', startDate: day(-40), endDate: day(-35), createdBy: 'u1' },
       );
 
       const result = await service.listCycles('u1', { recent: 7 });
