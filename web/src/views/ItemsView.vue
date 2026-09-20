@@ -62,7 +62,7 @@
             <span class="row-sub">{{ rowSub(item) }}</span>
           </div>
           <span class="row-amount" :class="item.type === 'INCOME' ? 'income' : 'expense'">
-            {{ item.type === 'INCOME' ? '+' : '-' }}¥{{ fmtAmount(item.amount) }}
+            {{ item.type === 'INCOME' ? '+' : '-' }}¥{{ fmtAmount(Math.abs(Number(item.amount) || 0)) }}
           </span>
         </div>
       </div>
@@ -70,7 +70,7 @@
 
     <!-- 统计组件（按 itemTabComponentOrder 配置化渲染，对齐 gui ItemsTab._buildOrderedComponents） -->
     <template v-for="key in componentOrder" :key="key">
-      <DailyBarCard v-if="key === 'daily_bar'" :stats="dailyStats" />
+      <DailyBarCard v-if="key === 'daily_bar'" :stats="dailyStats" :month="monthValue" />
       <DailyCalendarCard v-else-if="key === 'daily_calendar'" :stats="dailyStats" :month="monthValue" />
       <UserMonthlyCard v-else-if="key === 'user_monthly'" :users="userStats" />
       <ActivityRecentCard v-else-if="key === 'activity_recent'" />
@@ -152,7 +152,7 @@ function shiftMonth(delta: number) {
 // 拉到的最近一页（倒序），展示其中"最新一天"的账目（对齐移动端 lastDayItems）
 const allItems = ref<any[]>([]);
 const loading = ref(false);
-const summary = ref({ income: 0, expense: 0 });
+const summary = ref<{ income: number; expense: number; balance?: number }>({ income: 0, expense: 0 });
 
 /** 最新账目日期（如 2026-08-22） */
 const lastDay = computed(() =>
@@ -192,12 +192,19 @@ const shopName = (code?: string) => (code ? shopMap.value[code] : '');
 const pageExpense = computed(() =>
   items.value
     .filter((i) => i.type === 'EXPENSE')
-    .reduce((s, i) => s + Number(i.amount || 0), 0)
+    .reduce((s, i) => s + Math.abs(Number(i.amount || 0)), 0)
 );
 
-/** 结余 = 收入 - 支出（对齐原型 BalanceCol） */
+/** 结余 = 收入 - 支出（对齐原型 BalanceCol）。
+ *  优先用后端返回的 balance（权威值）；后端未返回时退化为
+ *  abs(income) - abs(expense) —— 因 expense 按负数存储，
+ *  直接相减会「负负得正」变成收入+支出（曾出现该 bug）。 */
 const balanceStr = computed(() => {
-  const v = summary.value.income - summary.value.expense;
+  const s = summary.value;
+  const v =
+    typeof s.balance === 'number' && Number.isFinite(s.balance)
+      ? s.balance
+      : Math.abs(s.income) - Math.abs(s.expense);
   return `${v >= 0 ? '+' : '-'}¥${fmt(v)}`;
 });
 
@@ -275,7 +282,7 @@ const dailyStats = computed(() => {
     if (!d) continue;
     if (!map.has(d)) map.set(d, { date: d, income: 0, expense: 0 });
     const row = map.get(d)!;
-    const amt = Number(i.amount || 0);
+    const amt = Math.abs(Number(i.amount || 0));
     if (i.type === 'INCOME') row.income += amt;
     else if (i.type === 'EXPENSE') row.expense += amt;
   }
@@ -298,7 +305,7 @@ const userStats = computed(() => {
       map.set(key, { userId: uid, userName: name, income: 0, expense: 0, count: 0 });
     }
     const row = map.get(key)!;
-    const amt = Number(i.amount || 0);
+    const amt = Math.abs(Number(i.amount || 0));
     if (i.type === 'INCOME') row.income += amt;
     else if (i.type === 'EXPENSE') row.expense += amt;
     row.count += 1;
@@ -377,7 +384,11 @@ async function loadSummary() {
       startDate: range.value.startDate,
       endDate: range.value.endDate,
     });
-    summary.value = { income: Number(res.income || 0), expense: Number(res.expense || 0) };
+    summary.value = {
+      income: Number(res.income || 0),
+      expense: Number(res.expense || 0),
+      balance: Number.isFinite(Number(res.balance)) ? Number(res.balance) : undefined,
+    };
   } catch {
     summary.value = { income: 0, expense: 0 };
   }
