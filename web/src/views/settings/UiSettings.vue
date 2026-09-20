@@ -205,20 +205,18 @@ import {
 import { ElMessage } from 'element-plus';
 import { usePrefsStore } from '@/stores/prefs';
 
-/** 默认顺序（与 gui UiConfigDTO 默认一致） */
+/** 默认顺序（gui UiConfigDTO 默认去掉已下线的 daily_bar） */
 const DEFAULT_ORDER = [
-  'daily_bar',
   'period_status',
   'daily_calendar',
   'user_monthly',
   'activity_recent',
   'debt',
 ];
-const ALL_KEYS = ['daily_bar', 'daily_calendar', 'user_monthly', 'activity_recent', 'debt', 'period_status'];
+const ALL_KEYS = ['daily_calendar', 'user_monthly', 'activity_recent', 'debt', 'period_status'];
 
 /** 组件显示标签（中文 UI 用） */
 const COMPONENT_LABEL: Record<string, string> = {
-  daily_bar: '本周支出',
   period_status: '经期跟踪',
   daily_calendar: '记账日历',
   user_monthly: '成员本月',
@@ -233,7 +231,9 @@ const cfgRows = ref<{ key: string; on: boolean }[]>([]);
 
 function rebuildCfgRows() {
   const raw = prefs.get<string[]>('itemTabComponentOrder');
-  const shown = Array.isArray(raw) && raw.length ? raw.filter((k) => ALL_KEYS.includes(k)) : DEFAULT_ORDER;
+  // 过滤掉已下线 / 未知的 key；若过滤后为空（例如旧配置只开过已下线的组件），回退默认顺序，避免全部显示为关闭
+  const filtered = Array.isArray(raw) ? raw.filter((k) => ALL_KEYS.includes(k)) : [];
+  const shown = filtered.length ? filtered : DEFAULT_ORDER;
   const shownSet = new Set(shown);
   const rows: { key: string; on: boolean }[] = [];
   // 已开启项（保持顺序）
