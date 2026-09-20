@@ -3,13 +3,9 @@ import { JwtService } from '@nestjs/jwt';
 import axios from 'axios';
 import { UserService } from '../meta/user.service';
 import { ConnectionManager } from '../core/connection-manager';
+import { hostDirFromUrl } from '../core/host.util';
 import { AppUser } from '../entities/app-user.entity';
 import { SyncService } from '../sync/sync.service';
-
-/** 从 mainServerUrl 提取目录安全的主机标识 */
-function hostDirFromUrl(url: string): string {
-  return url.replace(/^https?:\/\//, '').replace(/:\d+$/, '').replace(/\/+$/, '').replace(/[^a-zA-Z0-9._-]/g, '_');
-}
 
 @Injectable()
 export class AuthService {
