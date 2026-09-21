@@ -157,11 +157,11 @@ export class ItemService {
   async create(userId: string, data: Partial<AccountItem> & { tagCodes?: string[] }) {
     const repo = await this.connMgr.getRepository(userId, AccountItem);
     const logRepo = await this.connMgr.getRepository(userId, LogSync);
-    // 多标签数组（tagCodes）为事实来源；tagCode 单值仅作历史兼容
+    // 多标签数组（tagCodes）为事实来源；tagCode 是历史遗留字段，不再写入
+    // （对齐 gui：AccountItemTable.toCreateCompanion 也不含 tagCode）
     const tagCodes = Array.isArray(data.tagCodes) ? data.tagCodes.filter(Boolean) : [];
-    const { tagCodes: _drop, ...rest } = data as any;
-    const tagCode = rest.tagCode || tagCodes[0] || undefined;
-    const item = repo.create({ ...rest, tagCode, createdBy: userId, updatedBy: userId } as any);
+    const { tagCodes: _dropTagCodes, tagCode: _legacyTagCode, ...rest } = data as any;
+    const item = repo.create({ ...rest, createdBy: userId, updatedBy: userId } as any);
     const saved = await repo.save(item as any);
     if (tagCodes.length) {
       await this.replaceTags(userId, saved.id, tagCodes);
@@ -174,8 +174,8 @@ export class ItemService {
       operatorId: userId,
       operatedAt: Date.now(),
       businessId: saved.id,
-      // 协议对齐移动端：operateData 含 tagCodes 数组（移动端优先读它，tagCode 仅兼容）
-      operateData: JSON.stringify({ ...saved, tagCodes: tagCodes.length ? tagCodes : undefined }),
+      // 协议对齐移动端：operateData 恒带 tagCodes 数组（[] = 无标签），tagCode 不再写入
+      operateData: JSON.stringify({ ...saved, tagCode: undefined, tagCodes }),
       syncState: SyncState.UNSYNCED,
       syncTime: -1,
     } as any);
@@ -186,15 +186,19 @@ export class ItemService {
   async update(userId: string, id: string, data: Partial<AccountItem> & { tagCodes?: string[] }) {
     const repo = await this.connMgr.getRepository(userId, AccountItem);
     const logRepo = await this.connMgr.getRepository(userId, LogSync);
-    const { tagCodes: rawTagCodes, ...fields } = data as any;
+    const { tagCodes: rawTagCodes, tagCode: _legacyTagCode, ...fields } = data as any;
     if (rawTagCodes !== undefined) {
       const tagCodes = Array.isArray(rawTagCodes) ? rawTagCodes.filter(Boolean) : [];
-      if (fields.tagCode === undefined) fields.tagCode = tagCodes[0] || null;
       await this.replaceTags(userId, id, tagCodes);
     }
     await repo.update(id, { ...fields, updatedBy: userId } as any);
     const updated = await repo.findOneBy({ id });
     if (updated) await this.attachTags(userId, [updated]);
+    // 日志恒带该项目前完整的标签集（事实来源 item_rel_field）：gui 回放 update 日志是
+    // 「先删该 item 的全部 TAG 关联，再按日志重插」，不写标签就等于让对端清空。
+    // 记录不存在时无法得知当前标签，此时省略该字段（对端保持不动）。
+    const currentTags =
+      updated && Array.isArray((updated as any).tags) ? (updated as any).tags : undefined;
     const log = logRepo.create({
       businessType: BusinessType.ITEM,
       operateType: OperateType.UPDATE,
@@ -203,14 +207,7 @@ export class ItemService {
       operatorId: userId,
       operatedAt: Date.now(),
       businessId: id,
-      operateData: JSON.stringify({
-        id,
-        ...fields,
-        tagCode: fields.tagCode ?? updated?.tagCode ?? null,
-        tagCodes: Array.isArray(rawTagCodes) && rawTagCodes.filter(Boolean).length
-          ? rawTagCodes.filter(Boolean)
-          : undefined,
-      }),
+      operateData: JSON.stringify({ id, ...fields, tagCode: undefined, tagCodes: currentTags }),
       syncState: SyncState.UNSYNCED,
       syncTime: -1,
     } as any);

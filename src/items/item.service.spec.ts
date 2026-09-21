@@ -291,6 +291,64 @@ describe('ItemService', () => {
       expect(logRepo.save).toHaveBeenCalledTimes(1);
     });
   });
+  describe('标签日志协议（对齐 gui 的 item 日志形状）', () => {
+    it('update 不带 tagCodes 时，日志仍携带该项目前完整的标签集', async () => {
+      // gui 回放 update 日志时是「先删该 item 的全部 TAG 关联，再按日志里的标签重插」。
+      // 若 agent 在部分更新时不写 tagCodes，gui 会把这次编辑理解成「标签清空」。
+      const itemRepo = mockItemRepo([
+        { id: 'i1', accountBookId: 'b1', amount: 1, type: 'EXPENSE' },
+      ]);
+      const relRepo = mockRelRepo([
+        { id: 'r1', itemId: 'i1', fieldCode: 'TAG', fieldValue: 'A', sortOrder: 0 },
+        { id: 'r2', itemId: 'i1', fieldCode: 'TAG', fieldValue: 'B', sortOrder: 1 },
+      ]);
+      const logRepo = mockLogRepo();
+      const { service } = buildService(itemRepo, relRepo, logRepo);
+
+      await service.update('user1', 'i1', { amount: 9 } as any);
+
+      const data = JSON.parse(logRepo.store[0].operateData);
+      expect(data.tagCodes).toEqual(['A', 'B']);
+      expect(data).not.toHaveProperty('tagCode');
+    });
+
+    it('update 传空 tagCodes 时，日志显式携带空数组，让「清空」可表达', async () => {
+      const itemRepo = mockItemRepo([
+        { id: 'i1', accountBookId: 'b1', amount: 1, type: 'EXPENSE' },
+      ]);
+      const relRepo = mockRelRepo([
+        { id: 'r1', itemId: 'i1', fieldCode: 'TAG', fieldValue: 'A', sortOrder: 0 },
+      ]);
+      const logRepo = mockLogRepo();
+      const { service } = buildService(itemRepo, relRepo, logRepo);
+
+      await service.update('user1', 'i1', { tagCodes: [] } as any);
+
+      const data = JSON.parse(logRepo.store[0].operateData);
+      expect(data.tagCodes).toEqual([]);
+      expect(data).not.toHaveProperty('tagCode');
+    });
+
+    it('create 的日志恒带 tagCodes 数组，且不含遗留 tagCode', async () => {
+      const itemRepo = mockItemRepo([]);
+      const relRepo = mockRelRepo();
+      const logRepo = mockLogRepo();
+      itemRepo.save = jest.fn(async (d: any) => {
+        d.id = 'item-new';
+        return d;
+      });
+      const { service } = buildService(itemRepo, relRepo, logRepo);
+
+      await service.create('user1', {
+        amount: 5,
+        accountBookId: 'b1',
+      } as any);
+
+      const data = JSON.parse(logRepo.store[0].operateData);
+      expect(data.tagCodes).toEqual([]);
+      expect(data).not.toHaveProperty('tagCode');
+    });
+  });
 });
 
 /* ---------- helper to call summary (tests use custom mock) ---------- */

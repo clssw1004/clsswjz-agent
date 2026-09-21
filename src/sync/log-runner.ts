@@ -225,13 +225,17 @@ export class LogRunner {
 
   /**
    * 维护 item 的多标签关联（对齐移动端：标签存 item_rel_field，fieldCode='TAG'）。
-   * - CREATE/UPDATE：operateData 显式含 tagCodes（或兼容 tagCode）时，先删后插；
-   *   未显式携带标签字段的部分更新不动关联（避免误删）。
+   * - CREATE：operateData 显式含 tagCodes（或兼容 tagCode）时写关联；无标签字段则不建关联
+   *   （对齐 gui ItemCULog.create 的「只插不删」）。
+   * - UPDATE/BATCH_UPDATE：一律「先删该 item 的全部 TAG 关联，再按日志重插」，
+   *   无标签字段视为清空（对齐 gui ItemCULog.executeLog 的无条件 deleteByItemAndCode）。
    * - DELETE/BATCH_DELETE：清理该 item 的全部关联。
+   *
+   * 注：历史遗留字段 AccountItem.tagCode 不再回填——事实来源只有 item_rel_field，
+   * gui 的 data2Json 也把 tagCode 剔除，回填会让两端 account_items.tag_code 不一致。
    */
   private async syncItemTags(log: LogSync, ds: DataSource, data: any): Promise<void> {
     const relRepo = ds.getRepository(ItemRelField);
-    const itemRepo = ds.getRepository(AccountItem);
     const extract = (d: any): string[] | null => {
       if (!d || typeof d !== 'object') return null;
       if (Array.isArray(d.tagCodes)) return d.tagCodes.filter((c: any) => typeof c === 'string' && c);
@@ -252,10 +256,6 @@ export class LogRunner {
           for (let i = 0; i < codes.length; i++) {
             await relRepo.save(relRepo.create({ itemId, fieldCode: TAG_FIELD, fieldValue: codes[i], sortOrder: i } as any) as any);
           }
-          // 兼容字段回填：多标签首值写入 item.tagCode（服务端/旧端依赖）
-          if (codes.length && !row.tagCode) {
-            await itemRepo.update(itemId, { tagCode: codes[0] } as any);
-          }
         }
         break;
       }
@@ -265,16 +265,14 @@ export class LogRunner {
         const ids = Array.isArray(data) ? undefined : data?.ids;
         for (let idx = 0; idx < rows.length; idx++) {
           const row = rows[idx];
-          const codes = extract(row);
-          if (codes === null) continue;
+          // 无标签字段 = 清空：gui 的 update 一律「先删后插」，清空标签时其 operateData
+          // 既无 tagCodes 也无 tagCode（空列表不落盘），故"两种字段都没有"的含义就是已清空
+          const codes = extract(row) ?? [];
           const itemId = (ids && ids[idx]) || row?.id || log.businessId;
           if (!itemId) continue;
           await relRepo.delete({ itemId, fieldCode: TAG_FIELD });
           for (let i = 0; i < codes.length; i++) {
             await relRepo.save(relRepo.create({ itemId, fieldCode: TAG_FIELD, fieldValue: codes[i], sortOrder: i } as any) as any);
-          }
-          if (codes.length && !row.tagCode) {
-            await itemRepo.update(itemId, { tagCode: codes[0] } as any);
           }
         }
         break;
