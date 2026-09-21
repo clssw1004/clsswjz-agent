@@ -390,6 +390,98 @@ describe('LogRunner', () => {
       await expect(runner.runLogSync(log, ds)).resolves.toBeUndefined();
     });
 
+    it('should clear tags when an UPDATE log carries no tag fields at all', async () => {
+      // 对齐 gui：update 一律「先删该 item 的全部 TAG 关联，再按日志里的标签重插」。
+      // 手机上清空标签时 gui 的 operateData 既无 tagCodes 也无 tagCode（空列表不落盘），
+      // 因此「两种字段都没有」的含义就是「已清空」。
+      const itemRepo = mockRepo(['id', 'amount', 'tagCode']);
+      const relRepo = mockRepo(['id', 'itemId', 'fieldCode', 'fieldValue', 'sortOrder']);
+      relRepo.store.push({ id: 'r1', itemId: 'i1', fieldCode: 'TAG', fieldValue: 'A', sortOrder: 0 });
+      const ds = mockDataSource({ AccountItem: itemRepo, ItemRelField: relRepo });
+      const log = makeLog({
+        businessType: BusinessType.ITEM,
+        operateType: OperateType.UPDATE,
+        businessId: 'i1',
+        operateData: JSON.stringify({ id: 'i1', amount: 5 }),
+      });
+
+      await runner.runLogSync(log, ds);
+
+      expect(relRepo.delete).toHaveBeenCalledWith({ itemId: 'i1', fieldCode: 'TAG' });
+      expect(
+        relRepo.store.filter((r) => r.itemId === 'i1' && r.fieldCode === 'TAG'),
+      ).toHaveLength(0);
+    });
+
+    it('should not write the legacy item.tagCode when replaying ITEM logs', async () => {
+      // tagCode 是历史遗留字段，事实来源是 item_rel_field；gui 的 data2Json 也明确把它剔除，
+      // 回放时再回填会让本地 account_items.tag_code 与对端不一致。
+      const itemRepo = mockRepo(['id', 'amount', 'tagCode']);
+      const relRepo = mockRepo(['id', 'itemId', 'fieldCode', 'fieldValue', 'sortOrder']);
+      const ds = mockDataSource({ AccountItem: itemRepo, ItemRelField: relRepo });
+
+      await runner.runLogSync(
+        makeLog({
+          businessType: BusinessType.ITEM,
+          operateType: OperateType.CREATE,
+          businessId: 'i1',
+          operateData: JSON.stringify({ id: 'i1', amount: 1, tagCodes: ['A', 'B'] }),
+        }),
+        ds,
+      );
+      await runner.runLogSync(
+        makeLog({
+          businessType: BusinessType.ITEM,
+          operateType: OperateType.UPDATE,
+          businessId: 'i2',
+          operateData: JSON.stringify({ id: 'i2', amount: 2, tagCodes: ['A', 'B'] }),
+        }),
+        ds,
+      );
+
+      const tagWrites = itemRepo.update.mock.calls.filter((c: any[]) => c[1] && 'tagCode' in c[1]);
+      expect(tagWrites).toHaveLength(0);
+    });
+
+    it('should replace tags in order when an UPDATE log carries tagCodes', async () => {
+      const itemRepo = mockRepo(['id', 'amount', 'tagCode']);
+      const relRepo = mockRepo(['id', 'itemId', 'fieldCode', 'fieldValue', 'sortOrder']);
+      relRepo.store.push({ id: 'old', itemId: 'i1', fieldCode: 'TAG', fieldValue: 'Z', sortOrder: 0 });
+      const ds = mockDataSource({ AccountItem: itemRepo, ItemRelField: relRepo });
+      const log = makeLog({
+        businessType: BusinessType.ITEM,
+        operateType: OperateType.UPDATE,
+        businessId: 'i1',
+        operateData: JSON.stringify({ id: 'i1', tagCodes: ['A', 'B'] }),
+      });
+
+      await runner.runLogSync(log, ds);
+
+      const rows = relRepo.store.filter((r) => r.itemId === 'i1' && r.fieldCode === 'TAG');
+      expect(rows.map((r) => r.fieldValue)).toEqual(['A', 'B']);
+      expect(rows.map((r) => r.sortOrder)).toEqual([0, 1]);
+    });
+
+    it('should not touch existing relations on CREATE without tag fields', async () => {
+      // gui 的 create 是「只插不删」（ItemCULog.create 只做 insert），与 update 的无条件
+      // 先删后插不同；这里刻意保留该不对称，避免 create 回放误删已有标签
+      const itemRepo = mockRepo(['id', 'amount', 'tagCode']);
+      const relRepo = mockRepo(['id', 'itemId', 'fieldCode', 'fieldValue', 'sortOrder']);
+      relRepo.store.push({ id: 'r1', itemId: 'i1', fieldCode: 'TAG', fieldValue: 'A', sortOrder: 0 });
+      const ds = mockDataSource({ AccountItem: itemRepo, ItemRelField: relRepo });
+      const log = makeLog({
+        businessType: BusinessType.ITEM,
+        operateType: OperateType.CREATE,
+        businessId: 'i1',
+        operateData: JSON.stringify({ id: 'i1', amount: 3 }),
+      });
+
+      await runner.runLogSync(log, ds);
+
+      expect(relRepo.delete).not.toHaveBeenCalled();
+      expect(relRepo.store.filter((r) => r.itemId === 'i1')).toHaveLength(1);
+    });
+
     it('should skip unknown business types', async () => {
       const ds = mockDataSource();
       const log = makeLog({ businessType: 'UNKNOWN_TYPE' as any });

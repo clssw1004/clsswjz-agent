@@ -94,7 +94,7 @@ Every mutation creates a `LogSync` entry. The sync cycle:
 - **`nest build` deletes dist/** before rebuilding (`deleteOutDir: true`)
 - **Web is conditionally served**: `ServeStaticModule` only registers if `web/dist` exists on disk
 - **`@Public()` decorator**: Only `POST /api/auth/login` opts out of JWT auth
-- **Tags on items**: Multi-tags live in `item_rel_field` (fieldCode='TAG'), not on AccountItem directly. Both ItemService and LogRunner maintain this independently
+- **Tags on items**: Multi-tags live in `item_rel_field` (fieldCode='TAG'), not on AccountItem directly — `AccountItem.tagCode` is a legacy column, never written by the agent (GUI's `toCreateCompanion` doesn't set it either). The item log protocol is the leaky part: `ItemService` always emits the full authoritative `tagCodes` (current state of `item_rel_field`, `[]` when none) and never emits `tagCode`; `LogRunner.syncItemTags` mirrors GUI — **CREATE only inserts, UPDATE unconditionally deletes then reinserts, and an UPDATE log with no tag field at all means "cleared"** (GUI omits `tagCodes` when the list is empty, so "both fields absent" is the only way it can say "no tags"). Changing either side alone breaks phone↔web tag convergence
 - **LogRunner.sanitize()** silently drops fields not in the entity schema — entity columns are the source of truth during replay
 
 ## Git Branching Policy
