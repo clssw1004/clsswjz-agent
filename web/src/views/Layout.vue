@@ -4,7 +4,7 @@
     <aside v-if="!isMobile" class="sidebar glass">
       <div class="logo-area">
         <div class="logo-badge">
-          <el-icon :size="20"><Coin /></el-icon>
+          <img class="logo-mark" :src="logoMark" alt="" />
         </div>
         <div class="logo-text">
           <span class="logo-title">记账助手</span>
@@ -192,7 +192,6 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
-  Coin,
   Wallet,
   Document,
   User,
@@ -212,6 +211,7 @@ import { useAppStore } from '@/stores/app';
 import { useSyncStore } from '@/stores/sync';
 import { useResponsive } from '@/composables/useResponsive';
 import { isDark, toggleMode } from '@/styles/themes';
+import logoMark from '@/assets/logo-mark.png';
 
 const route = useRoute();
 const router = useRouter();
@@ -328,6 +328,14 @@ function handleSync() {
   color: #fff;
   background: var(--grad-brand);
   box-shadow: var(--glow-primary);
+}
+
+/* GUI 的 app logo（猫），透明底；底色由上面的 var(--grad-brand) 提供，跟随主题 */
+.logo-mark {
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
+  display: block;
 }
 
 .logo-text {
