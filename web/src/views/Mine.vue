@@ -152,7 +152,9 @@
     <!-- 关于弹窗 -->
     <el-dialog v-model="aboutVisible" title="关于" width="320px" class="about-dialog">
       <div class="about-body">
-        <div class="about-logo">记</div>
+        <div class="about-logo">
+          <img class="logo-mark" :src="logoMark" alt="" />
+        </div>
         <p class="about-name">记账助手</p>
         <p class="about-desc">清爽 · 专注 · 明细</p>
         <p class="about-version">Web 版</p>
@@ -171,6 +173,7 @@ import { useSyncStore } from '@/stores/sync';
 import { useAppStore } from '@/stores/app';
 import { loadAttachmentUrl, userApi } from '@/api';
 import { THEMES, activeTheme, activeThemeId, isDark, setMode, setTheme } from '@/styles/themes';
+import logoMark from '@/assets/logo-mark.png';
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -668,12 +671,17 @@ html.dark .color-dot.on {
   align-items: center;
   justify-content: center;
   border-radius: 17px;
-  color: #fff;
-  font-size: 26px;
-  font-weight: 700;
   background: var(--grad-brand);
   box-shadow: var(--glow-primary);
   margin-bottom: 6px;
+}
+
+/* GUI 的 app logo（猫），透明底；底色由上面的 var(--grad-brand) 提供，跟随主题 */
+.logo-mark {
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
+  display: block;
 }
 
 .about-name {

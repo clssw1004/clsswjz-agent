@@ -3,7 +3,7 @@
     <div class="login-card glass">
       <div class="brand">
         <div class="brand-badge">
-          <el-icon :size="26"><Coin /></el-icon>
+          <img class="logo-mark" :src="logoMark" alt="" />
         </div>
         <h2>记账助手</h2>
         <p class="subtitle">{{ syncing ? '正在同步数据' : '登录以开始使用' }}</p>
@@ -74,11 +74,12 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted, onUnmounted } from 'vue';
-import { Coin, Link, CircleCheckFilled, CircleCloseFilled, Refresh, Loading, User, Lock } from '@element-plus/icons-vue';
+import { Link, CircleCheckFilled, CircleCloseFilled, Refresh, Loading, User, Lock } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useSyncStore } from '@/stores/sync';
 import { authApi } from '@/api';
+import logoMark from '@/assets/logo-mark.png';
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -211,6 +212,14 @@ onUnmounted(() => {
   background: var(--grad-brand);
   box-shadow: var(--glow-primary);
   margin-bottom: 14px;
+}
+
+/* GUI 的 app logo（猫），透明底；底色由上面的 var(--grad-brand) 提供，跟随主题 */
+.logo-mark {
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
+  display: block;
 }
 
 .brand h2 {
