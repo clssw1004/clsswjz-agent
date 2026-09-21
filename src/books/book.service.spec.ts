@@ -63,6 +63,74 @@ const OTHER = 'user_other';
 const myBook = { id: 'b_mine', name: '我的账本', createdBy: ME };
 const sharedBook = { id: 'b_shared', name: '别人共享给我的账本', createdBy: OTHER };
 
+/** 写路径 harness：账本仓库 + 日志仓库 */
+function makeWriteHarness() {
+  const logs: any[] = [];
+  const bookRepo = {
+    create: jest.fn((d: any) => d),
+    save: jest.fn(async (d: any) => {
+      if (!d.id) d.id = 'b_new';
+      return d;
+    }),
+    update: jest.fn(async () => undefined),
+    delete: jest.fn(async () => undefined),
+    findOneBy: jest.fn(async () => ({ id: 'b1', name: '改个名' })),
+  };
+  const logRepo = {
+    create: jest.fn((d: any) => d),
+    save: jest.fn(async (d: any) => {
+      logs.push(d);
+      return d;
+    }),
+  };
+  const connMgr = {
+    getRepository: jest.fn(async (_uid: string, entity: any) =>
+      entity.name === 'LogSync' ? logRepo : bookRepo,
+    ),
+  } as any;
+  return { svc: new BookService(connMgr), bookRepo, logs };
+}
+
+/**
+ * 账本日志的作用域字段必须对齐 gui 的 inBook(bookId)。
+ *
+ * 两处后果（同根）：
+ * - 主端 push 的账本权限门是 `if (log.parentType === 'book' && !isBookCreate)`，
+ *   写 'root' 会让账本 update/delete 完全绕过 canOperateBook 校验
+ * - gui 回放账本 update 是「用 parentId 定位记录」（BookCULog.executeLog 的 update 分支
+ *   `bookDao.update(parentId!, data!)`，是唯一用 parentId 而非 businessId 的类型），
+ *   且主端拉取可见性要求 parent_type='book' 才对同账本其他成员可见
+ */
+describe('BookService 写路径 —— 账本日志作用域字段', () => {
+  it('create 的日志标为 parentType=book、parentId=新账本 id', async () => {
+    const { svc, logs } = makeWriteHarness();
+
+    await svc.create(ME, { name: '新账本' } as any);
+
+    expect(logs[0].parentType).toBe('book');
+    expect(logs[0].parentId).toBe('b_new');
+    expect(logs[0].businessId).toBe('b_new');
+  });
+
+  it('update 的日志 parentId 是账本 id（gui 靠它定位记录）', async () => {
+    const { svc, logs } = makeWriteHarness();
+
+    await svc.update(ME, 'b1', { name: '改个名' } as any);
+
+    expect(logs[0].parentType).toBe('book');
+    expect(logs[0].parentId).toBe('b1');
+  });
+
+  it('remove 的日志 parentId 是账本 id（主端据此校验账本权限）', async () => {
+    const { svc, logs } = makeWriteHarness();
+
+    await svc.remove(ME, 'b1');
+
+    expect(logs[0].parentType).toBe('book');
+    expect(logs[0].parentId).toBe('b1');
+  });
+});
+
 describe('BookService.findAll 可见账本', () => {
   it('别人创建、共享给我且 canViewBook=true 的账本必须出现在列表里', async () => {
     const { svc } = makeService(

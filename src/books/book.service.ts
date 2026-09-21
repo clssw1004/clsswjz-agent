@@ -55,8 +55,11 @@ export class BookService {
     const log = logRepo.create({
       businessType: BusinessType.BOOK,
       operateType: OperateType.CREATE,
-      parentType: 'root',
-      parentId: 'None',
+      // 作用域字段对齐 gui：BookCULog.create 在 insert 后 inBook(data.id)，
+      // 即 parentType='book'、parentId=businessId=新账本 id。写 'root' 会让主端的
+      // 账本权限门（parentType === 'book' 才校验 canOperateBook）整段跳过。
+      parentType: 'book',
+      parentId: saved.id,
       operatorId: userId,
       operatedAt: Date.now(),
       businessId: saved.id,
@@ -76,8 +79,12 @@ export class BookService {
     const log = logRepo.create({
       businessType: BusinessType.BOOK,
       operateType: OperateType.UPDATE,
-      parentType: 'root',
-      parentId: 'None',
+      // gui 回放账本 update 是唯一用 parentId 定位记录的类型
+      // （book.builder.dart: BookCULog.executeLog → bookDao.update(parentId!, data!)），
+      // parentId 写错等于这次改名在手机端静默丢失；同时主端拉取可见性要求
+      // parent_type='book' 才对同账本其他成员可见。
+      parentType: 'book',
+      parentId: id,
       operatorId: userId,
       operatedAt: Date.now(),
       businessId: id,
@@ -96,8 +103,9 @@ export class BookService {
     const log = logRepo.create({
       businessType: BusinessType.BOOK,
       operateType: OperateType.DELETE,
-      parentType: 'root',
-      parentId: 'None',
+      // 同 update：parentId 交给主端做账本权限校验（gui BookDLog 也 inBook(bookId)）
+      parentType: 'book',
+      parentId: id,
       operatorId: userId,
       operatedAt: Date.now(),
       businessId: id,
